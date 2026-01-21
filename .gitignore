@@ -1,0 +1,62 @@
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+.env2
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs and results
+*.log
+migration.log
+migration_results.json
+*_results.json
+*_errors.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+/data
+
+# Script checkpoints and artifacts
+scripts/*_checkpoint.json
+scripts/archive/
+
+# Backup contents
+backups/*
+!backups/.gitkeep
+
+# Reference projects (external)
+shopify-db-main/
