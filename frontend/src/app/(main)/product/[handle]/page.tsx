@@ -5,6 +5,7 @@ import { ProductInfo } from '@/components/product/ProductInfo';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
 import { getProductByHandle } from '@/lib/supabase/queries';
 import { ARTISTS } from '@/types/database';
+import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ProductPageProps {
   params: Promise<{ handle: string }>;
@@ -15,19 +16,34 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const product = await getProductByHandle(handle);
 
   if (!product) {
-    return {
-      title: 'Product Not Found | YORD India',
-    };
+    return { title: 'Product Not Found' };
   }
 
+  const price = product.product_variants?.[0]?.price;
+  const image = product.product_images?.[0];
+  const imageUrl = image?.supabase_url || image?.src;
+  const description = product.body_html
+    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 160)
+    : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`;
+
   return {
-    title: `${product.title} | YORD India`,
-    description: `Shop ${product.title} from ${product.vendor || 'YORD'}. Premium artist-inspired fan merchandise.`,
+    title: `${product.title} — ${product.vendor || 'YORD India'} Concert Merchandise`,
+    description,
     openGraph: {
       title: `${product.title} | YORD India`,
-      description: `Shop ${product.title} from ${product.vendor || 'YORD'}. Premium concert merchandise.`,
+      description,
       type: 'website',
+      images: imageUrl ? [{ url: imageUrl, alt: product.title }] : undefined,
     },
+    alternates: {
+      canonical: `/product/${handle}`,
+    },
+    other: price
+      ? {
+        'product:price:amount': price.toString(),
+        'product:price:currency': 'INR',
+      }
+      : undefined,
   };
 }
 
@@ -74,7 +90,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="bg-noir-950 pt-20">
+      <JsonLd data={productSchema(productData)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Products', url: '/products' },
+          { name: product.title, url: `/product/${productData.handle}` },
+        ])}
+      />
       {/* Product Section */}
       <section className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">

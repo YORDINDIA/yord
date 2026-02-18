@@ -9,7 +9,8 @@ import { useCartStore } from '@/lib/stores/cartStore';
 import { formatPrice, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 
-const FREE_SHIPPING_THRESHOLD = 2999;
+const FREE_SHIPPING_THRESHOLD = 999;
+const FREE_FAST_SHIPPING_THRESHOLD = 1999;
 
 export function CartDrawer() {
   const isOpen = useCartStore((state) => state.isOpen);
@@ -21,7 +22,11 @@ export function CartDrawer() {
   const totalSavings = useCartStore((state) => state.totalSavings());
 
   const shippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+  const fastShippingProgress = Math.min((subtotal / FREE_FAST_SHIPPING_THRESHOLD) * 100, 100);
   const amountToFreeShipping = Math.max(FREE_SHIPPING_THRESHOLD - subtotal, 0);
+  const amountToFreeFastShipping = Math.max(FREE_FAST_SHIPPING_THRESHOLD - subtotal, 0);
+  const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const hasFreeFastShipping = subtotal >= FREE_FAST_SHIPPING_THRESHOLD;
 
   // Lock body scroll when cart is open
   useEffect(() => {
@@ -79,20 +84,22 @@ export function CartDrawer() {
               <div className="px-6 py-4 border-b border-noir-800">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-ivory-400">
-                    {amountToFreeShipping > 0
-                      ? `Add ${formatPrice(amountToFreeShipping)} for FREE shipping`
-                      : 'You have FREE shipping!'
+                    {hasFreeFastShipping
+                      ? 'You have FREE fast shipping!'
+                      : hasFreeShipping
+                        ? `Free standard! Add ${formatPrice(amountToFreeFastShipping)} for fast`
+                        : `Add ${formatPrice(amountToFreeShipping)} for FREE shipping`
                     }
                   </span>
                   <span className="text-xs text-gold-200">
-                    {shippingProgress >= 100 ? '✓' : `${Math.round(shippingProgress)}%`}
+                    {hasFreeFastShipping ? '✓' : `${Math.round(hasFreeShipping ? fastShippingProgress : shippingProgress)}%`}
                   </span>
                 </div>
                 <div className="h-1 bg-noir-800 overflow-hidden">
                   <motion.div
                     className="h-full bg-gold-200"
                     initial={{ width: 0 }}
-                    animate={{ width: `${shippingProgress}%` }}
+                    animate={{ width: `${hasFreeShipping ? fastShippingProgress : shippingProgress}%` }}
                     transition={{ duration: 0.5, ease: 'easeOut' }}
                   />
                 </div>

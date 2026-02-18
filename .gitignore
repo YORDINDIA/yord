@@ -44,9 +44,15 @@ migration_results.json
 *.swo
 *~
 
+# Dependencies
+node_modules/
+
 # OS
 .DS_Store
 Thumbs.db
+
+# Agents
+.agents/
 
 /data
 

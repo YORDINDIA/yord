@@ -9,6 +9,19 @@ from .config import (
     get_artist_keywords,
 )
 from .logging_config import setup_logging
+from .image_processor import (
+    ImageProcessor,
+    BackupManager,
+    StorageUploader,
+    is_shopify_cdn_url,
+    is_supabase_url,
+    get_url_hash,
+)
+from .html_parser import (
+    HTMLImageExtractor,
+    HTMLImageReplacer,
+    analyze_html_images,
+)
 
 __all__ = [
     # Shopify
@@ -26,4 +39,15 @@ __all__ = [
     'get_artist_keywords',
     # Logging
     'setup_logging',
+    # Image Processing
+    'ImageProcessor',
+    'BackupManager',
+    'StorageUploader',
+    'is_shopify_cdn_url',
+    'is_supabase_url',
+    'get_url_hash',
+    # HTML Parsing
+    'HTMLImageExtractor',
+    'HTMLImageReplacer',
+    'analyze_html_images',
 ]

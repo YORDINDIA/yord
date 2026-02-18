@@ -1,7 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Grid, LayoutGrid, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { cn } from '@/lib/utils';
@@ -259,14 +258,11 @@ export function ProductGridDisplay({
   accentColor,
   getDisplayData,
 }: ProductGridDisplayProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-50px' });
-
   return (
     <motion.div
-      ref={containerRef}
       initial={{ opacity: 0 }}
-      animate={isInView ? { opacity: 1 } : {}}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.6, delay: 0.2 }}
       className={cn(
         'grid gap-6 lg:gap-8',
@@ -282,7 +278,8 @@ export function ProductGridDisplay({
             <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
             >
               <ProductCard
@@ -305,7 +302,8 @@ export function ProductGridDisplay({
           <motion.div
             key={product.id}
             initial={{ opacity: 0, y: 30 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
           >
             <ProductCard product={product} />

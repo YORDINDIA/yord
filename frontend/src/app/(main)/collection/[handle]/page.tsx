@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { CollectionHeader } from '@/components/collection/CollectionHeader';
 import { CollectionProducts } from '@/components/collection/CollectionProducts';
 import { getCollections, getCollectionByHandle, getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
+import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
   params: Promise<{ handle: string }>;
@@ -51,6 +52,20 @@ export default async function CollectionPage({ params, searchParams }: Collectio
 
   return (
     <main className="min-h-screen bg-noir-950 pt-20">
+      <JsonLd
+        data={collectionPageSchema({
+          title: collectionTitle,
+          handle,
+          description: collectionDescription,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Collections', url: '/collections' },
+          { name: collectionTitle, url: `/collection/${handle}` },
+        ])}
+      />
       {/* Collection Header */}
       <CollectionHeader
         title={collectionTitle}

@@ -11,6 +11,14 @@ const FOOTER_LINKS = {
     { label: 'Bestsellers', href: '/collection/bestsellers' },
     { label: 'Limited Editions', href: '/collection/limited-edition' },
     { label: 'All Products', href: '/products' },
+    { label: 'Concert Merchandise', href: '/concert-merchandise-india' },
+  ],
+  concerts: [
+    { label: 'All Concerts', href: '/concerts' },
+    { label: 'Mumbai Concerts', href: '/concerts/city/mumbai' },
+    { label: 'Delhi Concerts', href: '/concerts/city/delhi' },
+    { label: 'Bengaluru Concerts', href: '/concerts/city/bengaluru' },
+    { label: 'Pune Concerts', href: '/concerts/city/pune' },
   ],
   support: [
     { label: 'Contact Us', href: '/contact' },
@@ -154,6 +162,24 @@ export function Footer() {
 
           <div className="lg:col-span-2">
             <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+              CONCERTS
+            </h4>
+            <ul className="space-y-3">
+              {FOOTER_LINKS.concerts.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-2">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
               SUPPORT
             </h4>
             <ul className="space-y-3">
@@ -193,8 +219,8 @@ export function Footer() {
             <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
               ARTISTS
             </h4>
-            <ul className="space-y-3">
-              {Object.values(ARTISTS).map((artist) => (
+            <ul className="flex flex-wrap gap-x-6 gap-y-2">
+              {Object.values(ARTISTS).slice(0, 6).map((artist) => (
                 <li key={artist.handle}>
                   <Link
                     href={`/artist/${artist.handle}`}
@@ -208,6 +234,15 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  href="/artists"
+                  className="flex items-center gap-2 font-[family-name:var(--font-jakarta)] text-sm text-gold-200 hover:text-gold-300 transition-colors group"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold-200 group-hover:scale-150 transition-transform" />
+                  View All Artists →
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
 import Link from 'next/link';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import type { TransformedProductWithSource } from '@/types/database';
@@ -22,20 +21,18 @@ export function ArtistProductsSectionClient({
   accentColor,
   products,
 }: ArtistProductsSectionClientProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-100px' });
-
   if (products.length === 0) {
     return null;
   }
 
   return (
-    <section ref={containerRef} className="py-16 bg-noir-900 overflow-hidden">
+    <section className="py-16 bg-noir-900 overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6 }}
           className="flex items-end justify-between mb-8"
         >
@@ -78,7 +75,8 @@ export function ArtistProductsSectionClient({
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, x: 30 }}
-                animate={isInView ? { opacity: 1, x: 0 } : {}}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: '-100px' }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="w-[260px] sm:w-[280px] flex-shrink-0"
               >

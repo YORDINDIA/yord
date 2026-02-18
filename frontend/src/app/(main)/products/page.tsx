@@ -2,10 +2,12 @@ import { getProductsFiltered, getProductTypes, getArtistsWithMetadata, type Sort
 import { ProductsGrid } from '@/components/product/ProductsGrid';
 import { ShoppingBag, X, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { JsonLd, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 export const metadata = {
-  title: 'All Products | YORD India',
-  description: 'Browse our complete collection of official artist merchandise.',
+  title: 'All Concert Merchandise | Shop 50+ Artists',
+  description: 'Browse our complete collection of premium concert merchandise for 50+ artists. Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran & more. Free shipping above ₹1,999.',
+  alternates: { canonical: '/products' },
 };
 
 interface ProductsPageProps {
@@ -74,6 +76,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Products', url: '/products' },
+        ])}
+      />
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="text-center mb-12">

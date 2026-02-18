@@ -6,10 +6,13 @@ import { ArtistProductsSection } from '@/components/home/ArtistProductsSection';
 import { BrandStory } from '@/components/home/BrandStory';
 import { NewsletterSection } from '@/components/home/NewsletterSection';
 import { SectionDivider } from '@/components/ui/SectionDivider';
+import { JsonLd, organizationSchema, websiteSchema } from '@/lib/seo/jsonld';
 
 export default function HomePage() {
   return (
     <main>
+      <JsonLd data={organizationSchema()} />
+      <JsonLd data={websiteSchema()} />
       {/* Hero Section - Full viewport immersive experience */}
       <HeroSection />
 

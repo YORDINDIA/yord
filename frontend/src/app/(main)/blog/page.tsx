@@ -6,13 +6,14 @@ import { formatDate } from '@/lib/utils';
 import type { ArticleWithBlog } from '@/types/database';
 
 export const metadata: Metadata = {
-  title: 'Blog | YORD India',
-  description: 'Stories, style guides, and behind-the-scenes from the world of premium concert fashion.',
+  title: 'Blog — Concert Fashion, Style Guides & Music Stories',
+  description: 'Stories, style guides, and behind-the-scenes from the world of premium concert fashion in India. Concert merch guides, artist features, and music culture.',
   openGraph: {
     title: 'Blog | YORD India',
     description: 'Stories, style guides, and behind-the-scenes from the world of premium concert fashion.',
     type: 'website',
   },
+  alternates: { canonical: '/blog' },
 };
 
 interface BlogPageProps {

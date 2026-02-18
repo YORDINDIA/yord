@@ -193,9 +193,6 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
         className={cn('group relative', className)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
         whileHover={{
           y: -8,
           transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] }

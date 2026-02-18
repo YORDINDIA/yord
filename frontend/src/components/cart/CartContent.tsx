@@ -9,7 +9,8 @@ import { useCartStore } from '@/lib/stores/cartStore';
 import { formatPrice, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 
-const FREE_SHIPPING_THRESHOLD = 2999;
+const FREE_SHIPPING_THRESHOLD = 999;
+const FREE_FAST_SHIPPING_THRESHOLD = 1999;
 
 export function CartContent() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,8 +24,11 @@ export function CartContent() {
   const totalSavings = useCartStore((state) => state.totalSavings());
 
   const shippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+  const fastShippingProgress = Math.min((subtotal / FREE_FAST_SHIPPING_THRESHOLD) * 100, 100);
   const amountToFreeShipping = Math.max(FREE_SHIPPING_THRESHOLD - subtotal, 0);
+  const amountToFreeFastShipping = Math.max(FREE_FAST_SHIPPING_THRESHOLD - subtotal, 0);
   const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const hasFreeFastShipping = subtotal >= FREE_FAST_SHIPPING_THRESHOLD;
 
   return (
     <section ref={containerRef} className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
@@ -100,21 +104,23 @@ export function CartContent() {
                 <div className="flex items-center gap-2">
                   <Truck size={18} className="text-gold-200" />
                   <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
-                    {hasFreeShipping
-                      ? 'Congratulations! You have FREE shipping!'
-                      : `Add ${formatPrice(amountToFreeShipping)} for FREE shipping`
+                    {hasFreeFastShipping
+                      ? 'Congratulations! You have FREE fast shipping!'
+                      : hasFreeShipping
+                        ? `Free standard shipping! Add ${formatPrice(amountToFreeFastShipping)} for free fast shipping`
+                        : `Add ${formatPrice(amountToFreeShipping)} for FREE shipping`
                     }
                   </span>
                 </div>
                 <span className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-gold-200">
-                  {hasFreeShipping ? '✓' : `${Math.round(shippingProgress)}%`}
+                  {hasFreeFastShipping ? '✓' : `${Math.round(hasFreeShipping ? fastShippingProgress : shippingProgress)}%`}
                 </span>
               </div>
               <div className="h-2 bg-noir-800 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-gradient-to-r from-gold-400 to-gold-200 rounded-full"
                   initial={{ width: 0 }}
-                  animate={{ width: `${shippingProgress}%` }}
+                  animate={{ width: `${hasFreeShipping ? fastShippingProgress : shippingProgress}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                 />
               </div>
@@ -290,10 +296,12 @@ export function CartContent() {
                     Shipping
                   </span>
                   <span className="font-[family-name:var(--font-jakarta)] text-ivory-100">
-                    {hasFreeShipping ? (
-                      <span className="text-emerald-500">FREE</span>
+                    {hasFreeFastShipping ? (
+                      <span className="text-emerald-500">FREE Fast</span>
+                    ) : hasFreeShipping ? (
+                      <span className="text-emerald-500">FREE Standard</span>
                     ) : (
-                      'Calculated at checkout'
+                      'From ₹49 at checkout'
                     )}
                   </span>
                 </div>

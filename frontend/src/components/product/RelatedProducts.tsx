@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { createClient } from '@/lib/supabase/client';
@@ -25,8 +25,6 @@ interface SimpleProduct {
 }
 
 export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD966' }: RelatedProductsProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-100px' });
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,12 +100,13 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
   if (products.length === 0) return null;
 
   return (
-    <section ref={containerRef} className="py-24 bg-noir-900">
+    <section className="py-24 bg-noir-900">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6 }}
           className="flex items-end justify-between mb-12"
         >
@@ -137,7 +136,8 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
             <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
               <ProductCard

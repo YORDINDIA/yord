@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ProductCard } from '@/components/ui/ProductCard';
 import {
   ProductGridSkeleton,
@@ -33,7 +33,6 @@ export function CollectionProducts({
   initialPage = 1,
 }: CollectionProductsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-50px' });
 
   const [sortBy, setSortBy] = useState<SortOption>(initialSort);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -200,7 +199,8 @@ export function CollectionProducts({
       {/* Toolbar */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        animate={isInView ? { opacity: 1, y: 0 } : {}}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.5 }}
         className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-noir-800"
       >
@@ -242,7 +242,8 @@ export function CollectionProducts({
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 30 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
                 transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
               >
                 <ProductCard

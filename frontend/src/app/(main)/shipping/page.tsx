@@ -35,7 +35,8 @@ export default function ShippingPage() {
                 FREE SHIPPING
               </h3>
               <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
-                On all orders above ₹1,999
+                Standard free above ₹999<br />
+                <span className="text-gold-200">Fast free above ₹1,999</span>
               </p>
             </div>
             <div className="bg-noir-900 border border-noir-800 p-8 text-center">
@@ -118,23 +119,23 @@ export default function ShippingPage() {
                   Orders above ₹1,999
                 </span>
                 <span className="font-[family-name:var(--font-bebas)] text-green-400 tracking-wider">
-                  FREE
+                  FREE Fast Shipping
                 </span>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-noir-800">
                 <span className="font-[family-name:var(--font-jakarta)] text-ivory-300">
-                  Orders below ₹1,999
+                  Orders ₹999 - ₹1,999
                 </span>
-                <span className="font-[family-name:var(--font-bebas)] text-ivory-100 tracking-wider">
-                  ₹99
+                <span className="font-[family-name:var(--font-bebas)] text-green-400 tracking-wider">
+                  FREE Standard
                 </span>
               </div>
-              <div className="flex justify-between items-center py-3">
+              <div className="flex justify-between items-center py-3 border-b border-noir-800">
                 <span className="font-[family-name:var(--font-jakarta)] text-ivory-300">
-                  Express Shipping (available at checkout)
+                  Orders below ₹999
                 </span>
                 <span className="font-[family-name:var(--font-bebas)] text-ivory-100 tracking-wider">
-                  ₹199
+                  ₹49 Standard / ₹99 Fast
                 </span>
               </div>
             </div>

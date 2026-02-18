@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Calendar, User, Clock } from 'lucide-react';
 import { getArticleBySlug, getRelatedArticles, getArticlesStatic } from '@/lib/supabase/queries';
 import { formatDate, estimateReadTime } from '@/lib/utils';
+import { JsonLd, articleSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>;
@@ -63,6 +64,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   return (
     <main className="min-h-screen bg-noir-950 pt-20">
+      <JsonLd data={articleSchema(article)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Blog', url: '/blog' },
+          { name: article.title, url: `/blog/${article.handle}` },
+        ])}
+      />
       {/* Back Navigation */}
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-6">
         <Link

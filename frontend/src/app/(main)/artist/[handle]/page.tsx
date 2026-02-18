@@ -3,6 +3,8 @@ import { Metadata } from 'next';
 import { getArtistByHandle, getArtistsWithMetadata } from '@/lib/supabase/queries';
 import { ArtistHero } from '@/components/artist/ArtistHero';
 import { ArtistProducts } from '@/components/artist/ArtistProducts';
+import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
+import { getConcertsByArtist } from '@/lib/data/concerts';
 
 interface ArtistPageProps {
   params: Promise<{ handle: string }>;
@@ -30,13 +32,14 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
   }
 
   return {
-    title: `${artist.name} Collection | YORD India`,
-    description: `Shop exclusive ${artist.name} inspired merchandise. ${artist.tagline}. Premium quality, fan-made designs.`,
+    title: `${artist.name} Concert Merchandise India | YORD India`,
+    description: `Shop exclusive ${artist.name} concert merchandise in India. ${artist.tagline}. Premium quality fan-made designs. Free shipping above ₹1,999.`,
     openGraph: {
-      title: `${artist.name} Collection | YORD India`,
+      title: `${artist.name} Concert Merchandise | YORD India`,
       description: `Shop exclusive ${artist.name} concert merchandise. ${artist.tagline}.`,
       type: 'website',
     },
+    alternates: { canonical: `/artist/${handle}` },
   };
 }
 
@@ -48,8 +51,18 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     notFound();
   }
 
+  const artistConcerts = getConcertsByArtist(handle);
+
   return (
     <main>
+      <JsonLd data={musicGroupSchema(artist)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Artists', url: '/artists' },
+          { name: artist.name, url: `/artist/${handle}` },
+        ])}
+      />
       {/* Immersive Hero with Artist Branding */}
       <ArtistHero artist={artist} />
 

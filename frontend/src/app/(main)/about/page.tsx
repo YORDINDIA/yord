@@ -1,15 +1,23 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Music, Shield, Heart, Truck } from 'lucide-react';
+import { JsonLd, organizationSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 export const metadata = {
-  title: 'About Us | YORD India',
-  description: 'Discover the story behind YORD India - your destination for artist-inspired fan merchandise.',
+  title: 'About YORD India — India\'s Premium Concert Merchandise Store',
+  description: 'YORD India is India\'s leading premium concert merchandise platform. Shop exclusive fan-made designs for 50+ artists. Learn about our mission, quality commitment, and pan-India delivery.',
+  alternates: { canonical: '/about' },
 };
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-noir-950">
+      <JsonLd data={organizationSchema()} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'About', url: '/about' },
+        ])}
+      />
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-6 lg:px-12">
         <div className="max-w-[1440px] mx-auto">
@@ -22,10 +30,12 @@ export default function AboutPage() {
                 Where Music Meets Fashion
               </h1>
               <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-lg leading-relaxed mb-8">
-                YORD India was born from a passion for live music and the desire to bring
-                the concert experience home. We curate fan-made designs inspired by the
-                world&apos;s most iconic artists, delivering pieces that let you wear
-                your devotion with pride.
+                YORD India is India&apos;s premier destination for premium concert merchandise.
+                We curate exclusive, fan-made designs inspired by the world&apos;s most iconic
+                artists — from global superstars like Coldplay, Kanye West, Calvin Harris, and Linkin Park
+                to Indian icons like Diljit Dosanjh, Karan Aujla, and Arijit Singh. With
+                merchandise for over 65 artists and pan-India delivery, we bring the concert
+                experience home to every music lover in India.
               </p>
               <Link
                 href="/artists"

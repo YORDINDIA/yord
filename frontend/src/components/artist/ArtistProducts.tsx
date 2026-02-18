@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Filter } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import {
@@ -28,7 +28,6 @@ const PAGE_SIZE = 16;
 
 export function ArtistProducts({ artist }: ArtistProductsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-50px' });
 
   const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [gridSize, setGridSize] = useState<GridSize>('large');
@@ -181,7 +180,8 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.6 }}
           className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12"
         >
@@ -231,7 +231,8 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
         ) : products.length > 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={isInView ? { opacity: 1 } : {}}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.6, delay: 0.2 }}
             className={getGridClasses(gridSize)}
           >
@@ -239,7 +240,8 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 30 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
                 transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
               >
                 <ProductCard

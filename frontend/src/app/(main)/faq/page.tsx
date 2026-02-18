@@ -1,21 +1,40 @@
-'use client';
+import { JsonLd, faqSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
+import { FAQPageClient } from './FAQClient';
+import type { FAQCategory } from './FAQClient';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-interface FAQItem {
-  question: string;
-  answer: string;
-}
-
-interface FAQCategory {
-  title: string;
-  items: FAQItem[];
-}
+export const metadata = {
+  title: 'FAQ — Concert Merchandise Questions Answered',
+  description:
+    'Frequently asked questions about YORD India concert merchandise. Learn about shipping across India, returns, sizing, payment via Razorpay, and how to buy merchandise for Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran & more.',
+  alternates: { canonical: '/faq' },
+};
 
 const FAQ_DATA: FAQCategory[] = [
+  {
+    title: 'Concert Merchandise',
+    items: [
+      {
+        question: 'Where can I buy concert merchandise in India?',
+        answer: 'YORD India is India\'s leading online store for premium concert merchandise. We offer fan-made, artist-inspired designs for 50+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, Linkin Park, AP Dhillon, and many more. Shop online at yordindia.com with pan-India delivery.',
+      },
+      {
+        question: 'Which artist merchandise do you carry?',
+        answer: 'We carry merchandise for 65+ artists performing in India, including global acts like Coldplay, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto, Def Leppard, Dream Theater, The Lumineers, Ed Sheeran, Dua Lipa, Imagine Dragons, Maroon 5, Green Day, Bryan Adams, John Mayer, and Indian artists like Diljit Dosanjh, Karan Aujla, Arijit Singh, AP Dhillon, Yo Yo Honey Singh, DIVINE, Seedhe Maut, King, Prateek Kuhad, and many more.',
+      },
+      {
+        question: 'Is your merchandise officially licensed?',
+        answer: 'YORD India sells fan-made, artist-inspired designs crafted by passionate fans for fans. Our products celebrate the artists you love with premium quality materials and unique creative designs. Each piece is made with care and attention to detail.',
+      },
+      {
+        question: 'Do you sell merchandise for upcoming concerts in India?',
+        answer: 'Yes! We stock merchandise ahead of major concerts and tours in India. Whether it\'s Kanye West\'s India debut in Delhi, Calvin Harris\'s first India shows, Karan Aujla\'s P-Pop Culture World Tour, Def Leppard\'s India Tour, or festivals like Lollapalooza India and Sunburn, we have you covered with exclusive designs.',
+      },
+      {
+        question: 'What is the best website to buy concert merch in India?',
+        answer: 'YORD India (yordindia.com) is India\'s premier destination for premium concert merchandise. We offer exclusive fan-made designs, premium quality materials, competitive pricing in INR, and reliable pan-India shipping with free delivery on orders above ₹1,999.',
+      },
+    ],
+  },
   {
     title: 'Orders & Shipping',
     items: [
@@ -102,96 +121,20 @@ const FAQ_DATA: FAQCategory[] = [
   },
 ];
 
-function FAQAccordion({ category }: { category: FAQCategory }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-
-  return (
-    <div className="bg-noir-900 border border-noir-800">
-      <div className="p-6 border-b border-noir-800">
-        <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100">
-          {category.title}
-        </h2>
-      </div>
-      <div className="divide-y divide-noir-800">
-        {category.items.map((item, index) => (
-          <div key={index}>
-            <button
-              onClick={() => setOpenIndex(openIndex === index ? null : index)}
-              className="w-full flex items-center justify-between p-6 text-left hover:bg-noir-800/50 transition-colors"
-            >
-              <span className="font-[family-name:var(--font-jakarta)] text-ivory-100 pr-4">
-                {item.question}
-              </span>
-              {openIndex === index ? (
-                <ChevronUp className="w-5 h-5 text-gold-200 flex-shrink-0" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-ivory-500 flex-shrink-0" />
-              )}
-            </button>
-            <div
-              className={cn(
-                'overflow-hidden transition-all duration-300',
-                openIndex === index ? 'max-h-96' : 'max-h-0'
-              )}
-            >
-              <p className="px-6 pb-6 font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 leading-relaxed">
-                {item.answer}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function FAQPage() {
+  // Flatten all FAQs for the JSON-LD schema
+  const allFaqs = FAQ_DATA.flatMap((category) => category.items);
+
   return (
-    <div className="min-h-screen bg-noir-950">
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 lg:px-12">
-        <div className="max-w-[1440px] mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <HelpCircle className="w-8 h-8 text-gold-200" />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
-            Frequently Asked Questions
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
-            Find answers to common questions about orders, shipping, returns, and more.
-            Can&apos;t find what you&apos;re looking for? Contact our support team.
-          </p>
-        </div>
-      </section>
-
-      {/* FAQ Content */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto space-y-8">
-          {FAQ_DATA.map((category) => (
-            <FAQAccordion key={category.title} category={category} />
-          ))}
-        </div>
-      </section>
-
-      {/* Contact CTA */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-noir-900 border border-noir-800 p-12 text-center">
-            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-4">
-              Still have questions?
-            </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
-              Our support team is here to help you with any questions or concerns.
-            </p>
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
-            >
-              CONTACT US
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+    <>
+      <JsonLd data={faqSchema(allFaqs)} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'FAQ', url: '/faq' },
+        ])}
+      />
+      <FAQPageClient faqData={FAQ_DATA} />
+    </>
   );
 }

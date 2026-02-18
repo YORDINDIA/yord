@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
 import Link from 'next/link';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import type { TransformedProductWithSource } from '@/types/database';
@@ -12,16 +11,14 @@ interface FeaturedProductsClientProps {
 }
 
 export function FeaturedProductsClient({ products }: FeaturedProductsClientProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-100px' });
-
   return (
-    <section ref={containerRef} className="py-24 bg-noir-900">
+    <section className="py-24 bg-noir-900">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6 }}
           className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 gap-4"
         >
@@ -51,7 +48,8 @@ export function FeaturedProductsClient({ products }: FeaturedProductsClientProps
             <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
               <ProductCard
@@ -72,7 +70,8 @@ export function FeaturedProductsClient({ products }: FeaturedProductsClientProps
         {/* Bottom CTA */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6, delay: 0.8 }}
           className="mt-16 text-center"
         >

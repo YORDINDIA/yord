@@ -13,6 +13,7 @@ import { SearchModal } from './SearchModal';
 const NAV_LINKS = [
   { label: 'NEW ARRIVALS', href: '/collection/new-arrivals' },
   { label: 'ARTISTS', href: '/artists', hasDropdown: true },
+  { label: 'CONCERTS', href: '/concerts' },
   { label: 'COLLECTIONS', href: '/collections' },
   { label: 'BESTSELLERS', href: '/collection/bestsellers' },
   { label: 'BLOG', href: '/blog' },
