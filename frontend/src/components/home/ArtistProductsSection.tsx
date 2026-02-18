@@ -43,6 +43,7 @@ export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistP
       artistHandle={artistHandle}
       artistName={artistData.name}
       artistTagline={artistData.tagline}
+      artistImage={artistData.heroImage}
       accentColor={artistData.accentColor || '#FFD966'}
       products={transformedProducts}
     />

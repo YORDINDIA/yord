@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CustomCursor } from "@/components/ui/CustomCursor";
+import { PHProvider } from "@/providers/PostHogProvider";
+import PostHogPageView from "@/providers/PostHogPageView";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yordindia.com"),
@@ -82,16 +84,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-IN" className="dark">
-      <body
-        suppressHydrationWarning
-        className="antialiased"
-      >
-        {/* Custom cursor for desktop */}
-        <CustomCursor />
-        {/* Noise texture overlay for luxury feel */}
-        <div className="noise-overlay" aria-hidden="true" />
-        {children}
-      </body>
+      <PHProvider>
+        <body
+          suppressHydrationWarning
+          className="antialiased"
+        >
+          <PostHogPageView />
+          {/* Custom cursor for desktop */}
+          <CustomCursor />
+          {/* Noise texture overlay for luxury feel */}
+          <div className="noise-overlay" aria-hidden="true" />
+          {children}
+        </body>
+      </PHProvider>
     </html>
   );
 }

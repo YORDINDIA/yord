@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Fraunces, Spline_Sans } from 'next/font/google';
 import './globals.css';
+import { PHProvider } from '@/providers/PostHogProvider';
+import PostHogPageView from '@/providers/PostHogPageView';
 
 const display = Fraunces({
   subsets: ['latin'],
@@ -21,9 +23,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${body.variable}`}>
-        {children}
-      </body>
+      <PHProvider>
+        <body className={`${display.variable} ${body.variable}`}>
+          <PostHogPageView />
+          {children}
+        </body>
+      </PHProvider>
     </html>
   );
 }

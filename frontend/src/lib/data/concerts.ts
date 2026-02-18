@@ -363,9 +363,37 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-04-15',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
-      "Yo Yo Honey Singh is touring India with his Glory Tour, performing chart-toppers from his comeback era including Millionaire and Kalaastar alongside classics like Brown Rang and Blue Eyes.",
+      "Yo Yo Honey Singh toured India with his Glory Tour, performing chart-toppers from his comeback era including Millionaire and Kalaastar alongside classics like Brown Rang and Blue Eyes.",
+    genre: 'Punjabi Hip-Hop',
+  },
+  {
+    slug: 'honey-singh-glory-tour-delhi-2026',
+    artist: 'Yo Yo Honey Singh',
+    artistHandle: 'honey-singh',
+    tourName: 'Glory Tour India 2026',
+    venue: 'Jawaharlal Nehru Stadium',
+    city: 'Delhi',
+    date: '2026-03-15',
+    year: 2026,
+    status: 'announced',
+    description:
+      "Yo Yo Honey Singh returns with the Glory Tour India 2026. The Desi Kalakaar performs Millionaire, Kalaastar, Brown Rang, Blue Eyes, and more in a massive stadium show.",
+    genre: 'Punjabi Hip-Hop',
+  },
+  {
+    slug: 'honey-singh-glory-tour-mumbai-2026',
+    artist: 'Yo Yo Honey Singh',
+    artistHandle: 'honey-singh',
+    tourName: 'Glory Tour India 2026',
+    venue: 'MMRDA Grounds',
+    city: 'Mumbai',
+    date: '2026-03-22',
+    year: 2026,
+    status: 'announced',
+    description:
+      "Yo Yo Honey Singh brings the Glory Tour India 2026 to Mumbai. Expect a high-energy Punjabi hip-hop spectacle at MMRDA Grounds.",
     genre: 'Punjabi Hip-Hop',
   },
 
@@ -381,7 +409,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-03-22',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Arijit Singh, India's most beloved playback singer, continues to perform sold-out concerts across the country. His live shows feature his greatest hits including Tum Hi Ho, Channa Mereya, and Kesariya.",
     genre: 'Bollywood',
@@ -417,7 +445,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-04-01',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Shawn Mendes is bringing his intimate acoustic-driven performance to India. The Canadian singer-songwriter will perform hits like Stitches, Señorita, and tracks from his latest album.",
     genre: 'Pop',
@@ -435,7 +463,7 @@ export const CONCERTS: Concert[] = [
     city: 'Bengaluru',
     date: '2025-02-28',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Hanumankind, the viral sensation behind Big Dawgs, is touring India with high-energy hip-hop shows. The Bengaluru-based rapper has become one of India's most talked-about hip-hop acts.",
     genre: 'Indian Hip-Hop',
@@ -453,7 +481,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-03-15',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "KRSNA, one of India's top hip-hop lyricists, is performing live across India. Known for his technical rap skills and viral diss tracks, KRSNA draws massive crowds at every show.",
     genre: 'Indian Hip-Hop',
@@ -507,7 +535,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-04-20',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Imagine Dragons are set to perform in India, bringing their arena-rock anthems like Believer, Radioactive, and Thunder to Indian audiences.",
     genre: 'Pop Rock',
@@ -543,7 +571,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-04-05',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "DIVINE, the Gully Boy who put Indian hip-hop on the global map, continues to tour India. The pioneer of Mumbai's street rap scene performs his biggest hits live.",
     genre: 'Indian Hip-Hop',
@@ -561,7 +589,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-03-29',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Seedhe Maut, India's most acclaimed hip-hop duo, are touring India with their Nayaab Tour. Encore ABJ and Calm deliver electrifying live performances of their intricate rap flows.",
     genre: 'Indian Hip-Hop',
@@ -579,7 +607,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-05-10',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Prateek Kuhad, India's indie-folk sensation endorsed by Barack Obama, performs his intimate acoustic shows across India. Known for Cold/Mess and Kasoor.",
     genre: 'Indie Folk',
@@ -597,7 +625,7 @@ export const CONCERTS: Concert[] = [
     city: 'Goa',
     date: '2025-12-28',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "Sunburn Festival, Asia's largest EDM festival, returns to Goa for another year of electronic music. The festival features international and Indian DJs across multiple stages.",
     genre: 'EDM',
@@ -615,7 +643,7 @@ export const CONCERTS: Concert[] = [
     city: 'Pune',
     date: '2025-11-15',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "NH7 Weekender, India's happiest music festival, returns with a diverse lineup spanning indie, rock, electronic, hip-hop, and Bollywood. Multiple stages showcase the best of Indian and international music.",
     genre: 'Multi-Genre Festival',
@@ -633,7 +661,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-06-15',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "King, India's pop sensation known for Maan Meri Jaan, tours India with his Champagne Talk Tour. The singer-songwriter has become one of India's biggest music stars.",
     genre: 'Indian Pop',
@@ -651,7 +679,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-05-20',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "Anuv Jain, the indie sensation behind Baarishein and Husn, is touring India. His soulful Hindi indie-pop has built a massive following among young Indian music lovers.",
     genre: 'Indie Pop',
@@ -669,7 +697,7 @@ export const CONCERTS: Concert[] = [
     city: 'Pune',
     date: '2025-04-25',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "MC Stan, the Bigg Boss winner and hip-hop star from Pune, tours India with his raw street rap. Known for Insaan and Amin, he brings intense energy to every show.",
     genre: 'Indian Hip-Hop',
@@ -687,7 +715,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-06-01',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "Badshah, one of India's highest-selling music artists, tours the country performing hits like Paagal, DJ Waale Babu, and Kala Chashma. His live shows are known for massive production and crowd energy.",
     genre: 'Bollywood Hip-Hop',
@@ -705,7 +733,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-05-05',
     year: 2025,
-    status: 'announced',
+    status: 'completed',
     description:
       "Raftaar, the rap heavyweight behind Swag Mera Desi and numerous Bollywood hits, continues to be one of India's most in-demand live performers.",
     genre: 'Indian Hip-Hop',
@@ -723,7 +751,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-03-15',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Martin Garrix, one of the world's top DJs, performs his explosive EDM sets in India. Known for Animals, Scared to Be Lonely, and In the Name of Love.",
     genre: 'EDM',
@@ -987,7 +1015,7 @@ export const CONCERTS: Concert[] = [
     tourName: 'P-Pop Culture World Tour',
     venue: 'TBA',
     city: 'Mumbai',
-    date: '2026-03-04',
+    date: '2026-03-03',
     year: 2026,
     status: 'upcoming',
     description:
@@ -1001,7 +1029,7 @@ export const CONCERTS: Concert[] = [
     tourName: 'P-Pop Culture World Tour',
     venue: 'TBA',
     city: 'Pune',
-    date: '2026-03-04',
+    date: '2026-03-03',
     year: 2026,
     status: 'upcoming',
     description:
@@ -1291,7 +1319,7 @@ export const CONCERTS: Concert[] = [
     city: 'Mumbai',
     date: '2025-03-20',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Jackson Wang, the K-pop star and TEAM WANG founder, brings his Magic Man Tour to India. Known for his fusion of K-pop, hip-hop, and R&B.",
     genre: 'K-Pop',
@@ -1309,7 +1337,7 @@ export const CONCERTS: Concert[] = [
     city: 'Delhi',
     date: '2025-04-12',
     year: 2025,
-    status: 'upcoming',
+    status: 'completed',
     description:
       "Nucleya, India's bass music pioneer, tours the country with his signature fusion of bass, hip-hop, and Indian folk. Known for Laung Gawacha and Bass Rani.",
     genre: 'Bass Music',
@@ -1349,4 +1377,45 @@ export function getConcertCities(): string[] {
 // Get unique artists from concerts
 export function getConcertArtists(): string[] {
   return [...new Set(CONCERTS.map((c) => c.artist))].sort();
+}
+
+// Helper to get upcoming concerts grouped by artist, sorted by soonest date
+export interface UpcomingArtistConcert {
+  artistHandle: string;
+  artist: string;
+  tourName: string;
+  nextShow: Concert;
+  allUpcoming: Concert[];
+}
+
+export function getUpcomingConcertsByArtist(): UpcomingArtistConcert[] {
+  const now = new Date();
+  const upcoming = CONCERTS.filter(
+    (c) => (c.status === 'upcoming' || c.status === 'announced') && new Date(c.date) > now
+  );
+
+  const artistMap = new Map<string, Concert[]>();
+  for (const concert of upcoming) {
+    const existing = artistMap.get(concert.artistHandle) || [];
+    existing.push(concert);
+    artistMap.set(concert.artistHandle, existing);
+  }
+
+  const result: UpcomingArtistConcert[] = [];
+  for (const [handle, concerts] of artistMap) {
+    const sorted = [...concerts].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    result.push({
+      artistHandle: handle,
+      artist: sorted[0].artist,
+      tourName: sorted[0].tourName,
+      nextShow: sorted[0],
+      allUpcoming: sorted,
+    });
+  }
+
+  return result.sort(
+    (a, b) => new Date(a.nextShow.date).getTime() - new Date(b.nextShow.date).getTime()
+  );
 }

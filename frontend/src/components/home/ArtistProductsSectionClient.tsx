@@ -10,6 +10,7 @@ interface ArtistProductsSectionClientProps {
   artistHandle: string;
   artistName: string;
   artistTagline?: string;
+  artistImage?: string;
   accentColor: string;
   products: TransformedProductWithSource[];
 }
@@ -18,6 +19,7 @@ export function ArtistProductsSectionClient({
   artistHandle,
   artistName,
   artistTagline,
+  artistImage,
   accentColor,
   products,
 }: ArtistProductsSectionClientProps) {
@@ -36,21 +38,38 @@ export function ArtistProductsSectionClient({
           transition={{ duration: 0.6 }}
           className="flex items-end justify-between mb-8"
         >
-          <div>
-            {/* Artist Accent Line */}
-            <div
-              className="h-0.5 w-12 mb-4"
-              style={{ backgroundColor: accentColor }}
-            />
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-1">
-              {artistName}
-            </h2>
-            {artistTagline && (
-              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-ivory-400">
-                {artistTagline.toUpperCase()}
-              </p>
+          <div className="flex items-center gap-6">
+            {/* Artist Avatar */}
+            {artistImage && (
+              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-noir-800 shrink-0">
+                <div
+                  className="absolute inset-0 opacity-20"
+                  style={{ backgroundColor: accentColor }}
+                />
+                <div
+                  className="w-full h-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${artistImage})` }}
+                />
+              </div>
             )}
+
+            <div>
+              {/* Artist Accent Line */}
+              <div
+                className="h-0.5 w-12 mb-4"
+                style={{ backgroundColor: accentColor }}
+              />
+              <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-1">
+                {artistName}
+              </h2>
+              {artistTagline && (
+                <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-ivory-400">
+                  {artistTagline.toUpperCase()}
+                </p>
+              )}
+            </div>
           </div>
+
           <Link
             href={`/artist/${artistHandle}`}
             className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors group"

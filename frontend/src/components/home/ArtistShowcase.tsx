@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ARTISTS } from '@/types/database';
@@ -127,13 +128,13 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
         }}
       />
 
-      {/* Placeholder for Artist Image */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div
-          className="w-32 h-32 rounded-full opacity-30"
-          style={{
-            background: `linear-gradient(135deg, ${artist.accentColor} 0%, ${artist.secondaryColor} 100%)`,
-          }}
+      {/* Artist Image */}
+      <div className="absolute inset-0 bg-noir-800">
+        <Image
+          src={artist.heroImage || '/artists/default-hero.jpg'}
+          alt={artist.name}
+          fill
+          className="object-cover transition-transform duration-700 group-hover:scale-105"
         />
       </div>
 
