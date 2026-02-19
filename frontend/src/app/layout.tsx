@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { CustomCursor } from "@/components/ui/CustomCursor";
-import { PHProvider } from "@/providers/PostHogProvider";
-import PostHogPageView from "@/providers/PostHogPageView";
+import { playfairDisplay, cormorantGaramond, plusJakartaSans, bebasNeue } from "@/lib/fonts";
+import { ClientProviders } from "@/providers/ClientProviders";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yordindia.com"),
@@ -51,6 +50,14 @@ export const metadata: Metadata = {
     locale: "en_IN",
     siteName: "YORD India",
     url: "https://yordindia.com",
+    images: [
+      {
+        url: "/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "YORD India — Premium Concert Merchandise",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -59,6 +66,7 @@ export const metadata: Metadata = {
       "India's #1 concert merchandise store. Coldplay, Diljit, Karan Aujla, Ed Sheeran & 50+ artists.",
     creator: "@yordindia",
     site: "@yordindia",
+    images: ["/icon-512.png"],
   },
   robots: {
     index: true,
@@ -83,20 +91,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-IN" className="dark">
-      <PHProvider>
-        <body
-          suppressHydrationWarning
-          className="antialiased"
-        >
-          <PostHogPageView />
-          {/* Custom cursor for desktop */}
-          <CustomCursor />
+    <html
+      lang="en-IN"
+      className={`dark ${playfairDisplay.variable} ${cormorantGaramond.variable} ${plusJakartaSans.variable} ${bebasNeue.variable}`}
+    >
+      <body
+        suppressHydrationWarning
+        className="antialiased"
+      >
+        <ClientProviders>
           {/* Noise texture overlay for luxury feel */}
           <div className="noise-overlay" aria-hidden="true" />
           {children}
-        </body>
-      </PHProvider>
+        </ClientProviders>
+      </body>
     </html>
   );
 }

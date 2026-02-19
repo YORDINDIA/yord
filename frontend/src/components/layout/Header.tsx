@@ -6,8 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { ARTISTS, ARTIST_COLLECTION_HANDLES, type ArtistData } from '@/types/database';
-import { createClient } from '@/lib/supabase/client';
+import type { ArtistData } from '@/types/database';
 import { SearchModal } from './SearchModal';
 
 const NAV_LINKS = [
@@ -19,65 +18,19 @@ const NAV_LINKS = [
   { label: 'BLOG', href: '/blog' },
 ];
 
-export function Header() {
+interface HeaderProps {
+  artists?: ArtistData[];
+}
+
+export function Header({ artists = [] }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isArtistDropdownOpen, setIsArtistDropdownOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [artists, setArtists] = useState<ArtistData[]>([]);
 
   const hasHydrated = useCartStore((state) => state._hasHydrated);
   const cartItemCount = useCartStore((state) => state.itemCount());
   const toggleCart = useCartStore((state) => state.toggleCart);
-
-  // Fetch artists dynamically from collections
-  useEffect(() => {
-    async function fetchArtists() {
-      const supabase = createClient();
-
-      // Get artist collections
-      const { data: collections } = await supabase
-        .from('collections')
-        .select('id, title, handle')
-        .in('handle', ARTIST_COLLECTION_HANDLES as unknown as string[]);
-
-      if (collections) {
-        // Get product counts for each collection
-        const artistsWithCounts = await Promise.all(
-          (collections as { id: number; title: string; handle: string | null }[]).map(async (col) => {
-            const { count } = await supabase
-              .from('collects')
-              .select('*', { count: 'exact', head: true })
-              .eq('collection_id', col.id);
-
-            const handle = col.handle || '';
-            const metadata = ARTISTS[handle];
-
-            return {
-              handle,
-              name: metadata?.name || col.title,
-              vendorName: col.title,
-              tagline: metadata?.tagline || 'Artist-Inspired',
-              bio: metadata?.bio || '',
-              heroImage: metadata?.heroImage || '/images/default-artist.jpg',
-              accentColor: metadata?.accentColor || '#D4AF37',
-              secondaryColor: metadata?.secondaryColor || '#1a1a1a',
-              productCount: count || 0,
-            } as ArtistData;
-          })
-        );
-
-        // Filter out artists with 0 products and sort by count
-        setArtists(
-          artistsWithCounts
-            .filter(a => a.productCount && a.productCount > 0)
-            .sort((a, b) => (b.productCount || 0) - (a.productCount || 0))
-        );
-      }
-    }
-
-    fetchArtists();
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => {

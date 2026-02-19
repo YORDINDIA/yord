@@ -3,6 +3,7 @@
 import { forwardRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,7 +22,11 @@ import type { ProductWithDetails, CartItem } from '@/types/database';
 import { ARTISTS } from '@/types/database';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
-import { QuickViewModal } from '@/components/product/QuickViewModal';
+
+const QuickViewModal = dynamic(
+  () => import('@/components/product/QuickViewModal').then((mod) => mod.QuickViewModal),
+  { ssr: false }
+);
 
 // Props for when using full product data from Supabase
 export interface ProductCardWithDataProps {
@@ -360,7 +365,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
         </Link>
 
         {/* Quick View Modal */}
-        {productData && (
+        {productData && showQuickView && (
           <QuickViewModal
             product={productData}
             isOpen={showQuickView}

@@ -60,12 +60,14 @@ export function ArtistsPageClient({ artists }: ArtistsPageClientProps) {
                 >
                   {/* Artist Image */}
                   <div className="relative aspect-[4/5] overflow-hidden bg-noir-800">
+                    {artist.heroImage && (
                     <Image
-                      src={artist.heroImage || '/artists/default-hero.jpg'}
+                      src={artist.heroImage}
                       alt={artist.name}
                       fill
                       className="object-cover transition-transform duration-700 group-hover:scale-105"
                     />
+                    )}
                     {/* Gradient Overlay */}
                     <div
                       className="absolute inset-0 opacity-60"

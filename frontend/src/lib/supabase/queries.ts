@@ -210,7 +210,7 @@ export async function getCollectionByHandle(handle: string): Promise<Collection 
     .select('*')
     .eq('handle', handle)
     .eq('published', true)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Error fetching collection:', error);
@@ -253,7 +253,7 @@ export async function getCollectionByHandleStatic(handle: string): Promise<Colle
     .select('*')
     .eq('handle', handle)
     .eq('published', true)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Error fetching collection (static):', error);
@@ -420,7 +420,7 @@ export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistD
         name: staticData?.name || col.title,
         tagline: staticData?.tagline || 'Official Merchandise',
         bio: col.body_html?.replace(/<[^>]*>/g, '') || staticData?.bio || `Shop exclusive ${col.title} merchandise.`,
-        heroImage: col.image_src || staticData?.heroImage || '/artists/default-hero.jpg',
+        heroImage: col.image_src || staticData?.heroImage,
         logoImage: staticData?.logoImage,
         accentColor: staticData?.accentColor || '#FFD700',
         secondaryColor: staticData?.secondaryColor || '#1C1C1C',
@@ -473,7 +473,7 @@ export async function getArtistByHandle(handle: string, useStatic = false): Prom
     name: staticData?.name || collection.title,
     tagline: staticData?.tagline || 'Official Merchandise',
     bio: collection.body_html?.replace(/<[^>]*>/g, '') || staticData?.bio || `Shop exclusive ${collection.title} merchandise.`,
-    heroImage: collection.image_src || staticData?.heroImage || '/artists/default-hero.jpg',
+    heroImage: collection.image_src || staticData?.heroImage,
     logoImage: staticData?.logoImage,
     accentColor: staticData?.accentColor || '#FFD700',
     secondaryColor: staticData?.secondaryColor || '#1C1C1C',
@@ -496,12 +496,12 @@ export async function getTopProductsByArtistHandle(
     .from('collections')
     .select('id')
     .eq('handle', artistHandle)
-    .single();
+    .maybeSingle();
 
   const collection = collectionData as { id: number } | null;
 
   if (collectionError || !collection) {
-    console.error('Error fetching artist collection for homepage:', collectionError);
+    if (collectionError) console.error('Error fetching artist collection for homepage:', collectionError);
     return [];
   }
 

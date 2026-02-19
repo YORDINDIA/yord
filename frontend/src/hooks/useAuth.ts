@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import posthog from 'posthog-js';
 
 interface AuthState {
   user: User | null;
@@ -34,18 +35,29 @@ export function useAuth(): UseAuthReturn {
         session,
         isLoading: false,
       });
+
+      // Identify user if a session exists
+      if (session?.user) {
+        posthog.identify(session.user.id, { email: session.user.email });
+      }
     };
 
     getSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setState({
           user: session?.user ?? null,
           session,
           isLoading: false,
         });
+
+        if (session?.user) {
+          posthog.identify(session.user.id, { email: session.user.email });
+        } else if (event === 'SIGNED_OUT') {
+          posthog.reset();
+        }
       }
     );
 

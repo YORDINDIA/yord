@@ -4,11 +4,24 @@ import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductInfo } from '@/components/product/ProductInfo';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
 import { getProductByHandle } from '@/lib/supabase/queries';
+import { createStaticClient } from '@/lib/supabase/server';
 import { ARTISTS } from '@/types/database';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ProductPageProps {
   params: Promise<{ handle: string }>;
+}
+
+export async function generateStaticParams() {
+  const supabase = createStaticClient();
+  const { data: products } = await supabase
+    .from('products')
+    .select('handle')
+    .eq('status', 'active');
+
+  return (products || []).map((p: { handle: string }) => ({
+    handle: p.handle,
+  }));
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {

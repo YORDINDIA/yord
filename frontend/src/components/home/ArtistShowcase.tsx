@@ -130,12 +130,15 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
 
       {/* Artist Image */}
       <div className="absolute inset-0 bg-noir-800">
+        {artist.heroImage && (
         <Image
-          src={artist.heroImage || '/artists/default-hero.jpg'}
+          src={artist.heroImage}
           alt={artist.name}
           fill
+          sizes="(max-width: 640px) 280px, 320px"
           className="object-cover transition-transform duration-700 group-hover:scale-105"
         />
+        )}
       </div>
 
       {/* Spotlight Glow Effect - follows cursor */}

@@ -10,10 +10,6 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "@fontsource/bebas-neue": "^5.0.19",
-    "@fontsource/cormorant-garamond": "^5.0.19",
-    "@fontsource/playfair-display": "^5.0.19",
-    "@fontsource/plus-jakarta-sans": "^5.0.19",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
     "clsx": "^2.1.1",
