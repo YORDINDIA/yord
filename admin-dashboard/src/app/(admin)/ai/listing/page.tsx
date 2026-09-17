@@ -26,7 +26,7 @@ export default function ListingAiPage() {
   useEffect(() => {
     supabase.from('products').select('id, title').order('updated_at', { ascending: false }).limit(50)
       .then(({ data }) => setProducts(data || []));
-  }, []);
+  }, [supabase]);
 
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function ListingAiPage() {
         setImageUrl(img?.supabase_url || img?.src || null);
         setImageId(img?.id ?? null);
       });
-  }, [productId]);
+  }, [productId, supabase]);
 
   async function generate() {
     if (!productId) return;
@@ -168,6 +168,7 @@ export default function ListingAiPage() {
             {imageUrl && (
               <div>
                 <div className="helper">Reference Image</div>
+                {/* eslint-disable-next-line @next/next/no-img-element -- admin preview, no LCP budget */}
                 <img src={imageUrl} alt="Reference" style={{ width: '100%', borderRadius: 12, marginTop: 8 }} />
               </div>
             )}
@@ -180,6 +181,7 @@ export default function ListingAiPage() {
             {aiImageUrl && (
               <div>
                 <div className="helper">AI Image Preview</div>
+                {/* eslint-disable-next-line @next/next/no-img-element -- admin preview, no LCP budget */}
                 <img src={aiImageUrl} alt="AI Preview" style={{ width: '100%', borderRadius: 12, marginTop: 8 }} />
               </div>
             )}

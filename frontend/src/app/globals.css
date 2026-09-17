@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "../../../packages/ui/src/tokens.css";
+@import "@yord/ui/tokens.css";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    YORD INDIA - NOIR LUXE Design System

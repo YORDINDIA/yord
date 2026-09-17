@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Loader2, Mail, Lock, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getSafeRedirect } from '@/lib/redirect';
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = getSafeRedirect(searchParams.get('redirect'));
 

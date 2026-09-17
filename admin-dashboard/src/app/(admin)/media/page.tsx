@@ -37,6 +37,7 @@ export default async function MediaPage() {
               <div className="helper">Product #{img.product_id}</div>
               {img.supabase_url ? (
                 <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- admin preview, no LCP budget */}
                   <img src={img.supabase_url} alt="" loading="lazy" style={{ marginTop: 8 }} />
                   <div className="toolbar" style={{ marginTop: 8 }}>
                     <CopyUrlButton url={img.supabase_url} />
@@ -60,6 +61,7 @@ export default async function MediaPage() {
               <div className="helper">{article.title}</div>
               {article.supabase_image_url ? (
                 <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- admin preview, no LCP budget */}
                   <img src={article.supabase_image_url} alt="" loading="lazy" style={{ marginTop: 8 }} />
                   <div className="toolbar" style={{ marginTop: 8 }}>
                     <CopyUrlButton url={article.supabase_image_url} />

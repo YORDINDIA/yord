@@ -4,7 +4,6 @@ import { getArtistByHandle, getArtistsWithMetadata } from '@/lib/supabase/querie
 import { ArtistHero } from '@/components/artist/ArtistHero';
 import { ArtistProducts } from '@/components/artist/ArtistProducts';
 import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
-import { getConcertsByArtist } from '@/lib/data/concerts';
 
 interface ArtistPageProps {
   params: Promise<{ handle: string }>;
@@ -53,8 +52,6 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
   if (!artist) {
     notFound();
   }
-
-  const artistConcerts = getConcertsByArtist(handle);
 
   return (
     <main>
