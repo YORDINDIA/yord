@@ -27,9 +27,10 @@
       "@/*": [
         "./src/*"
       ],
-      "@yord/db-types": ["../../packages/db-types/src/index.ts"],
-      "@yord/auth": ["../../packages/auth/src/index.ts"],
-      "@yord/ui": ["../../packages/ui/src/index.ts"]
+      "@yord/db-types": ["../packages/db-types/src/index.ts"],
+      "@yord/auth": ["../packages/auth/src/index.ts"],
+      "@yord/supabase-clients": ["../packages/supabase-clients/src/index.ts"],
+      "@yord/ui": ["../packages/ui/src/index.ts"]
     }
   },
   "include": [

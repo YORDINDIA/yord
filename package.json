@@ -1,5 +1,9 @@
 {
   "private": true,
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "workspaces": [
     "frontend",
     "admin-dashboard",

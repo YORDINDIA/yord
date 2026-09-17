@@ -2,6 +2,10 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev",
     "build": "next build",
@@ -14,6 +18,10 @@
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
+    "@yord/auth": "*",
+    "@yord/db-types": "*",
+    "@yord/supabase-clients": "*",
+    "@yord/ui": "*",
     "clsx": "^2.1.1",
     "framer-motion": "^12.27.4",
     "isomorphic-dompurify": "^4.2.0",

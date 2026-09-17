@@ -31,6 +31,7 @@ export default function ImageGrid({
         {images.map((image, idx) => (
           <div key={image.id} className="card media-card" style={{ padding: 12 }}>
             {image.supabase_url && (
+              // eslint-disable-next-line @next/next/no-img-element -- admin preview, no LCP budget
               <img src={image.supabase_url} alt={image.alt || ""} loading="lazy" />
             )}
             <div className="helper" style={{ marginTop: 8 }}>

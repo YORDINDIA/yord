@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 # Mock env so lint / typecheck / build pass without real credentials.
 # No secrets are required or referenced by any step.
 env:
@@ -32,17 +36,17 @@ jobs:
       matrix:
         app: [frontend, admin-dashboard]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 20.19.4
           cache: npm
 
       - name: Install (npm workspaces)
         # --legacy-peer-deps: pre-existing peer conflict, unrelated to CI:
         # root package.json pins react 18 (Remotion) while
-        # packages/ui peer-depends on react ^19 (see follow-ups).
+        # the apps pin react 19 (see follow-ups).
         run: npm ci --legacy-peer-deps
 
       - name: Lint
@@ -61,9 +65,9 @@ jobs:
     name: python (scripts compileall)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
