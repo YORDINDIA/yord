@@ -10,6 +10,8 @@ interface ArtistPageProps {
   params: Promise<{ handle: string }>;
 }
 
+export const revalidate = 3600;
+
 // Generate static paths for artists with products
 export async function generateStaticParams() {
   // Use static client (no cookies) for build-time generation
@@ -45,7 +47,8 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
 
 export default async function ArtistPage({ params }: ArtistPageProps) {
   const { handle } = await params;
-  const artist = await getArtistByHandle(handle);
+  // Static (cookie-free) client so `revalidate = 3600` actually applies.
+  const artist = await getArtistByHandle(handle, true);
 
   if (!artist) {
     notFound();

@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { formatDate } from '@/lib/utils/format';
+import { notFound } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function updateArticle(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const id = Number(formData.get('id'));
+  if (!Number.isFinite(id) || id <= 0) return;
   const title = String(formData.get('title') || '').trim();
   const handle = String(formData.get('handle') || '').trim();
   const author = String(formData.get('author') || '').trim();
@@ -15,7 +18,7 @@ async function updateArticle(formData: FormData) {
   const published = formData.get('published') === 'on';
   const now = new Date().toISOString();
 
-  await supabase.from('articles').update({
+  const { error } = await supabase.from('articles').update({
     title,
     handle,
     author,
@@ -26,11 +29,15 @@ async function updateArticle(formData: FormData) {
     published_at: published ? now : null,
     updated_at: now,
   }).eq('id', id);
+  if (error) return;
+  revalidatePath(`/articles/${id}`);
 }
 
-export default async function ArticleDetailPage({ params }: { params: { id: string } }) {
+export default async function ArticleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createServerClient();
-  const { data: article } = await supabase.from('articles').select('*').eq('id', params.id).single();
+  const { data: article } = await supabase.from('articles').select('*').eq('id', id).single();
+  if (!article) notFound();
 
   return (
     <div className="card">

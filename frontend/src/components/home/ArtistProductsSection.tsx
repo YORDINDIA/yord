@@ -1,4 +1,4 @@
-import { getTopProductsByArtistHandle } from '@/lib/supabase/queries';
+import { getTopProductsCached } from '@/lib/supabase/cached-queries';
 import { ARTISTS } from '@/types/database';
 import type { TransformedProductWithSource } from '@/types/database';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
@@ -10,7 +10,8 @@ interface ArtistProductsSectionProps {
 }
 
 export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistProductsSectionProps) {
-  const products = await getTopProductsByArtistHandle(artistHandle, limit);
+  // Cached catalog read: prerenderable under `revalidate`, tagged per artist
+  const products = await getTopProductsCached(artistHandle, limit);
 
   // Get artist metadata
   const artistData = ARTISTS[artistHandle];

@@ -6,11 +6,9 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, isPriceOnSale } from '@/lib/utils';
+import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
 import { Button } from '@/components/ui/Button';
-
-const FREE_SHIPPING_THRESHOLD = 999;
-const FREE_FAST_SHIPPING_THRESHOLD = 1999;
 
 export function CartDrawer() {
   const isOpen = useCartStore((state) => state.isOpen);
@@ -20,6 +18,7 @@ export function CartDrawer() {
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const subtotal = useCartStore((state) => state.subtotal());
   const totalSavings = useCartStore((state) => state.totalSavings());
+  const itemCount = useCartStore((state) => state.itemCount());
 
   const shippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
   const fastShippingProgress = Math.min((subtotal / FREE_FAST_SHIPPING_THRESHOLD) * 100, 100);
@@ -67,7 +66,7 @@ export function CartDrawer() {
               <div className="flex items-center gap-3">
                 <ShoppingBag size={20} className="text-gold-200" />
                 <h2 className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-ivory-50">
-                  YOUR BAG ({items.length})
+                  YOUR BAG ({itemCount})
                 </h2>
               </div>
               <button
@@ -211,9 +210,9 @@ export function CartDrawer() {
                               <p className="font-[family-name:var(--font-jakarta)] text-ivory-50 font-medium">
                                 {formatPrice(item.price * item.quantity)}
                               </p>
-                              {item.compareAtPrice && item.compareAtPrice > item.price && (
+                              {isPriceOnSale(item.price, item.compareAtPrice) && (
                                 <p className="text-xs text-ivory-400 line-through">
-                                  {formatPrice(item.compareAtPrice * item.quantity)}
+                                  {formatPrice((item.compareAtPrice ?? 0) * item.quantity)}
                                 </p>
                               )}
                             </div>

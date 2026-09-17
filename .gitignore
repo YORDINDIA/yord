@@ -6,6 +6,7 @@ env/
 # Environment variables
 .env
 .env2
+.env*.local
 !.env.example
 
 # Python
@@ -20,8 +21,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
+venv/lib/
+venv/lib64/
+.venv/lib/
+.venv/lib64/
 parts/
 sdist/
 var/
@@ -47,17 +52,31 @@ migration_results.json
 # Dependencies
 node_modules/
 
+# Next.js builds
+.next/
+
+# Turbo cache
+.turbo/
+
+# Netlify CLI local state
+.netlify/
+
+# Test output
+coverage/
+
 # OS
 .DS_Store
 Thumbs.db
 
 # Agents
 .agents/
+.commandcode/
 
 /data
 
 # Script checkpoints and artifacts
 scripts/*_checkpoint.json
+*_checkpoint.json
 scripts/archive/
 
 # Backup contents

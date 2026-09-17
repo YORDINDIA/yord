@@ -1,6 +1,9 @@
 import { createServerClient, createStaticClient } from './server';
 import type { ProductWithDetails, Collection, ArtistData, Blog, Article, ArticleWithBlog } from '@/types/database';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@/types/database';
+import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice, buildSearchOrFilter, escapeLike, escapeFilterValue } from '@/lib/utils';
+import { fetchProductsByIds, PRODUCT_SELECT } from '@/lib/data/productsByIds';
+import { logDbError } from '@/lib/logger';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PRODUCT QUERIES
@@ -8,28 +11,21 @@ import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@/types/database';
 
 /**
  * Get featured products for homepage
+ * @param limit - max products
+ * @param useStatic - use the static client so cacheable pages stay prerenderable
  */
-export async function getFeaturedProducts(limit = 8): Promise<ProductWithDetails[]> {
-  const supabase = await createServerClient();
+export async function getFeaturedProducts(limit = 8, useStatic = false): Promise<ProductWithDetails[]> {
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
 
   const { data, error } = await supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position, width, height
-      )
-    `)
+    .select(PRODUCT_SELECT)
     .eq('status', 'active')
     .order('published_at', { ascending: false })
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching featured products:', error);
+    logDbError('Error fetching featured products:', error);
     return [];
   }
 
@@ -46,22 +42,13 @@ export async function getProducts(page = 1, pageSize = 20) {
 
   const { data, error, count } = await supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `, { count: 'exact' })
+    .select(PRODUCT_SELECT, { count: 'exact' })
     .eq('status', 'active')
     .order('published_at', { ascending: false })
     .range(from, to);
 
   if (error) {
-    console.error('Error fetching products:', error);
+    logDbError('Error fetching products:', error);
     return { data: [], count: 0 };
   }
 
@@ -79,27 +66,35 @@ export async function getProductByHandle(handle: string): Promise<ProductWithDet
 
   const { data, error } = await supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price, sku, barcode,
-        inventory_quantity, inventory_policy,
-        option1, option2, option3, position,
-        image_id, requires_shipping
-      ),
-      product_images (
-        id, src, supabase_url, alt, position, width, height
-      ),
-      product_options (
-        id, name, position, values
-      )
-    `)
+    .select(PRODUCT_SELECT)
     .eq('handle', handle)
     .eq('status', 'active')
     .single();
 
   if (error) {
-    console.error('Error fetching product:', error);
+    logDbError('Error fetching product:', error);
+    return null;
+  }
+
+  return data as ProductWithDetails;
+}
+
+/**
+ * Get single product by handle (static version for generateMetadata).
+ * Uses the static client so prerendered pages don't opt into dynamic rendering.
+ */
+export async function getProductByHandleStatic(handle: string): Promise<ProductWithDetails | null> {
+  const supabase = createStaticClient();
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(PRODUCT_SELECT)
+    .eq('handle', handle)
+    .eq('status', 'active')
+    .single();
+
+  if (error) {
+    logDbError('Error fetching product (static):', error);
     return null;
   }
 
@@ -117,23 +112,14 @@ export async function searchProducts(
 
   const { data, error } = await supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `)
+    .select(PRODUCT_SELECT)
     .eq('status', 'active')
-    .or(`title.ilike.%${query}%,vendor.ilike.%${query}%,tags.ilike.%${query}%`)
+    .or(buildSearchOrFilter(query))
     .order('published_at', { ascending: false })
-    .limit(limit);
+    .limit(Math.min(Math.max(limit, 1), 50));
 
   if (error) {
-    console.error('Error searching products:', error);
+    logDbError('Error searching products:', error);
     return [];
   }
 
@@ -149,26 +135,27 @@ export async function getRelatedProducts(
 ): Promise<ProductWithDetails[]> {
   const supabase = await createServerClient();
 
-  const { data, error } = await supabase
+  // Null vendor/type would interpolate as literal 'null'; fall back to newest
+  const filters: string[] = [];
+  if (product.vendor) filters.push(`vendor.eq."${escapeFilterValue(product.vendor)}"`);
+  if (product.product_type) filters.push(`product_type.eq."${escapeFilterValue(product.product_type)}"`);
+
+  let query = supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `)
+    .select(PRODUCT_SELECT)
     .eq('status', 'active')
-    .neq('id', product.id)
-    .or(`vendor.eq.${product.vendor},product_type.eq.${product.product_type}`)
+    .neq('id', product.id);
+
+  if (filters.length > 0) {
+    query = query.or(filters.join(','));
+  }
+
+  const { data, error } = await query
     .order('published_at', { ascending: false })
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching related products:', error);
+    logDbError('Error fetching related products:', error);
     return [];
   }
 
@@ -192,7 +179,7 @@ export async function getCollections(): Promise<Collection[]> {
     .order('title', { ascending: true });
 
   if (error) {
-    console.error('Error fetching collections:', error);
+    logDbError('Error fetching collections:', error);
     return [];
   }
 
@@ -213,11 +200,11 @@ export async function getCollectionByHandle(handle: string): Promise<Collection 
     .maybeSingle();
 
   if (error) {
-    console.error('Error fetching collection:', error);
+    logDbError('Error fetching collection:', error);
     return null;
   }
 
-  return data as Collection;
+  return data as Collection | null;
 }
 
 /**
@@ -234,7 +221,7 @@ export async function getCollectionsStatic(): Promise<Collection[]> {
     .order('title', { ascending: true });
 
   if (error) {
-    console.error('Error fetching collections (static):', error);
+    logDbError('Error fetching collections (static):', error);
     return [];
   }
 
@@ -256,11 +243,11 @@ export async function getCollectionByHandleStatic(handle: string): Promise<Colle
     .maybeSingle();
 
   if (error) {
-    console.error('Error fetching collection (static):', error);
+    logDbError('Error fetching collection (static):', error);
     return null;
   }
 
-  return data as Collection;
+  return data as Collection | null;
 }
 
 /**
@@ -280,9 +267,6 @@ export async function getProductsByCollection(
     return { data: [], count: 0, collection: null };
   }
 
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-
   // Get product IDs in this collection through the collects junction table
   const { data: collectsData, error: collectsError } = await supabase
     .from('collects')
@@ -295,67 +279,8 @@ export async function getProductsByCollection(
 
   const productIds = (collectsData as { product_id: number }[]).map(c => c.product_id);
 
-  // Build the query with sorting
-  let query = supabase
-    .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `, { count: 'exact' })
-    .in('id', productIds)
-    .eq('status', 'active');
-
-  // Apply sorting
-  switch (sortBy) {
-    case 'price-asc':
-      query = query.order('id', { ascending: true }); // Will sort client-side for variant price
-      break;
-    case 'price-desc':
-      query = query.order('id', { ascending: false }); // Will sort client-side for variant price
-      break;
-    case 'title':
-      query = query.order('title', { ascending: true });
-      break;
-    case 'newest':
-    default:
-      query = query.order('published_at', { ascending: false });
-  }
-
-  const { data, error, count } = await query.range(from, to);
-
-  if (error) {
-    console.error('Error fetching collection products:', error);
-    return { data: [], count: 0, collection };
-  }
-
-  let products = (data || []) as ProductWithDetails[];
-
-  // Client-side price sorting since we need to look at variant prices
-  if (sortBy === 'price-asc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceA - priceB;
-    });
-  } else if (sortBy === 'price-desc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceB - priceA;
-    });
-  }
-
-  return {
-    data: products,
-    count: count || 0,
-    collection
-  };
+  const { data, count } = await fetchProductsByIds(supabase, productIds, { sort: sortBy, page, pageSize });
+  return { data, count, collection };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -375,7 +300,7 @@ export async function getProductTypes(): Promise<string[]> {
     .not('product_type', 'is', null);
 
   if (error) {
-    console.error('Error fetching product types:', error);
+    logDbError('Error fetching product types:', error);
     return [];
   }
 
@@ -398,18 +323,23 @@ export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistD
     .in('handle', ARTIST_COLLECTION_HANDLES as unknown as string[]);
 
   if (collectionsError || !collections) {
-    console.error('Error fetching artist collections:', collectionsError);
+    logDbError('artists:collections', collectionsError);
     return [];
   }
 
-  // Get product counts for each artist collection via collects
-  const artistsWithCounts = await Promise.all(
-    (collections as { id: number; title: string; handle: string | null; body_html: string | null; image_src: string | null }[]).map(async (col) => {
-      const { count } = await supabase
-        .from('collects')
-        .select('*', { count: 'exact', head: true })
-        .eq('collection_id', col.id);
+  // Get product counts for all artist collections in ONE query (not N+1)
+  const collectionIds = (collections as { id: number }[]).map((c) => c.id);
+  const { data: allCollects } = await supabase
+    .from('collects')
+    .select('collection_id')
+    .in('collection_id', collectionIds);
+  const counts = new Map<number, number>();
+  for (const row of (allCollects as { collection_id: number }[] | null) || []) {
+    counts.set(row.collection_id, (counts.get(row.collection_id) || 0) + 1);
+  }
 
+  // Get product counts for each artist collection via collects
+  const artistsWithCounts = (collections as { id: number; title: string; handle: string | null; body_html: string | null; image_src: string | null }[]).map((col) => {
       // Get static metadata for colors, images, etc.
       const handle = col.handle || '';
       const staticData = ARTISTS[handle];
@@ -424,10 +354,9 @@ export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistD
         logoImage: staticData?.logoImage,
         accentColor: staticData?.accentColor || '#FFD700',
         secondaryColor: staticData?.secondaryColor || '#1C1C1C',
-        productCount: count || 0,
+        productCount: counts.get(col.id) || 0,
       } as ArtistData;
-    })
-  );
+    });
 
   // Filter out artists with 0 products and sort by product count
   return artistsWithCounts
@@ -454,7 +383,7 @@ export async function getArtistByHandle(handle: string, useStatic = false): Prom
   const collection = collectionData as { id: number; title: string; handle: string | null; body_html: string | null; image_src: string | null } | null;
 
   if (error || !collection) {
-    console.error('Error fetching artist collection:', error);
+    logDbError('Error fetching artist collection:', error);
     return null;
   }
 
@@ -487,9 +416,10 @@ export async function getArtistByHandle(handle: string, useStatic = false): Prom
  */
 export async function getTopProductsByArtistHandle(
   artistHandle: string,
-  limit = 4
+  limit = 4,
+  useStatic = false
 ): Promise<ProductWithDetails[]> {
-  const supabase = await createServerClient();
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
 
   // First get the collection ID for this artist
   const { data: collectionData, error: collectionError } = await supabase
@@ -501,7 +431,7 @@ export async function getTopProductsByArtistHandle(
   const collection = collectionData as { id: number } | null;
 
   if (collectionError || !collection) {
-    if (collectionError) console.error('Error fetching artist collection for homepage:', collectionError);
+    if (collectionError) logDbError('artist:collection-homepage', collectionError);
     return [];
   }
 
@@ -517,30 +447,8 @@ export async function getTopProductsByArtistHandle(
 
   const productIds = (collectsData as { product_id: number }[]).map(c => c.product_id);
 
-  // Get products with details
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `)
-    .in('id', productIds)
-    .eq('status', 'active')
-    .order('published_at', { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error('Error fetching top artist products:', error);
-    return [];
-  }
-
-  return (data || []) as ProductWithDetails[];
+  const { data } = await fetchProductsByIds(supabase, productIds, { sort: 'newest', page: 1, pageSize: limit });
+  return data;
 }
 
 /**
@@ -564,7 +472,7 @@ export async function getProductsByArtistHandle(
   const collection = collectionData as { id: number } | null;
 
   if (collectionError || !collection) {
-    console.error('Error fetching artist collection:', collectionError);
+    logDbError('artist:collection', collectionError);
     return { data: [], count: 0 };
   }
 
@@ -580,67 +488,7 @@ export async function getProductsByArtistHandle(
 
   const productIds = (collectsData as { product_id: number }[]).map(c => c.product_id);
 
-  // Build query for products
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-
-  let query = supabase
-    .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `, { count: 'exact' })
-    .in('id', productIds)
-    .eq('status', 'active');
-
-  // Apply sorting
-  switch (sortBy) {
-    case 'title':
-      query = query.order('title', { ascending: true });
-      break;
-    case 'price-asc':
-    case 'price-desc':
-      query = query.order('published_at', { ascending: false });
-      break;
-    case 'newest':
-    default:
-      query = query.order('published_at', { ascending: false });
-  }
-
-  const { data, error, count } = await query.range(from, to);
-
-  if (error) {
-    console.error('Error fetching artist products:', error);
-    return { data: [], count: 0 };
-  }
-
-  let products = (data || []) as ProductWithDetails[];
-
-  // Client-side price sorting
-  if (sortBy === 'price-asc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceA - priceB;
-    });
-  } else if (sortBy === 'price-desc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceB - priceA;
-    });
-  }
-
-  return {
-    data: products,
-    count: count || 0
-  };
+  return fetchProductsByIds(supabase, productIds, { sort: sortBy, page, pageSize });
 }
 
 /**
@@ -666,64 +514,43 @@ export async function getProductsFiltered(
 
   let query = supabase
     .from('products')
-    .select(`
-      *,
-      product_variants (
-        id, title, price, compare_at_price,
-        inventory_quantity, option1, option2, option3, position
-      ),
-      product_images (
-        id, src, supabase_url, alt, position
-      )
-    `, { count: 'exact' })
+    .select(PRODUCT_SELECT, { count: 'exact' })
     .eq('status', 'active');
 
-  // Apply artist filter (match vendor name case-insensitively)
+  // Apply artist filter (match vendor name case-insensitively, escaped)
   if (artist) {
-    query = query.ilike('vendor', artist);
+    query = query.ilike('vendor', `%${escapeLike(artist)}%`);
   }
 
   // Apply product type filter
   if (productType) {
-    query = query.ilike('product_type', productType);
+    query = query.ilike('product_type', `%${escapeLike(productType)}%`);
   }
 
-  // Apply sorting
-  switch (sortBy) {
-    case 'title':
-      query = query.order('title', { ascending: true });
-      break;
-    case 'price-asc':
-    case 'price-desc':
-      // Sort by published_at first, then client-side for price
-      query = query.order('published_at', { ascending: false });
-      break;
-    default:
-      query = query.order('published_at', { ascending: false });
+  // Apply sorting (price sorts fetch the full set below, then slice)
+  const isPriceSort = sortBy === 'price-asc' || sortBy === 'price-desc';
+  if (sortBy === 'title') {
+    query = query.order('title', { ascending: true });
+  } else {
+    query = query.order('published_at', { ascending: false });
   }
 
-  const { data, error, count } = await query.range(from, to);
+  const { data, error, count } = await query.range(
+    ...(isPriceSort ? [0, PRICE_SORT_FETCH_LIMIT - 1] as const : [from, to] as const)
+  );
 
   if (error) {
-    console.error('Error fetching filtered products:', error);
+    logDbError('Error fetching filtered products:', error);
     return { data: [], count: 0 };
   }
 
   let products = (data || []) as ProductWithDetails[];
 
-  // Client-side price sorting (since price is in variants)
-  if (sortBy === 'price-asc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceA - priceB;
-    });
-  } else if (sortBy === 'price-desc') {
-    products = products.sort((a, b) => {
-      const priceA = a.product_variants?.[0]?.price || 0;
-      const priceB = b.product_variants?.[0]?.price || 0;
-      return priceB - priceA;
-    });
+  // Price sorts apply to the fetched window (the newest PRICE_SORT_FETCH_LIMIT
+  // rows), then slice the requested page. Correct while the active catalog stays
+  // under that cap; beyond it the sorted pages and `count` disagree.
+  if (isPriceSort) {
+    products = sortProductsByPrice(products, sortBy === 'price-asc' ? 'asc' : 'desc').slice(from, to + 1);
   }
 
   return {
@@ -748,7 +575,7 @@ export async function getBlogs(): Promise<Blog[]> {
     .order('title', { ascending: true });
 
   if (error) {
-    console.error('Error fetching blogs:', error);
+    logDbError('Error fetching blogs:', error);
     return [];
   }
 
@@ -768,7 +595,7 @@ export async function getBlogByHandle(handle: string): Promise<Blog | null> {
     .single();
 
   if (error) {
-    console.error('Error fetching blog:', error);
+    logDbError('Error fetching blog:', error);
     return null;
   }
 
@@ -783,7 +610,8 @@ export async function getArticles(
   pageSize = 12
 ): Promise<{ data: ArticleWithBlog[]; count: number }> {
   const supabase = await createServerClient();
-  const from = (page - 1) * pageSize;
+  const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+  const from = (safePage - 1) * pageSize;
   const to = from + pageSize - 1;
 
   const { data, error, count } = await supabase
@@ -793,11 +621,12 @@ export async function getArticles(
       blog:blogs(id, title, handle)
     `, { count: 'exact' })
     .eq('published', true)
+    .not('handle', 'is', null)
     .order('published_at', { ascending: false })
     .range(from, to);
 
   if (error) {
-    console.error('Error fetching articles:', error);
+    logDbError('Error fetching articles:', error);
     return { data: [], count: 0 };
   }
 
@@ -824,7 +653,31 @@ export async function getArticleBySlug(slug: string): Promise<ArticleWithBlog | 
     .single();
 
   if (error) {
-    console.error('Error fetching article:', error);
+    logDbError('Error fetching article:', error);
+    return null;
+  }
+
+  return data as ArticleWithBlog;
+}
+
+/**
+ * Get single article by slug (static version for generateMetadata).
+ */
+export async function getArticleBySlugStatic(slug: string): Promise<ArticleWithBlog | null> {
+  const supabase = createStaticClient();
+
+  const { data, error } = await supabase
+    .from('articles')
+    .select(`
+      *,
+      blog:blogs(id, title, handle)
+    `)
+    .eq('handle', slug)
+    .eq('published', true)
+    .single();
+
+  if (error) {
+    logDbError('Error fetching article (static):', error);
     return null;
   }
 
@@ -859,7 +712,7 @@ export async function getArticlesByBlogHandle(
     .range(from, to);
 
   if (error) {
-    console.error('Error fetching blog articles:', error);
+    logDbError('Error fetching blog articles:', error);
     return { data: [], count: 0, blog };
   }
 
@@ -884,7 +737,7 @@ export async function getFeaturedArticles(limit = 3): Promise<Article[]> {
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching featured articles:', error);
+    logDbError('Error fetching featured articles:', error);
     return [];
   }
 
@@ -904,12 +757,13 @@ export async function getRelatedArticles(
     .from('articles')
     .select('*')
     .eq('published', true)
+    .not('handle', 'is', null)
     .neq('id', currentArticleId)
     .order('published_at', { ascending: false })
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching related articles:', error);
+    logDbError('Error fetching related articles:', error);
     return [];
   }
 
@@ -929,7 +783,7 @@ export async function getArticlesStatic(): Promise<Article[]> {
     .order('published_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching articles (static):', error);
+    logDbError('Error fetching articles (static):', error);
     return [];
   }
 

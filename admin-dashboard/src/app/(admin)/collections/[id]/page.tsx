@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { notFound } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function updateCollection(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const id = Number(formData.get('id'));
+  if (!Number.isFinite(id) || id <= 0) return;
   const title = String(formData.get('title') || '').trim();
   const handle = String(formData.get('handle') || '').trim();
   const published = formData.get('published') === 'on';
@@ -13,7 +16,7 @@ async function updateCollection(formData: FormData) {
   const products = String(formData.get('product_ids') || '').trim();
   const now = new Date().toISOString();
 
-  await supabase.from('collections').update({
+  const { error } = await supabase.from('collections').update({
     title,
     handle,
     published,
@@ -21,29 +24,36 @@ async function updateCollection(formData: FormData) {
     updated_at: now,
     published_at: published ? now : null,
   }).eq('id', id);
+  if (error) return;
 
-  if (products) {
-    const productIds = products.split(',').map((val) => Number(val.trim())).filter(Boolean);
-    await supabase.from('collects').delete().eq('collection_id', id);
-    for (const productId of productIds) {
-      const collectId = await getNextId('collects');
-      await supabase.from('collects').insert({
-        id: collectId,
-        collection_id: id,
-        product_id: productId,
-        created_at: now,
-      });
-    }
+  const { error: deleteError } = await supabase.from('collects').delete().eq('collection_id', id);
+  if (deleteError) return;
+  const productIds = products
+    .split(',')
+    .map((val) => Number(val.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  for (const productId of productIds) {
+    const collectId = await getNextId('collects');
+    const { error: insertError } = await supabase.from('collects').insert({
+      id: collectId,
+      collection_id: id,
+      product_id: productId,
+      created_at: now,
+    });
+    if (insertError) return;
   }
+  revalidatePath(`/collections/${id}`);
 }
 
 async function saveRule(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const collectionId = Number(formData.get('collection_id'));
+  if (!Number.isFinite(collectionId) || collectionId <= 0) return;
   const column = String(formData.get('column_name') || 'title');
   const relation = String(formData.get('relation') || 'equals');
   const condition = String(formData.get('condition') || '').trim();
+  if (!condition) return;
 
   await supabase.from('smart_collection_rules').insert({
     collection_id: collectionId,
@@ -51,17 +61,20 @@ async function saveRule(formData: FormData) {
     relation,
     condition,
   });
+  revalidatePath(`/collections/${collectionId}`);
 }
 
-export default async function CollectionDetailPage({ params }: { params: { id: string } }) {
+export default async function CollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createServerClient();
   const { data: collection } = await supabase
     .from('collections')
     .select('*, collects(product_id), smart_collection_rules(*)')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
+  if (!collection) notFound();
 
-  const productIds = (collection?.collects || []).map((item) => item.product_id).join(', ');
+  const productIds = (collection?.collects || []).map((item: { product_id: number }) => item.product_id).join(', ');
 
   return (
     <div className="grid gap-4">
@@ -133,7 +146,7 @@ export default async function CollectionDetailPage({ params }: { params: { id: s
           <button className="button" type="submit">Add Rule</button>
         </form>
         <ul className="helper" style={{ marginTop: 12 }}>
-          {(collection?.smart_collection_rules || []).map((rule) => (
+          {(collection?.smart_collection_rules || []).map((rule: { id: number; column_name: string; relation: string; condition: string }) => (
             <li key={rule.id}>{rule.column_name} {rule.relation} {rule.condition}</li>
           ))}
         </ul>

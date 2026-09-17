@@ -1,14 +1,71 @@
-"""Centralized configuration for YORD migration scripts."""
+"""Centralized configuration for YORD migration scripts.
+
+Precedence for every setting: **env var > .env file > built-in default**.
+(``load_dotenv()`` below loads ``.env`` into ``os.environ`` without
+overriding real env vars, so ``os.getenv`` reads implement this order.)
+
+No hardcoded credentials or project refs live here: missing required values
+raise ``ValueError`` with an actionable message (fail fast, never migrate
+into the wrong project on a silent default).
+"""
 
 import os
+import warnings
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Shared request / batching defaults (single source of truth) ---
+# Shopify caps page size at 250; Supabase upserts stay well under payload
+# limits at 500 rows per batch.
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "250"))
+SUPABASE_UPSERT_BATCH_SIZE = int(os.getenv("SUPABASE_UPSERT_BATCH_SIZE", "500"))
+RETRY_LIMIT = int(os.getenv("RETRY_LIMIT", "5"))
+RETRY_WAIT = float(os.getenv("RETRY_WAIT", "2"))  # base seconds for backoff
+
+
+def get_shopify_store_name(explicit: str | None = None) -> str:
+    """Resolve the Shopify store subdomain.
+
+    Reads ``SHOPIFY_STORE_NAME`` (canonical, see ``.env.example``), falling
+    back to legacy ``SHOPIFY_STORE`` with a deprecation warning. Pass
+    ``explicit`` to override both (e.g. from a CLI flag or constructor arg).
+    """
+    if explicit:
+        return explicit
+    name = os.getenv("SHOPIFY_STORE_NAME")
+    if name:
+        return name
+    legacy = os.getenv("SHOPIFY_STORE")
+    if legacy:
+        warnings.warn(
+            "SHOPIFY_STORE is deprecated; rename it to SHOPIFY_STORE_NAME in .env",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Accept a full "foo.myshopify.com" value or a bare subdomain.
+        return legacy.replace(".myshopify.com", "")
+    raise ValueError(
+        "Missing Shopify store name: set SHOPIFY_STORE_NAME in .env "
+        "(e.g. SHOPIFY_STORE_NAME=5217cc-15 for 5217cc-15.myshopify.com)"
+    )
+
 
 def get_project_ref() -> str:
-    """Get Supabase project reference from environment or default."""
-    return os.getenv('SUPABASE_PROJECT_REF', 'zbxvholbndkgqgbdefzx')
+    """Get Supabase project reference from the environment.
+
+    Raises:
+        ValueError: If SUPABASE_PROJECT_REF is not set. The previous
+            hardcoded fallback risked pointing scripts at the wrong
+            project; set the var explicitly instead.
+    """
+    ref = os.getenv("SUPABASE_PROJECT_REF")
+    if not ref:
+        raise ValueError(
+            "Missing SUPABASE_PROJECT_REF: set it in .env to your Supabase "
+            "project ref (the subdomain in https://<ref>.supabase.co)"
+        )
+    return ref
 
 
 # Artist collections with keywords for matching products
@@ -56,8 +113,10 @@ ARTIST_COLLECTIONS = {
     },
     'karan-aujla': {
         'name': 'Karan Aujla',
-        'keywords': ['karan aujla', 'karan', 'aujla', 'karanaujla'],
-        'search_terms': ['karan aujla', 'karan', 'aujla', 'karanaujla'],
+        # NOTE: bare 'karan' removed -- it over-matched (e.g. "Karan Kundra",
+        # "Karakoram" vendor strings). Use the full-name / handle forms below.
+        'keywords': ['karan aujla', 'aujla', 'karanaujla'],
+        'search_terms': ['karan aujla', 'aujla', 'karanaujla'],
     },
     'krsna': {
         'name': 'KR$NA',

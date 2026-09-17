@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, ShoppingBag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatPrice, getImageUrl } from '@/lib/utils';
+import { formatPrice, getFirstByPosition, getImageUrl, isPriceOnSale, sortByPosition } from '@/lib/utils';
 import type { ProductWithDetails, ProductVariant } from '@/types/database';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
@@ -18,26 +18,32 @@ interface QuickViewModalProps {
 }
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const firstVariant = (p: ProductWithDetails): ProductVariant | null => {
+    return getFirstByPosition(p.product_variants);
+  };
+
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    () => firstVariant(product)
+  );
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
+  // Re-sync when a different product is shown (render-phase update).
+  const [prevProduct, setPrevProduct] = useState(product);
+  if (prevProduct !== product) {
+    setPrevProduct(product);
+    setSelectedVariant(firstVariant(product));
+    setCurrentImageIndex(0);
+    setQuantity(1);
+  }
+
   const addItem = useCartStore((state) => state.addItem);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
 
-  // Initialize selected variant
-  useEffect(() => {
-    if (product.product_variants && product.product_variants.length > 0) {
-      const sortedVariants = [...product.product_variants].sort((a, b) => a.position - b.position);
-      setSelectedVariant(sortedVariants[0]);
-    }
-  }, [product]);
-
-  // Reset quantity when variant changes
-  useEffect(() => {
+  const selectVariant = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
     setQuantity(1);
-  }, [selectedVariant]);
+  };
 
   // Close on escape key
   useEffect(() => {
@@ -60,9 +66,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     };
   }, [isOpen]);
 
-  const sortedImages = product.product_images
-    ? [...product.product_images].sort((a, b) => a.position - b.position)
-    : [];
+  const sortedImages = sortByPosition(product.product_images);
 
   const currentImage = sortedImages[currentImageIndex];
   const imageUrl = currentImage ? getImageUrl(currentImage) : null;
@@ -106,9 +110,11 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     });
   };
 
-  const isWishlisted = isInWishlist(product.id);
+  const isWishlisted = useWishlistStore((state) =>
+    state.items.some((i) => i.productId === product.id)
+  );
   const inStock = selectedVariant ? selectedVariant.inventory_quantity > 0 : false;
-  const onSale = selectedVariant?.compare_at_price && selectedVariant.compare_at_price > selectedVariant.price;
+  const onSale = isPriceOnSale(selectedVariant?.price, selectedVariant?.compare_at_price);
 
   // Group variants by option
   const uniqueOptions: Record<string, string[]> = {};
@@ -245,7 +251,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                           return (
                             <button
                               key={variant.id}
-                              onClick={() => setSelectedVariant(variant)}
+                              onClick={() => selectVariant(variant)}
                               disabled={!isAvailable}
                               className={cn(
                                 'px-4 py-2 border text-sm font-[family-name:var(--font-jakarta)] transition-colors',

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Mock env so lint / typecheck / build pass without real credentials.
+# No secrets are required or referenced by any step.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: http://localhost
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key-for-ci
+  SUPABASE_SERVICE_ROLE_KEY: test-service-key-for-ci
+  RAZORPAY_KEY_ID: test-key-id
+  RAZORPAY_KEY_SECRET: test-key-secret
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: test-key-id
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_APP_NAME: YORD India
+  NEXT_PUBLIC_POSTHOG_KEY: test-posthog-key
+  NEXT_PUBLIC_POSTHOG_HOST: http://localhost
+  OPENAI_API_KEY: test-openai-key
+  OPENAI_TEXT_MODEL: test-model
+  OPENAI_IMAGE_MODEL: test-image-model
+
+jobs:
+  web:
+    name: web (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, admin-dashboard]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (npm workspaces)
+        # --legacy-peer-deps: pre-existing peer conflict, unrelated to CI:
+        # root package.json pins react 18 (Remotion) while
+        # packages/ui peer-depends on react ^19 (see follow-ups).
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint --workspace=${{ matrix.app }}
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+        working-directory: ${{ matrix.app }}
+
+      - name: Test
+        run: npm run test --workspace=${{ matrix.app }} -- --run
+
+      - name: Build
+        run: npm run build --workspace=${{ matrix.app }}
+
+  python:
+    name: python (scripts compileall)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile all migration scripts
+        run: python -m compileall scripts/

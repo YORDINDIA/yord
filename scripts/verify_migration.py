@@ -11,7 +11,12 @@ import json
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import Client
+
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.supabase_helpers import get_supabase_client, get_supabase_count
+from utils.cli import create_parser, configure_logging
 
 # Load environment variables
 load_dotenv()
@@ -33,7 +38,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 class MigrationVerifier:
     def __init__(self):
-        self.supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        self.supabase: Client = get_supabase_client()
         self.results = {
             'timestamp': datetime.now().isoformat(),
             'store': STORE_NAME,
@@ -64,13 +69,53 @@ class MigrationVerifier:
         return -1
 
     def get_supabase_count(self, table):
-        """Get count from Supabase using REST API."""
-        try:
-            response = self.supabase.table(table).select('id', count='exact').limit(1).execute()
-            return response.count if response.count else 0
-        except Exception as e:
-            print(f"  Error counting {table}: {e}")
-            return -1
+        """Get count from Supabase using REST API.
+
+        Returns the row count, or None if the query failed. None MUST NOT
+        be treated as 0 -- it means "unknown", and verify_counts records
+        it as a discrepancy instead of comparing against Shopify.
+        """
+        count = get_supabase_count(self.supabase, table)
+        if count is None:
+            print(f"  Error counting {table}: query failed (see log)")
+        return count
+
+    def _compare(self, entity, shopify_count, supabase_count):
+        """Compare one entity's counts.
+
+        A None Supabase count means the query FAILED (not "0 rows"): it is
+        recorded as a discrepancy with an error note instead of being
+        compared arithmetically. Returns True on match.
+        """
+        if supabase_count is None:
+            self.results['discrepancies'].append({
+                'entity': entity,
+                'shopify': shopify_count,
+                'supabase': None,
+                'error': 'Supabase count query failed',
+            })
+            self.results['counts'][entity] = {
+                'shopify': shopify_count,
+                'supabase': None,
+                'match': False,
+            }
+            print(f"  {entity:20} Shopify: {shopify_count:>6} | Supabase:  ERROR  | [QUERY FAILED]")
+            return False
+        match = shopify_count == supabase_count
+        if not match:
+            self.results['discrepancies'].append({
+                'entity': entity,
+                'shopify': shopify_count,
+                'supabase': supabase_count,
+                'difference': shopify_count - supabase_count,
+            })
+        self.results['counts'][entity] = {
+            'shopify': shopify_count,
+            'supabase': supabase_count,
+            'match': match,
+        }
+        print(f"  {entity:20} Shopify: {shopify_count:>6} | Supabase: {supabase_count:>6} | [{'OK' if match else 'MISMATCH'}]")
+        return match
 
     def verify_counts(self):
         """Verify row counts match between Shopify and Supabase."""
@@ -88,89 +133,29 @@ class MigrationVerifier:
                 shopify_products += count_data.get('count', 0)
 
         supabase_products = self.get_supabase_count('products')
-        products_match = shopify_products == supabase_products
-
-        if not products_match:
+        if not self._compare('Products', shopify_products, supabase_products):
             all_match = False
-            self.results['discrepancies'].append({
-                'entity': 'Products',
-                'shopify': shopify_products,
-                'supabase': supabase_products,
-                'difference': shopify_products - supabase_products
-            })
-
-        self.results['counts']['Products'] = {
-            'shopify': shopify_products,
-            'supabase': supabase_products,
-            'match': products_match
-        }
-        print(f"  {'Products':20} Shopify: {shopify_products:>6} | Supabase: {supabase_products:>6} | [{'OK' if products_match else 'MISMATCH'}]")
 
         # Customers
         shopify_customers = self.get_shopify_count('customers')
         supabase_customers = self.get_supabase_count('customers')
-        customers_match = shopify_customers == supabase_customers
-
-        if not customers_match:
+        if not self._compare('Customers', shopify_customers, supabase_customers):
             all_match = False
-            self.results['discrepancies'].append({
-                'entity': 'Customers',
-                'shopify': shopify_customers,
-                'supabase': supabase_customers,
-                'difference': shopify_customers - supabase_customers
-            })
-
-        self.results['counts']['Customers'] = {
-            'shopify': shopify_customers,
-            'supabase': supabase_customers,
-            'match': customers_match
-        }
-        print(f"  {'Customers':20} Shopify: {shopify_customers:>6} | Supabase: {supabase_customers:>6} | [{'OK' if customers_match else 'MISMATCH'}]")
 
         # Orders (with status=any)
         orders_data = self.shopify_request("orders/count.json", {'status': 'any'})
         shopify_orders = orders_data.get('count', 0) if orders_data else -1
         supabase_orders = self.get_supabase_count('orders')
-        orders_match = shopify_orders == supabase_orders
-
-        if not orders_match:
+        if not self._compare('Orders', shopify_orders, supabase_orders):
             all_match = False
-            self.results['discrepancies'].append({
-                'entity': 'Orders',
-                'shopify': shopify_orders,
-                'supabase': supabase_orders,
-                'difference': shopify_orders - supabase_orders
-            })
-
-        self.results['counts']['Orders'] = {
-            'shopify': shopify_orders,
-            'supabase': supabase_orders,
-            'match': orders_match
-        }
-        print(f"  {'Orders':20} Shopify: {shopify_orders:>6} | Supabase: {supabase_orders:>6} | [{'OK' if orders_match else 'MISMATCH'}]")
 
         # Collections (custom + smart)
         shopify_custom = self.get_shopify_count('custom_collections')
         shopify_smart = self.get_shopify_count('smart_collections')
         shopify_collections = shopify_custom + shopify_smart
         supabase_collections = self.get_supabase_count('collections')
-        collections_match = shopify_collections == supabase_collections
-
-        if not collections_match:
+        if not self._compare('Collections', shopify_collections, supabase_collections):
             all_match = False
-            self.results['discrepancies'].append({
-                'entity': 'Collections',
-                'shopify': shopify_collections,
-                'supabase': supabase_collections,
-                'difference': shopify_collections - supabase_collections
-            })
-
-        self.results['counts']['Collections'] = {
-            'shopify': shopify_collections,
-            'supabase': supabase_collections,
-            'match': collections_match
-        }
-        print(f"  {'Collections':20} Shopify: {shopify_collections:>6} | Supabase: {supabase_collections:>6} | [{'OK' if collections_match else 'MISMATCH'}]")
 
         # Derived counts (Supabase only)
         print("\n  Derived Counts (Supabase only):")
@@ -190,7 +175,8 @@ class MigrationVerifier:
         for table, display_name in derived_tables:
             count = self.get_supabase_count(table)
             self.results['counts'][display_name] = {'supabase': count}
-            print(f"    {display_name:25} {count:>6}")
+            shown = f"{count:>6}" if count is not None else " ERROR"
+            print(f"    {display_name:25} {shown}")
 
         return all_match
 
@@ -431,6 +417,14 @@ class MigrationVerifier:
 
 def main():
     """Main entry point."""
+    parser = create_parser("Shopify to Supabase migration verification")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--quick', action='store_true',
+                      help='Counts only (skip sample + media checks)')
+    mode.add_argument('--full', action='store_true',
+                      help='All checks incl. samples + media (default)')
+    args = parser.parse_args()
+    configure_logging(args.verbose)
     print("=" * 60)
     print("SHOPIFY TO SUPABASE MIGRATION VERIFICATION")
     print(f"Store: {STORE_NAME}.myshopify.com")
@@ -450,11 +444,14 @@ def main():
     try:
         verifier = MigrationVerifier()
 
-        # Run all verification checks
+        # Run verification checks (--quick = counts only; default is full)
         verifier.verify_counts()
-        verifier.verify_sample_products()
-        verifier.verify_sample_orders()
-        verifier.verify_media_migration()
+        if not args.quick:
+            verifier.verify_sample_products()
+            verifier.verify_sample_orders()
+            verifier.verify_media_migration()
+        else:
+            print("\n--quick: skipping sample + media checks")
 
         # Print summary
         verifier.print_summary()

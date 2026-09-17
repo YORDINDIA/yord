@@ -28,8 +28,10 @@ export function WishlistButton({
   className,
 }: WishlistButtonProps) {
   const toggleItem = useWishlistStore((state) => state.toggleItem);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
-  const inWishlist = isInWishlist(productId);
+  // Subscribe to derived state (not the stable isInWishlist fn) so this re-renders on toggle
+  const inWishlist = useWishlistStore((state) =>
+    state.items.some((i) => i.productId === productId)
+  );
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();

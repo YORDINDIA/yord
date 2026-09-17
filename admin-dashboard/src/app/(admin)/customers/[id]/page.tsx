@@ -1,27 +1,34 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { formatCurrency } from '@/lib/utils/format';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function updateCustomer(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const id = Number(formData.get('id'));
+  if (!Number.isFinite(id) || id <= 0) return;
   const tags = String(formData.get('tags') || '').trim();
   const note = String(formData.get('note') || '').trim();
-  await supabase.from('customers').update({ tags: tags || null, note: note || null }).eq('id', id);
+  const { error } = await supabase.from('customers').update({ tags: tags || null, note: note || null }).eq('id', id);
+  if (error) return;
+  revalidatePath(`/customers/${id}`);
 }
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createServerClient();
-  const { data: customer } = await supabase.from('customers').select('*').eq('id', params.id).single();
+  const { data: customer } = await supabase.from('customers').select('*').eq('id', id).single();
+  if (!customer) notFound();
   const { data: orders } = await supabase
     .from('orders')
     .select('id, name, total_price, currency')
-    .eq('customer_id', params.id);
+    .eq('customer_id', id);
   const { data: addresses } = await supabase
     .from('customer_addresses')
     .select('*')
-    .eq('customer_id', params.id);
+    .eq('customer_id', id);
 
   return (
     <div className="grid gap-4">

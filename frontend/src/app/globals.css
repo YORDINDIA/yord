@@ -1,78 +1,13 @@
 @import "tailwindcss";
+@import "../../../packages/ui/src/tokens.css";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    YORD INDIA - NOIR LUXE Design System
    Ultra-premium dark theme for luxury concert fashion
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   CORE VARIABLES
-   ───────────────────────────────────────────────────────────────────────────── */
-:root {
-  /* Noir Palette - The Canvas */
-  --noir-950: #0A0A0A;
-  --noir-900: #111111;
-  --noir-800: #1A1A1A;
-  --noir-700: #262626;
-  --noir-600: #333333;
-  --noir-500: #525252;
-  --noir-400: #737373;
-
-  /* Gold Accents - Luxury Signifier */
-  --gold-50: #FFF9E5;
-  --gold-100: #FFE7A3;
-  --gold-200: #FFD966;
-  --gold-300: #E6C35A;
-  --gold-400: #CC9F00;
-  --gold-500: #996F00;
-
-  /* Ivory - Text Hierarchy */
-  --ivory-50: #FAFAF8;
-  --ivory-100: #F5F5F0;
-  --ivory-200: #E8E8E0;
-  --ivory-300: #C4C4BC;
-  --ivory-400: #9A9A94;
-
-  /* Artist Accent Colors */
-  --coldplay-primary: #FFD700;
-  --coldplay-secondary: #1E90FF;
-  --taylor-primary: #C71585;
-  --taylor-secondary: #FFB6C1;
-  --diljit-primary: #FF6B35;
-  --diljit-secondary: #004E64;
-  --linkin-primary: #8B0000;
-  --linkin-secondary: #1C1C1C;
-  --weeknd-primary: #FF1744;
-  --weeknd-secondary: #212121;
-
-  /* Semantic Colors */
-  --background: var(--noir-950);
-  --foreground: var(--ivory-50);
-  --card: var(--noir-900);
-  --card-hover: var(--noir-800);
-  --border: var(--noir-700);
-  --accent: var(--gold-200);
-  --accent-hover: var(--gold-300);
-  --muted: var(--ivory-400);
-
-  /* Spacing & Sizing */
-  --header-height: 80px;
-  --max-width: 1440px;
-  --container-padding: 24px;
-
-  /* Transitions */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-luxury: 800ms cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.6);
-  --shadow-gold: 0 4px 30px rgba(255, 217, 102, 0.15);
-}
+/* Core variables (palette, semantic tokens, spacing, transitions, shadows) are
+   defined in packages/ui/src/tokens.css, imported above. */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TAILWIND THEME EXTENSION
@@ -639,6 +574,29 @@ h1, h2, h3, h4, h5, h6 {
   :root {
     --header-height: 64px;
     --container-padding: 16px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   REDUCED MOTION — static luxury, no animation
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .noise-overlay {
+    display: none;
+  }
+
+  .shimmer::after,
+  .animate-shimmer-sweep,
+  .gold-text-animated,
+  .hero-sparkle,
+  .animate-gold-breath,
+  .animate-liquid-morph,
+  .animate-float {
+    animation: none;
+  }
+
+  html {
+    scroll-behavior: auto;
   }
 }
 

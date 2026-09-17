@@ -12,7 +12,7 @@ if (typeof window !== 'undefined') {
       api_host: host,
       person_profiles: 'identified_only',
       capture_pageview: false,
-      disable_session_recording: false, // Explicitly enable session recording
+      disable_session_recording: true,
     })
   } else {
     if (process.env.NODE_ENV === 'development') {

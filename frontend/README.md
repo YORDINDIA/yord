@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YORD Frontend
 
-## Getting Started
+Customer storefront for YORD India: luxury concert-fashion e-commerce built with Next.js 16 (App Router), React 19, and TypeScript.
 
-First, run the development server:
+## Stack
+
+Supabase (Postgres + Auth with SSR cookies), Razorpay payments, Zustand cart/wishlist stores with localStorage persistence, Tailwind CSS 4 "Noir Luxe" dark theme, PostHog analytics.
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev    # localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only, never expose to the client)
+- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `NEXT_PUBLIC_RAZORPAY_KEY_ID`
+- `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME`
+- `NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Commands
 
-## Learn More
+```bash
+npm run dev    # dev server
+npm run build  # production build
+npm run start  # start production server
+npm run lint   # ESLint
+npm run clean  # rm -rf .next
+```
 
-To learn more about Next.js, take a look at the following resources:
+No test framework is configured.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/` — pages plus API routes (`api/` covers checkout, contact, newsletter, search); dynamic `[handle]/` routes for products, collections, artists
+- `src/components/` (`ui/`, `layout/`, `home/`, `product/`, …), `src/hooks/` (`useAuth`, `useRazorpay`), `src/providers/`
+- `src/lib/supabase/` — `client.ts` (browser), `server.ts` (regular, service, static), `queries.ts` (all DB queries); `src/lib/stores/` — cart/wishlist
+- `src/types/database.ts` — Supabase schema types; path alias `@/*` maps to `src/*`
 
-## Deploy on Vercel
+Server Components fetch via `queries.ts` by default; `'use client'` only for interactivity. `src/middleware.ts` (re-exported via `src/proxy.ts`) guards `/account/*` through Supabase SSR sessions. Theme tokens (`--noir-*`, `--gold-*`, `--ivory-*`, per-artist colors) live in `src/app/globals.css`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Netlify (`netlify.toml`, Node.js 20).

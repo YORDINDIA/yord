@@ -1,16 +1,19 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function createBlog(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const title = String(formData.get('title') || '').trim();
+  if (!title) return;
   const handle = String(formData.get('handle') || '').trim();
   const tags = String(formData.get('tags') || '').trim();
   const id = await getNextId('blogs');
   const now = new Date().toISOString();
-  await supabase.from('blogs').insert({
+  const { error } = await supabase.from('blogs').insert({
     id,
     title,
     handle: handle || title.toLowerCase().replace(/\s+/g, '-'),
@@ -18,6 +21,9 @@ async function createBlog(formData: FormData) {
     created_at: now,
     updated_at: now,
   });
+  if (error) throw new Error(error.message);
+  revalidatePath('/blogs');
+  redirect('/blogs');
 }
 
 export default function NewBlogPage() {

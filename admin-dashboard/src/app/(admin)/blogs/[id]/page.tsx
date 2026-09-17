@@ -1,22 +1,29 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { notFound } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function updateBlog(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const id = Number(formData.get('id'));
+  if (!Number.isFinite(id) || id <= 0) return;
   const title = String(formData.get('title') || '').trim();
   const handle = String(formData.get('handle') || '').trim();
   const tags = String(formData.get('tags') || '').trim();
-  await supabase.from('blogs').update({ title, handle, tags: tags || null, updated_at: new Date().toISOString() }).eq('id', id);
+  const { error } = await supabase.from('blogs').update({ title, handle, tags: tags || null, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return;
+  revalidatePath(`/blogs/${id}`);
 }
 
 async function createArticle(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const blogId = Number(formData.get('blog_id'));
+  if (!Number.isFinite(blogId) || blogId <= 0) return;
   const title = String(formData.get('title') || '').trim();
+  if (!title) return;
   const handle = String(formData.get('handle') || '').trim();
   const author = String(formData.get('author') || 'YORD Team');
   const bodyHtml = String(formData.get('body_html') || '');
@@ -24,7 +31,7 @@ async function createArticle(formData: FormData) {
   const tags = String(formData.get('tags') || '').trim();
   const id = await getNextId('articles');
   const now = new Date().toISOString();
-  await supabase.from('articles').insert({
+  const { error } = await supabase.from('articles').insert({
     id,
     blog_id: blogId,
     title,
@@ -37,12 +44,16 @@ async function createArticle(formData: FormData) {
     created_at: now,
     updated_at: now,
   });
+  if (error) return;
+  revalidatePath(`/blogs/${blogId}`);
 }
 
-export default async function BlogDetailPage({ params }: { params: { id: string } }) {
+export default async function BlogDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createServerClient();
-  const { data: blog } = await supabase.from('blogs').select('*').eq('id', params.id).single();
-  const { data: articles } = await supabase.from('articles').select('id, title, published').eq('blog_id', params.id);
+  const { data: blog } = await supabase.from('blogs').select('*').eq('id', id).single();
+  if (!blog) notFound();
+  const { data: articles } = await supabase.from('articles').select('id, title, published').eq('blog_id', id);
 
   return (
     <div className="grid gap-4">

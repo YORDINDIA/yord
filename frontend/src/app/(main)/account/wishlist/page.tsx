@@ -5,19 +5,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, ShoppingBag, X, ShoppingCart, ExternalLink } from 'lucide-react';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
+import { formatPrice, isPriceOnSale } from '@/lib/utils';
 
 export default function WishlistPage() {
   const router = useRouter();
   const items = useWishlistStore((state) => state.items);
   const removeItem = useWishlistStore((state) => state.removeItem);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
 
   const handleViewProduct = (item: typeof items[0]) => {
     // Navigate to product page where user can select size/variant
@@ -99,11 +92,11 @@ export default function WishlistPage() {
                     </Link>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="font-[family-name:var(--font-bebas)] text-lg text-gold-200">
-                        {formatCurrency(item.price)}
+                        {formatPrice(item.price)}
                       </span>
-                      {item.compareAtPrice && item.compareAtPrice > item.price && (
+                      {isPriceOnSale(item.price, item.compareAtPrice) && (
                         <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500 line-through">
-                          {formatCurrency(item.compareAtPrice)}
+                          {formatPrice(item.compareAtPrice ?? 0)}
                         </span>
                       )}
                     </div>

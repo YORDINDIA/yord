@@ -1,0 +1,15 @@
+# Local pre-commit hooks (optional). Install once with:
+#   npx lefthook install
+# Hooks run only on staged files and need no extra dependencies.
+
+pre-commit:
+  parallel: true
+  commands:
+    frontend-lint:
+      root: frontend
+      glob: "*.{ts,tsx}"
+      run: npx eslint {staged_files}
+    admin-lint:
+      root: admin-dashboard
+      glob: "*.{ts,tsx}"
+      run: npx eslint {staged_files}

@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 
 
 def setup_logging(
@@ -28,7 +29,10 @@ def setup_logging(
     handlers = [logging.StreamHandler(sys.stdout)]
 
     if log_file:
-        handlers.append(logging.FileHandler(log_file))
+        # Rotating: 5MB x 3 backups -- long runs must never fill disk.
+        handlers.append(
+            RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)
+        )
 
     # Configure logging
     logging.basicConfig(
