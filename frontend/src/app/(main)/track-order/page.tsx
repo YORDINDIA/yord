@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Package, Search, Loader2, Check, AlertCircle, MapPin, Calendar, Truck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { formatDate, formatPrice, sanitizeOrPattern } from '@/lib/utils';
 
 interface OrderDetails {
   id: number;
@@ -32,13 +33,23 @@ export default function TrackOrderPage() {
 
     try {
       const supabase = createClient();
+      // Orders are named YORD-<epochSeconds>-<hexSuffix> and order_number
+      // packs both halves (epoch * 65536 + suffix), so accept either the
+      // full name or the bare numeric order_number.
+      const rawNumber = orderNumber.trim().slice(0, 50);
+      const suffixMatch = rawNumber.match(/^YORD-(\d+)-([0-9A-Fa-f]{1,8})$/i);
+      const numeric = suffixMatch
+        ? Number(suffixMatch[1]) * 65536 + parseInt(suffixMatch[2], 16)
+        : parseInt(rawNumber.replace(/^YORD-/i, ''), 10);
+      // Quote the name predicate so input chars cannot break out of the filter
+      const safeName = sanitizeOrPattern(rawNumber);
 
       // Search by order number/name and email
       const { data, error: searchError } = await supabase
         .from('orders')
-        .select('*')
+        .select('id, name, order_number, email, financial_status, fulfillment_status, total_price, created_at, processed_at')
         .eq('email', email.toLowerCase().trim())
-        .or(`name.eq.${orderNumber.trim()},order_number.eq.${parseInt(orderNumber) || 0}`)
+        .or(`name.eq."${safeName}",order_number.eq.${Number.isFinite(numeric) ? numeric : 0}`)
         .single();
 
       if (searchError || !data) {
@@ -160,11 +171,7 @@ export default function TrackOrderPage() {
               <div className="flex items-center gap-3 text-ivory-400">
                 <Calendar size={18} />
                 <span className="font-[family-name:var(--font-jakarta)] text-sm">
-                  Ordered on {new Date(order.created_at).toLocaleDateString('en-IN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
+                  Ordered on {formatDate(order.created_at)}
                 </span>
               </div>
 
@@ -182,7 +189,7 @@ export default function TrackOrderPage() {
               <div className="flex justify-between items-center">
                 <span className="font-[family-name:var(--font-jakarta)] text-ivory-400">Total</span>
                 <span className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
-                  ₹{order.total_price.toLocaleString('en-IN')}
+                  {formatPrice(order.total_price)}
                 </span>
               </div>
             </div>

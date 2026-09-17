@@ -19,20 +19,12 @@ export default async function AdminLayout({
     .eq('user_id', user.id)
     .single();
 
-  if (!error && (!admin || admin.is_active === false)) {
-    return (
-      <div className="auth-wrap">
-        <div className="card auth-card">
-          <div className="card-header">
-            <div>
-              <div className="brand-sub">YORD INDIA</div>
-              <div className="card-title">Access denied</div>
-            </div>
-          </div>
-          <div className="helper">This account is not registered as an admin.</div>
-        </div>
-      </div>
-    );
+  // Defense in depth: middleware already redirects authenticated non-admins
+  // to /access-denied, but page Server Components run their queries before
+  // this layout renders. Fail closed here too so a middleware bypass can
+  // never leak admin query results to an authenticated non-admin.
+  if (error || !admin || !admin.is_active) {
+    redirect('/access-denied');
   }
 
   return <AdminShell title="YORD Admin">{children}</AdminShell>;

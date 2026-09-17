@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { createClient } from '@/lib/supabase/client';
+import { escapeLike, getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { vendorToHandle } from '@/types/database';
 import type { ProductWithDetails } from '@/types/database';
 
 interface RelatedProductsProps {
@@ -21,7 +23,10 @@ interface SimpleProduct {
   price: number;
   compareAtPrice: number | null;
   image: string | null;
-  badge: 'NEW' | 'SALE' | 'LIMITED' | 'BESTSELLER' | null;
+  badge: 'NEW' | 'SALE' | 'LIMITED' | 'BESTSELLER' | 'TRENDING' | null;
+  variantId: number | null;
+  variantTitle: string | null;
+  maxQuantity: number;
 }
 
 export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD966' }: RelatedProductsProps) {
@@ -30,18 +35,25 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
 
   useEffect(() => {
     async function fetchRelatedProducts() {
+      // Vendor-less products have no "more from" set; skip instead of match-all (%%)
+      if (!vendor.trim()) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+
       const supabase = createClient();
 
       const { data, error } = await supabase
         .from('products')
         .select(`
           id, title, handle, published_at,
-          product_variants (id, price, compare_at_price, inventory_quantity, position),
+          product_variants (id, title, price, compare_at_price, inventory_quantity, position),
           product_images (id, src, supabase_url, position)
         `)
         .eq('status', 'active')
         .neq('id', currentProductId)
-        .ilike('vendor', `%${vendor}%`)
+        .ilike('vendor', `%${escapeLike(vendor)}%`)
         .order('published_at', { ascending: false })
         .limit(4);
 
@@ -51,10 +63,8 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
       }
 
       const transformedProducts: SimpleProduct[] = (data as ProductWithDetails[]).map((p) => {
-        const variant = p.product_variants?.sort((a, b) => a.position - b.position)[0];
-        const image = p.product_images?.sort((a, b) => a.position - b.position)[0];
-        const isNew = p.published_at && new Date(p.published_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const isOnSale = variant?.compare_at_price && variant.compare_at_price > variant.price;
+        const variant = getFirstByPosition(p.product_variants);
+        const image = getFirstByPosition(p.product_images);
 
         return {
           id: p.id,
@@ -63,7 +73,10 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
           price: variant?.price || 0,
           compareAtPrice: variant?.compare_at_price || null,
           image: image?.supabase_url || image?.src || null,
-          badge: isOnSale ? 'SALE' : isNew ? 'NEW' : null,
+          badge: getProductBadge(p, variant),
+          variantId: variant?.id ?? null,
+          variantTitle: variant?.title ?? null,
+          maxQuantity: variant && variant.inventory_quantity > 0 ? variant.inventory_quantity : 10,
         };
       });
 
@@ -122,7 +135,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
             </h2>
           </div>
           <Link
-            href={`/artist/${vendor.toLowerCase().replace(/\s+/g, '-')}`}
+            href={`/artist/${vendorToHandle(vendor)}`}
             className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors group"
           >
             VIEW ALL
@@ -149,6 +162,10 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
                 image={product.image}
                 badge={product.badge}
                 accentColor={accentColor}
+                productId={product.id}
+                variantId={product.variantId}
+                variantTitle={product.variantTitle}
+                maxQuantity={product.maxQuantity}
               />
             </motion.div>
           ))}

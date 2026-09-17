@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -9,14 +9,26 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const [firstName, setFirstName] = useState(user?.user_metadata?.first_name || '');
-  const [lastName, setLastName] = useState(user?.user_metadata?.last_name || '');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // user loads async; sync fields when it arrives (initializers run once on null)
+  // Deferred via queueMicrotask: effect syncs external auth store to local state.
+  useEffect(() => {
+    if (user) {
+      const first = (user.user_metadata?.first_name as string) || '';
+      const last = (user.user_metadata?.last_name as string) || '';
+      queueMicrotask(() => {
+        setFirstName(first);
+        setLastName(last);
+      });
+    }
+  }, [user]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Password change state
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -73,7 +85,6 @@ export default function SettingsPage() {
 
       if (error) throw error;
       setPasswordSuccess(true);
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordSuccess(false), 3000);

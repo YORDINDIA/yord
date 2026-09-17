@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function createCollection(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const title = String(formData.get('title') || '').trim();
+  if (!title) return;
   const handle = String(formData.get('handle') || '').trim();
   const type = String(formData.get('collection_type') || 'custom');
   const published = formData.get('published') === 'on';
@@ -15,7 +18,7 @@ async function createCollection(formData: FormData) {
   const id = await getNextId('collections');
   const now = new Date().toISOString();
 
-  await supabase.from('collections').insert({
+  const { error } = await supabase.from('collections').insert({
     id,
     title,
     handle: handle || title.toLowerCase().replace(/\s+/g, '-'),
@@ -25,19 +28,26 @@ async function createCollection(formData: FormData) {
     updated_at: now,
     published_at: published ? now : null,
   });
+  if (error) throw new Error(error.message);
 
   if (type === 'custom' && products) {
-    const productIds = products.split(',').map((val) => Number(val.trim())).filter(Boolean);
+    const productIds = products
+      .split(',')
+      .map((val) => Number(val.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
     for (const productId of productIds) {
       const collectId = await getNextId('collects');
-      await supabase.from('collects').insert({
+      const { error: collectError } = await supabase.from('collects').insert({
         id: collectId,
         collection_id: id,
         product_id: productId,
         created_at: now,
       });
+      if (collectError) throw new Error(collectError.message);
     }
   }
+  revalidatePath('/collections');
+  redirect('/collections');
 }
 
 export default function NewCollectionPage() {

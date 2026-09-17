@@ -1,11 +1,12 @@
-import { getFeaturedProducts } from '@/lib/supabase/queries';
+import { getFeaturedProductsCached } from '@/lib/supabase/cached-queries';
 import { ARTISTS } from '@/types/database';
 import type { TransformedProductWithSource } from '@/types/database';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
 import { FeaturedProductsClient } from './FeaturedProductsClient';
 
 export async function FeaturedProducts() {
-  const products = await getFeaturedProducts(8);
+  // Cached catalog read: prerenderable under `revalidate`, one cache tag
+  const products = await getFeaturedProductsCached(8);
 
   // Transform Supabase data for the component
   const transformedProducts: TransformedProductWithSource[] = products.map((p) => {

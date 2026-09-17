@@ -6,7 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Search, X, Loader2, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
+import { cn, formatPrice, getFirstByPosition } from '@/lib/utils';
+import { buildSearchOrFilter } from '@/lib/utils';
 import type { ProductWithDetails } from '@/types/database';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@/types/database';
 
@@ -29,12 +30,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [popularSearches, setPopularSearches] = useState<QuickSearch[]>([]);
-
-  const supabase = createClient();
+  const searchRequestId = useRef(0);
 
   // Fetch popular searches (artists from collections + categories)
   useEffect(() => {
     async function fetchPopularSearches() {
+      const supabase = createClient();
       // Get artist collections that have products
       const { data: collections } = await supabase
         .from('collections')
@@ -42,20 +43,21 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
         .in('handle', ARTIST_COLLECTION_HANDLES as unknown as string[]);
 
       if (collections) {
-        // Get counts for each collection
-        const artistsWithCounts = await Promise.all(
-          (collections as { id: number; title: string; handle: string | null }[]).map(async (col) => {
-            const { count } = await supabase
-              .from('collects')
-              .select('*', { count: 'exact', head: true })
-              .eq('collection_id', col.id);
+        // Single query for all counts (not one per collection)
+        const ids = (collections as { id: number }[]).map((c) => c.id);
+        const { data: allCollects } = await supabase
+          .from('collects')
+          .select('collection_id')
+          .in('collection_id', ids);
+        const counts = new Map<number, number>();
+        for (const row of (allCollects as { collection_id: number }[] | null) || []) {
+          counts.set(row.collection_id, (counts.get(row.collection_id) || 0) + 1);
+        }
 
-            return {
-              ...col,
-              productCount: count || 0,
-            };
-          })
-        );
+        const artistsWithCounts = (collections as { id: number; title: string; handle: string | null }[]).map((col) => ({
+          ...col,
+          productCount: counts.get(col.id) || 0,
+        }));
 
         // Filter to artists with products and take top 4
         const topArtists = artistsWithCounts
@@ -84,17 +86,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
 
     fetchPopularSearches();
-  }, [supabase]);
+  }, []);
 
-  // Focus input when modal opens
+  // Focus input when modal opens (external DOM sync stays synchronous);
+  // reset-on-close deferred to avoid cascading render.
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    } else {
+      const timer = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
+    }
+    queueMicrotask(() => {
       setQuery('');
       setResults([]);
       setHasSearched(false);
-    }
+    });
   }, [isOpen]);
 
   // Handle escape key
@@ -108,16 +113,19 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   // Debounced search
   const searchProducts = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim() || searchQuery.length < 2) {
+    const q = searchQuery.trim().slice(0, 100);
+    if (!q || q.length < 2) {
       setResults([]);
       setHasSearched(false);
       return;
     }
 
+    const requestId = ++searchRequestId.current;
     setIsLoading(true);
     setHasSearched(true);
 
     try {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -131,19 +139,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           )
         `)
         .eq('status', 'active')
-        .or(`title.ilike.%${searchQuery}%,vendor.ilike.%${searchQuery}%,tags.ilike.%${searchQuery}%`)
+        .or(buildSearchOrFilter(q))
         .order('published_at', { ascending: false })
         .limit(8);
 
+      if (requestId !== searchRequestId.current) return;
       if (!error && data) {
         setResults(data as ProductWithDetails[]);
       }
     } catch (err) {
       console.error('Search error:', err);
     } finally {
-      setIsLoading(false);
+      if (requestId === searchRequestId.current) setIsLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   // Debounce effect
   useEffect(() => {
@@ -157,14 +166,6 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const handleProductClick = (handle: string) => {
     onClose();
     router.push(`/product/${handle}`);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount);
   };
 
   if (!isOpen) return null;
@@ -227,11 +228,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <>
                 <div className="divide-y divide-noir-800">
                   {results.map((product) => {
-                    const image = product.product_images?.find(
-                      (img) => img.position === 1
-                    );
+                    const image = getFirstByPosition(product.product_images);
                     const imageUrl = image?.supabase_url || image?.src;
-                    const variant = product.product_variants?.[0];
+                    const variant = getFirstByPosition(product.product_variants);
                     const price = variant?.price || 0;
 
                     return (
@@ -267,7 +266,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                             {product.title}
                           </p>
                           <p className="font-[family-name:var(--font-bebas)] text-sm text-ivory-400 mt-1">
-                            {formatCurrency(price)}
+                            {formatPrice(price)}
                           </p>
                         </div>
 

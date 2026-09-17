@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, isPriceOnSale } from '@/lib/utils';
+import { computeTotals } from '@/lib/pricing';
 import { ShoppingBag, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,8 +18,7 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
   const totalSavings = useCartStore((state) => state.totalSavings);
 
   const shipping = 0; // Free shipping
-  const tax = Math.round(subtotal() * 0.18); // 18% GST
-  const total = subtotal() + shipping + tax;
+  const { gstAmount: tax, total } = computeTotals(subtotal());
 
   if (items.length === 0) {
     return (
@@ -102,9 +102,9 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
               <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
                 {formatPrice(item.price * item.quantity)}
               </p>
-              {item.compareAtPrice && item.compareAtPrice > item.price && (
+              {isPriceOnSale(item.price, item.compareAtPrice) && (
                 <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 line-through">
-                  {formatPrice(item.compareAtPrice * item.quantity)}
+                  {formatPrice((item.compareAtPrice ?? 0) * item.quantity)}
                 </p>
               )}
             </div>

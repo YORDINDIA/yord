@@ -17,7 +17,8 @@ import {
 } from '@/components/product/ProductGrid';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
-import { transformProductForCard, sortProductsByPrice } from '@/lib/utils';
+import { transformProductForCard } from '@/lib/utils';
+import { fetchProductsByIds } from '@/lib/data/productsByIds';
 import type { ArtistData, ProductWithDetails, TransformedProduct } from '@/types/database';
 
 interface ArtistProductsProps {
@@ -75,48 +76,21 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
 
     const productIds = (collectsData as { product_id: number }[]).map(c => c.product_id);
 
-    // Calculate pagination
-    const from = (pageNum - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    // Helper fetches the full capped set for price sorts, then slices the
+    // page window, so order is globally correct across chunk boundaries.
+    const { data, count } = await fetchProductsByIds(supabase, productIds, {
+      sort: sortBy,
+      page: pageNum,
+      pageSize: PAGE_SIZE,
+    });
 
-    // Build query with sorting
-    let query = supabase
-      .from('products')
-      .select(`
-        id, title, handle, vendor, published_at, tags,
-        product_variants (id, price, compare_at_price, inventory_quantity, position),
-        product_images (id, src, supabase_url, position)
-      `, { count: 'exact' })
-      .in('id', productIds)
-      .eq('status', 'active');
-
-    // Apply database sorting
-    switch (sortBy) {
-      case 'title':
-        query = query.order('title', { ascending: true });
-        break;
-      case 'newest':
-      case 'featured':
-      default:
-        query = query.order('published_at', { ascending: false });
-    }
-
-    const { data, error, count } = await query.range(from, to);
-
-    if (error || !data) {
+    if (!data) {
       if (!append) setProducts([]);
       setLoading(false);
       return;
     }
 
-    let fetchedProducts = data as ProductWithDetails[];
-
-    // Client-side price sorting (since price is on variants)
-    if (sortBy === 'price-asc') {
-      fetchedProducts = sortProductsByPrice(fetchedProducts, 'asc');
-    } else if (sortBy === 'price-desc') {
-      fetchedProducts = sortProductsByPrice(fetchedProducts, 'desc');
-    }
+    const fetchedProducts = data as ProductWithDetails[];
 
     // Transform for display
     const transformed = fetchedProducts.map(p =>
@@ -151,10 +125,12 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
     { hasMore, isLoading: loading }
   );
 
-  // Initial fetch and reset on sort change
+  // Initial fetch and reset on sort change; deferred: fetch syncs external Supabase store.
   useEffect(() => {
-    resetPage();
-    fetchProducts(1, false);
+    queueMicrotask(() => {
+      resetPage();
+      void fetchProducts(1, false);
+    });
   }, [artist.handle, sortBy]);
 
   // Close dropdown on click outside

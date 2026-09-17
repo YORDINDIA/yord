@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Heart, Share2, Truck, Shield, RotateCcw, Check, Minus, Plus } from 'lucide-react';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, sanitizeHtml, isPriceOnSale } from '@/lib/utils';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 import { Button } from '@/components/ui/Button';
@@ -29,22 +29,49 @@ interface ProductInfoProps {
     options: { name: string; values: string[] }[];
     tags: string;
     accentColor?: string;
+    image?: string | null;
   };
 }
 
+function pickVariant(variants: ProductVariant[]): ProductVariant | null {
+  return variants.find(v => v.inventoryQuantity > 0) || variants[0] || null;
+}
+
 export function ProductInfo({ product }: ProductInfoProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
-    product.variants.find(v => v.inventoryQuantity > 0) || product.variants[0]
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    () => pickVariant(product.variants)
   );
   const [quantity, setQuantity] = useState(1);
+
+  // Re-sync when navigating between products (the instance is reused).
+  // Render-phase update: the documented alternative to setState-in-effect.
+  const [prevProductId, setPrevProductId] = useState(product.id);
+  if (prevProductId !== product.id) {
+    setPrevProductId(product.id);
+    setSelectedVariant(pickVariant(product.variants));
+    setQuantity(1);
+  }
 
   const addItem = useCartStore((state) => state.addItem);
   const openCart = useCartStore((state) => state.openCart);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
+  // Subscribe to derived state (not the stable isInWishlist fn) so this re-renders on toggle
+  const isWishlisted = useWishlistStore((state) =>
+    state.items.some((i) => i.productId === product.id)
+  );
 
-  // Check if product is in wishlist
-  const isWishlisted = isInWishlist(product.id);
+  if (!selectedVariant) {
+    return (
+      <div className="space-y-8">
+        <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50">
+          {product.title}
+        </h1>
+        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+          This product is currently unavailable.
+        </p>
+      </div>
+    );
+  }
 
   // Handle wishlist toggle
   const handleToggleWishlist = () => {
@@ -54,7 +81,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
       title: product.title,
       price: selectedVariant.price,
       compareAtPrice: selectedVariant.compareAtPrice,
-      image: '', // Will be updated from parent if needed
+      image: product.image || '',
       artist: product.vendor,
     });
   };
@@ -64,9 +91,9 @@ export function ProductInfo({ product }: ProductInfoProps) {
   const artistData = artistHandle ? ARTISTS[artistHandle] : null;
   const accentColor = product.accentColor || artistData?.accentColor || '#FFD966';
 
-  const isOnSale = selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price;
+  const isOnSale = isPriceOnSale(selectedVariant.price, selectedVariant.compareAtPrice);
   const discount = isOnSale
-    ? Math.round(((selectedVariant.compareAtPrice! - selectedVariant.price) / selectedVariant.compareAtPrice!) * 100)
+    ? Math.round(((Number(selectedVariant.compareAtPrice) - Number(selectedVariant.price)) / Number(selectedVariant.compareAtPrice)) * 100)
     : 0;
   const isInStock = selectedVariant.inventoryQuantity > 0;
   const isLowStock = selectedVariant.inventoryQuantity > 0 && selectedVariant.inventoryQuantity <= 5;
@@ -80,7 +107,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
       variantTitle: selectedVariant.title,
       price: selectedVariant.price,
       compareAtPrice: selectedVariant.compareAtPrice,
-      image: null,
+      image: product.image || null,
       maxQuantity: selectedVariant.inventoryQuantity,
       artist: product.vendor,
     }, quantity);
@@ -161,7 +188,12 @@ export function ProductInfo({ product }: ProductInfoProps) {
               return (
                 <button
                   key={variant.id}
-                  onClick={() => isAvailable && setSelectedVariant(variant)}
+                  onClick={() => {
+                    if (isAvailable) {
+                      setSelectedVariant(variant);
+                      setQuantity(1);
+                    }
+                  }}
                   disabled={!isAvailable}
                   className={cn(
                     'min-w-[48px] h-12 px-4 flex items-center justify-center border-2 transition-all duration-200',
@@ -272,7 +304,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
           <span className="block text-xs text-ivory-400 font-[family-name:var(--font-jakarta)]">
             Free Shipping
           </span>
-          <span className="block text-[10px] text-ivory-500">Over ₹2,999</span>
+          <span className="block text-[10px] text-ivory-500">Over ₹1,999</span>
         </div>
         <div className="text-center">
           <Shield size={20} className="mx-auto mb-2 text-gold-200" />
@@ -305,7 +337,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
           style={{
             '--tw-prose-bullets': accentColor,
           } as React.CSSProperties}
-          dangerouslySetInnerHTML={{ __html: product.description }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
         />
       </motion.div>
 

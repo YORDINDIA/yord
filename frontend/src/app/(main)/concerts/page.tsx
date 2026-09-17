@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { Music, MapPin, Calendar, ChevronRight } from 'lucide-react';
-import { CONCERTS, getConcertCities } from '@/lib/data/concerts';
+import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES } from '@/lib/data/cities';
 import { JsonLd, breadcrumbSchema, itemListSchema } from '@/lib/seo/jsonld';
 
@@ -28,8 +28,6 @@ export default function ConcertsPage() {
   const years = Object.keys(concertsByYear)
     .map(Number)
     .sort((a, b) => b - a);
-
-  const cities = getConcertCities();
 
   return (
     <main className="min-h-screen bg-noir-950 pt-24 pb-16">

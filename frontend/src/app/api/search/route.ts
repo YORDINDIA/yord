@@ -1,46 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createStaticClient } from '@/lib/supabase/server';
+import { buildSearchOrFilter } from '@/lib/utils';
+import { PRODUCT_SELECT } from '@/lib/data/productsByIds';
+import { logDbError } from '@/lib/logger';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const rawQuery = searchParams.get('q') || '';
+  const query = rawQuery.trim().slice(0, 100);
 
-  if (!query || query.trim().length < 2) {
+  const rawLimit = parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(rawLimit, 1), MAX_LIMIT)
+    : DEFAULT_LIMIT;
+
+  if (query.length < 2) {
     return NextResponse.json({ products: [] });
   }
 
   try {
+    // Public catalog reads use the anon client (RLS applies); no service key needed.
+    // buildSearchOrFilter sanitizes user input (escaped quotes/wildcards, 100-char cap).
+    const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        product_variants (
-          id, title, price, compare_at_price,
-          inventory_quantity, position
-        ),
-        product_images (
-          id, src, supabase_url, alt, position
-        )
-      `)
+      .select(PRODUCT_SELECT)
       .eq('status', 'active')
-      .or(`title.ilike.%${query}%,vendor.ilike.%${query}%,tags.ilike.%${query}%`)
+      .or(buildSearchOrFilter(query))
       .order('published_at', { ascending: false })
       .limit(limit);
 
     if (error) {
-      console.error('Search error:', error);
+      logDbError('search', error);
       return NextResponse.json({ products: [] });
     }
 
     return NextResponse.json({ products: data || [] });
   } catch (error) {
-    console.error('Search error:', error);
+    logDbError('search', error);
     return NextResponse.json({ products: [] });
   }
 }

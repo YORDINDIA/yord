@@ -57,17 +57,32 @@ export function getSecondaryImage(images: ProductImage[] | undefined): ProductIm
 export function getLowestPriceVariant(variants: ProductVariant[] | undefined): ProductVariant | null {
   if (!variants || variants.length === 0) return null;
 
+  // Number() because PostgREST returns DECIMAL columns as strings at runtime
   return variants.reduce((min, v) =>
-    v.price < min.price ? v : min
+    Number(v.price) < Number(min.price) ? v : min
   , variants[0]);
 }
 
 /**
  * Check if product is on sale
+ * Uses Number() because PostgREST returns DECIMAL columns as strings at runtime,
+ * where '<' would compare lexicographically ('1000' < '999' === true).
  */
 export function isOnSale(variant: ProductVariant | null): boolean {
   if (!variant) return false;
-  return !!variant.compare_at_price && variant.compare_at_price > variant.price;
+  return isPriceOnSale(variant.price, variant.compare_at_price);
+}
+
+/**
+ * Compare prices safely regardless of DECIMAL-as-string runtime values.
+ */
+export function isPriceOnSale(
+  price: number | string | null | undefined,
+  compareAtPrice: number | string | null | undefined
+): boolean {
+  const p = Number(price);
+  const c = Number(compareAtPrice);
+  return Number.isFinite(p) && Number.isFinite(c) && c > p;
 }
 
 /**
@@ -76,8 +91,10 @@ export function isOnSale(variant: ProductVariant | null): boolean {
 export function getDiscountPercentage(variant: ProductVariant | null): number {
   if (!variant || !variant.compare_at_price) return 0;
 
-  const discount = ((variant.compare_at_price - variant.price) / variant.compare_at_price) * 100;
-  return Math.round(discount);
+  const price = Number(variant.price);
+  const compareAt = Number(variant.compare_at_price);
+  if (!Number.isFinite(price) || !Number.isFinite(compareAt) || compareAt <= 0) return 0;
+  return Math.round(((compareAt - price) / compareAt) * 100);
 }
 
 /**
@@ -103,6 +120,47 @@ export function truncate(text: string, length: number): string {
 export function stripHtml(html: string | null): string {
   if (!html) return '';
   return html.replace(/<[^>]*>/g, '');
+}
+
+/**
+ * Sanitize merchant/Shopify-migrated HTML rendered via
+ * dangerouslySetInnerHTML. Server-safe: strips scripts, event handlers and
+ * dangerous URL schemes (including entity-encoded ones a regex misses).
+ * isomorphic-dompurify pulls jsdom+undici, which breaks vitest on Node 20
+ * (undici needs worker_threads.markAsUncloneable, added in Node 22),
+ * so this uses a dependency-free sanitizer instead.
+ */
+export function sanitizeHtml(html: string | null | undefined): string {
+  if (!html) return '';
+  let out = String(html);
+  // Decode numeric/element entities first so encoded payloads can't slip past.
+  out = out
+    .replace(/&#x([0-9a-fA-F]+);?/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&(lt|gt|amp|quot|#39|#x27|#x2f);?/gi, (m) => {
+      switch (m.toLowerCase()) {
+        case '&lt;': return '<';
+        case '&gt;': return '>';
+        case '&amp;': return '&';
+        case '&quot;': return '"';
+        case '&#39;':
+        case '&#x27;': return "'";
+        case '&#x2f;': return '/';
+        default: return m;
+      }
+    });
+  // Strip script/style/iframe/object/embed/link/meta/base/form elements entirely.
+  out = out.replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form|noscript|template)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  out = out.replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form|noscript|template)[^>]*\/?\s*>/gi, '');
+  // Strip event-handler attributes (onclick=, onerror=, ...) quoted or not.
+  out = out.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // Neutralize javascript:/data:/vbscript: URLs in href/src/xlink:href/action.
+  out = out.replace(/\s(href|src|xlink:href|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (m, attr, val) => {
+    const raw = String(val).replace(/^['"]|['"]$/g, '').replace(/[\s\u0000-\u001F]+/g, '').toLowerCase();
+    if (/^(javascript|data|vbscript|file|blob):/.test(raw)) return ` ${attr}="#"`;
+    return m;
+  });
+  return out;
 }
 
 /**
@@ -204,7 +262,7 @@ export function getProductBadge(
   const activeVariant = variant || getLowestPriceVariant(product.product_variants);
 
   // Check if on sale (highest priority)
-  if (activeVariant?.compare_at_price && activeVariant.compare_at_price > activeVariant.price) {
+  if (isPriceOnSale(activeVariant?.price, activeVariant?.compare_at_price)) {
     return 'SALE';
   }
 
@@ -251,8 +309,8 @@ export function transformProductForCard(
     accentColor?: string;
   }
 ): TransformedProduct {
-  const variant = product.product_variants?.sort((a, b) => a.position - b.position)[0];
-  const image = product.product_images?.sort((a, b) => a.position - b.position)[0];
+  const variant = getFirstByPosition(product.product_variants);
+  const image = getFirstByPosition(product.product_images);
   const artist = overrides?.artist || product.vendor || '';
 
   return {
@@ -269,15 +327,63 @@ export function transformProductForCard(
 }
 
 /**
- * Sort products by price (client-side, for when price is on variants)
+ * Sanitize user input for PostgREST `or()` ilike patterns.
+ * Values are double-quoted so commas/parens stay literal; backslashes,
+ * quotes, and LIKE wildcards (%, _) are escaped. Capped at 100 chars.
  */
+export function sanitizeOrPattern(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/[%_]/g, '\\$&')
+    .slice(0, 100);
+}
+
+/**
+ * Escape a value for a double-quoted PostgREST eq/neq filter. Unlike
+ * sanitizeOrPattern, LIKE wildcards stay literal because eq does no matching.
+ */
+export function escapeFilterValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/** Build a multi-column ilike `or()` filter safe for raw user input. */
+export function buildSearchOrFilter(query: string): string {
+  const q = sanitizeOrPattern(query.trim());
+  return `title.ilike."%${q}%",vendor.ilike."%${q}%",tags.ilike."%${q}%"`;
+}
+
+/** Escape LIKE wildcards so names match literally. */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+/**
+ * Sort products by price (client-side, for when price is on variants)
+ * NOTE: only correct when applied to the FULL matching set before pagination.
+ * Sorting a single DB page produces globally wrong order, so callers fetching
+ * price sorts must fetch the full set (up to PRICE_SORT_FETCH_LIMIT) first,
+ * then sort, then slice the page window. Now used only as a fallback for
+ * rows whose cached products.min_price is NULL (pre-backfill); prefer SQL
+ * ordering by min_price (see supabase/migrations/001_min_price.sql).
+ */export const PRICE_SORT_FETCH_LIMIT = 500;
+
+/** Lowest variant price, tolerant of DECIMAL-as-string at runtime. */
+export function getMinVariantPrice(product: ProductWithDetails): number {
+  if (!product.product_variants || product.product_variants.length === 0) return 0;
+  return product.product_variants.reduce((min, v) => {
+    const price = Number(v.price);
+    return Number.isFinite(price) && price < min ? price : min;
+  }, Number(product.product_variants[0].price) || 0);
+}
+
 export function sortProductsByPrice(
   products: ProductWithDetails[],
   direction: 'asc' | 'desc'
 ): ProductWithDetails[] {
   return [...products].sort((a, b) => {
-    const priceA = a.product_variants?.[0]?.price || 0;
-    const priceB = b.product_variants?.[0]?.price || 0;
+    const priceA = getMinVariantPrice(a);
+    const priceB = getMinVariantPrice(b);
     return direction === 'asc' ? priceA - priceB : priceB - priceA;
   });
 }

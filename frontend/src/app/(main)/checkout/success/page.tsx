@@ -2,15 +2,52 @@ import Link from 'next/link';
 import { CheckCircle, Package, Mail } from 'lucide-react';
 
 interface CheckoutSuccessPageProps {
-  searchParams: Promise<{ order_id?: string }>;
+  searchParams: Promise<{ order_name?: string }>;
 }
 
 export default async function CheckoutSuccessPage({
   searchParams,
 }: CheckoutSuccessPageProps) {
-  const { order_id } = await searchParams;
-  // Use the order ID from URL params, or show a generic message
-  const orderId = order_id || 'YORD-PENDING';
+  const { order_name } = await searchParams;
+  // Only a YORD order name from a real checkout counts as a confirmation.
+  // It is what track-order looks up. Direct visits (no valid order_name)
+  // get a neutral "no recent order" state.
+  const isValidOrderName = !!order_name && /^YORD-\d+-[0-9A-F]+$/.test(order_name);
+  const orderName = order_name || 'YORD-PENDING';
+
+  if (!isValidOrderName) {
+    return (
+      <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+        <div className="max-w-[600px] mx-auto px-6 text-center">
+          <div className="mb-8">
+            <div className="w-20 h-20 bg-noir-800 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Package className="w-10 h-10 text-ivory-400" />
+            </div>
+            <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-4">
+              No Recent Order
+            </h1>
+            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-lg">
+              We could not find a completed checkout. Your bag is waiting if you left items behind.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/"
+              className="px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+            >
+              CONTINUE SHOPPING
+            </Link>
+            <Link
+              href="/account/orders"
+              className="px-8 py-3 border border-ivory-500 text-ivory-100 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-ivory-300 transition-colors"
+            >
+              VIEW ORDER STATUS
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-noir-950 pt-24 pb-16">
@@ -35,7 +72,7 @@ export default async function CheckoutSuccessPage({
               Order Number
             </p>
             <p className="font-[family-name:var(--font-bebas)] text-2xl text-gold-200 tracking-wider">
-              {orderId}
+              {orderName}
             </p>
           </div>
 
@@ -44,10 +81,10 @@ export default async function CheckoutSuccessPage({
               <Mail className="w-5 h-5 text-gold-200 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100 font-medium">
-                  Confirmation Email Sent
+                  Payment Successful
                 </p>
                 <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-400 mt-1">
-                  We&apos;ve sent a confirmation email with your order details and tracking information.
+                  Your payment was confirmed. Keep this order number for tracking and support.
                 </p>
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { KeyRound, Loader2, Check, AlertCircle } from 'lucide-react';
@@ -9,11 +9,25 @@ import { createClient } from '@/lib/supabase/client';
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  void searchParams;
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // null = checking, true = valid recovery session, false = expired/invalid link
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasSession(!!session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) setHasSession(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +87,38 @@ function ResetPasswordContent() {
               GO TO LOGIN
             </Link>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (hasSession === null) {
+    return (
+      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-gold-200 animate-spin" />
+      </main>
+    );
+  }
+
+  if (hasSession === false) {
+    return (
+      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto px-6 text-center">
+          <div className="w-16 h-16 mx-auto mb-6 bg-red-500/10 rounded-full flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-2">
+            Link Expired
+          </h1>
+          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
+            This password reset link is invalid or has expired. Request a new one to continue.
+          </p>
+          <Link
+            href="/auth/forgot-password"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+          >
+            REQUEST NEW LINK
+          </Link>
         </div>
       </main>
     );

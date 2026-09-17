@@ -3,8 +3,8 @@ import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, User, Clock } from 'lucide-react';
-import { getArticleBySlug, getRelatedArticles, getArticlesStatic } from '@/lib/supabase/queries';
-import { formatDate, estimateReadTime } from '@/lib/utils';
+import { getArticleBySlug, getArticleBySlugStatic, getRelatedArticles, getArticlesStatic } from '@/lib/supabase/queries';
+import { formatDate, estimateReadTime, sanitizeHtml } from '@/lib/utils';
 import { JsonLd, articleSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArticlePageProps {
@@ -22,7 +22,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const article = await getArticleBySlug(slug);
+  const article = await getArticleBySlugStatic(slug);
 
   if (!article) {
     return {
@@ -145,7 +145,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             prose-img:border
             prose-img:border-noir-700
             prose-li:text-ivory-200"
-          dangerouslySetInnerHTML={{ __html: article.body_html || '' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.body_html) }}
         />
 
         {/* Tags */}

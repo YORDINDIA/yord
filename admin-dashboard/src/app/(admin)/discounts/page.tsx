@@ -1,5 +1,15 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
+import StatusBadge from '@/components/ui/StatusBadge';
+
+function discountStatus(startsAt: string | null, endsAt: string | null): string {
+  const now = Date.now();
+  const start = startsAt ? new Date(startsAt).getTime() : null;
+  const end = endsAt ? new Date(endsAt).getTime() : null;
+  if (start !== null && Number.isFinite(start) && start > now) return 'Scheduled';
+  if (end !== null && Number.isFinite(end) && end < now) return 'Expired';
+  return 'Active';
+}
 
 export default async function DiscountsPage() {
   const supabase = await createServerClient();
@@ -18,26 +28,28 @@ export default async function DiscountsPage() {
         </div>
         <Link className="button primary" href="/discounts/new">New Discount</Link>
       </div>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Value</th>
-            <th>Code</th>
-            <th>Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(rules || []).map((rule) => (
-            <tr key={rule.id}>
-              <td>{rule.title}</td>
-              <td>{rule.value} {rule.value_type}</td>
-              <td>{rule.discount_codes?.[0]?.code || '-'}</td>
-              <td>{rule.ends_at ? 'Scheduled' : 'Active'}</td>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Value</th>
+              <th>Code</th>
+              <th>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(rules || []).map((rule) => (
+              <tr key={rule.id}>
+                <td>{rule.title}</td>
+                <td>{rule.value} {rule.value_type}</td>
+                <td>{rule.discount_codes?.[0]?.code || '-'}</td>
+                <td><StatusBadge value={discountStatus(rule.starts_at, rule.ends_at)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

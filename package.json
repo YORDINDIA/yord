@@ -1,14 +1,31 @@
 {
+  "private": true,
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "workspaces": [
+    "frontend",
+    "admin-dashboard",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint"
+  },
   "dependencies": {
     "@remotion/cli": "^4.0.271",
     "@remotion/transitions": "^4.0.271",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "remotion": "^4.0.271"
+    "remotion": "^4.0.271",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
+    "turbo": "^2.5.4",
     "typescript": "^5.9.3"
   }
 }

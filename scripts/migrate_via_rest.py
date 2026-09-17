@@ -4,6 +4,8 @@ Shopify to Supabase Migration Script (REST API Version)
 Migrates all data from Shopify to Supabase using the REST API.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import json
@@ -11,19 +13,33 @@ import logging
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
-from time import sleep
-from supabase import create_client, Client
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from supabase import Client
+
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.supabase_helpers import get_supabase_client
+from utils.retry import retry_with_backoff
+from utils.cli import create_parser, resolve_execute, configure_logging
+from utils.config import BATCH_SIZE as CONFIG_BATCH_SIZE, RETRY_LIMIT, RETRY_WAIT
+from utils.checkpoint import (
+    load_checkpoint,
+    mark_entity_done,
+    is_entity_done,
+    clear_checkpoint,
+    save_checkpoint,
+)
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging (rotating: 5MB x 3 backups, so long runs never fill disk)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('migration.log')
+        RotatingFileHandler('migration.log', maxBytes=5 * 1024 * 1024, backupCount=3)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -42,50 +58,60 @@ BASE_URL = f"https://{STORE_NAME}.myshopify.com/admin/api/{API_VERSION}"
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
-# Request configuration
+# Request configuration (canonical defaults in utils.config)
 HEADERS = {
     'X-Shopify-Access-Token': ACCESS_TOKEN,
     'Content-Type': 'application/json'
 }
-BATCH_SIZE = int(os.getenv('BATCH_SIZE', '250'))
-RETRY_LIMIT = 5
-RETRY_WAIT = 2
+BATCH_SIZE = int(os.getenv('BATCH_SIZE', str(CONFIG_BATCH_SIZE)))
+RETRY_LIMIT = RETRY_LIMIT
+RETRY_WAIT = RETRY_WAIT
 
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Supabase client is created in main() (validates SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
+supabase: Client | None = None  # type: ignore[assignment]
+
+CHECKPOINT_FILE = 'migration_checkpoint.json'
+
+
+class _ErrorCounter(logging.Handler):
+    """Counts ERROR+ log records emitted while one migration entity runs."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.ERROR)
+        self.count = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.count += 1
 
 # ============================================================
 # SHOPIFY API HELPERS
 # ============================================================
 
 def shopify_request(endpoint, params=None):
-    """Make a GET request to Shopify API with retry logic."""
+    """Make a GET request to Shopify API with retry logic.
+
+    Retry/backoff lives in :mod:`utils.retry` (honors ``Retry-After``
+    on 429, exponential backoff + jitter).
+    """
     url = f"{BASE_URL}/{endpoint}"
-    retries = 0
-    wait_time = RETRY_WAIT
 
-    while retries < RETRY_LIMIT:
-        try:
-            response = requests.get(url, headers=HEADERS, params=params)
+    def _attempt():
+        response = requests.get(url, headers=HEADERS, params=params)
+        if response.status_code == 200:
+            return response.json(), response.headers
+        if response.status_code == 429:
+            return response  # retry helper waits per Retry-After
+        response.raise_for_status()
+        return response.json(), response.headers  # pragma: no cover
 
-            if response.status_code == 200:
-                return response.json(), response.headers
-
-            if response.status_code == 429:  # Rate limited
-                retry_after = int(response.headers.get('Retry-After', wait_time))
-                logger.warning(f"Rate limited. Waiting {retry_after}s...")
-                sleep(retry_after)
-                retries += 1
-                continue
-
-            response.raise_for_status()
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            retries += 1
-            sleep(wait_time * retries)
-
-    return None, None
+    try:
+        return retry_with_backoff(
+            _attempt, retry_limit=RETRY_LIMIT,
+            base_wait=RETRY_WAIT, logger_=logger,
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request failed after {RETRY_LIMIT} attempts: {e}")
+        return None, None
 
 def get_all_paginated(endpoint, key, params=None):
     """Fetch all items from a paginated Shopify endpoint."""
@@ -814,6 +840,24 @@ def migrate_inventory():
 
 def main():
     """Run the migration."""
+    parser = create_parser(
+        "Shopify to Supabase migration (REST)", default_checkpoint=CHECKPOINT_FILE,
+    )
+    parser.add_argument('--resume', action='store_true', help='Skip entities already in migration_checkpoint.json')
+    parser.add_argument('--reset-checkpoint', action='store_true', help='Clear migration_checkpoint.json and start over')
+    args = parser.parse_args()
+    configure_logging(args.verbose)
+    global BATCH_SIZE
+    BATCH_SIZE = args.batch_size
+
+    if args.reset_checkpoint:
+        clear_checkpoint(args.checkpoint_file or CHECKPOINT_FILE)
+        print("Checkpoint cleared.")
+
+    execute = resolve_execute(args)
+    if not execute:
+        print("DRY-RUN mode: no writes will be made. Pass --execute to write.")
+
     print("=" * 60)
     print("SHOPIFY TO SUPABASE MIGRATION")
     print("=" * 60)
@@ -831,6 +875,9 @@ def main():
         print("Error: Missing Supabase credentials")
         sys.exit(1)
 
+    global supabase
+    supabase = get_supabase_client()
+
     # Test Shopify connection
     print("\nTesting Shopify API...")
     shop_data, _ = shopify_request("shop.json")
@@ -839,22 +886,66 @@ def main():
         sys.exit(1)
     print(f"Connected to: {shop_data.get('shop', {}).get('name', 'Unknown')}")
 
-    # Run migrations in order
+    # Run migrations in order (skipping checkpointed entities on --resume)
     results = {}
+    checkpoint_file = args.checkpoint_file or CHECKPOINT_FILE
+
+    # A checkpoint only makes sense for one Supabase/Shopify pair: resuming
+    # against a different target would silently skip entities.
+    source = {'supabase': SUPABASE_URL, 'store': STORE_NAME}
+    if args.resume:
+        stored_source = load_checkpoint(checkpoint_file).get('source')
+        if stored_source and stored_source != source:
+            print("Checkpoint belongs to a different Supabase/Shopify source; refusing to resume.")
+            print(f"  checkpoint: {stored_source}")
+            print(f"  current:    {source}")
+            print("Run with --reset-checkpoint to migrate the new source from scratch.")
+            sys.exit(2)
+    checkpoint_data = load_checkpoint(checkpoint_file)
+    if checkpoint_data.get('source') != source:
+        checkpoint_data['source'] = source
+        save_checkpoint(checkpoint_file, checkpoint_data)
+
+    if args.resume:
+        done = load_checkpoint(checkpoint_file).get('completed_entities', [])
+        if done:
+            print(f"Resuming: skipping already-completed: {', '.join(done)}")
+
+    def run_entity(name, fn):
+        if args.resume and is_entity_done(checkpoint_file, name):
+            print(f"  {name:20} SKIPPED (checkpointed)")
+            return 0
+        if not execute:
+            print(f"  {name:20} DRY-RUN (skipped)")
+            return 0
+        counter = _ErrorCounter()
+        target_logger = logging.getLogger(__name__)
+        target_logger.addHandler(counter)
+        try:
+            count = fn()
+        finally:
+            target_logger.removeHandler(counter)
+        if counter.count:
+            print(
+                f"  {name:20} {count:>6} ({counter.count} record errors - NOT checkpointed, rerun to retry)"
+            )
+            return count
+        mark_entity_done(checkpoint_file, name)
+        return count
 
     print("\n" + "=" * 60)
     print("STARTING MIGRATION")
     print("=" * 60)
 
-    results['locations'] = migrate_locations()
-    results['products'] = migrate_products()
-    results['customers'] = migrate_customers()
-    results['collections'] = migrate_collections()
-    results['collects'] = migrate_collects()
-    results['price_rules'] = migrate_price_rules_and_discounts()
-    results['orders'] = migrate_orders()
-    results['transactions'] = migrate_transactions()
-    results['inventory'] = migrate_inventory()
+    results['locations'] = run_entity('locations', migrate_locations)
+    results['products'] = run_entity('products', migrate_products)
+    results['customers'] = run_entity('customers', migrate_customers)
+    results['collections'] = run_entity('collections', migrate_collections)
+    results['collects'] = run_entity('collects', migrate_collects)
+    results['price_rules'] = run_entity('price_rules', migrate_price_rules_and_discounts)
+    results['orders'] = run_entity('orders', migrate_orders)
+    results['transactions'] = run_entity('transactions', migrate_transactions)
+    results['inventory'] = run_entity('inventory', migrate_inventory)
 
     # Summary
     print("\n" + "=" * 60)

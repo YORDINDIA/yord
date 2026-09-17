@@ -45,7 +45,7 @@ export default function ContactPage() {
       setIsSubmitting(false);
       setIsSubmitted(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
-    } catch (err) {
+    } catch {
       setError("Failed to send message. Please try again.");
       setIsSubmitting(false);
     }

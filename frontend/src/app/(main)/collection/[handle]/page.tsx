@@ -1,19 +1,23 @@
 import { Metadata } from 'next';
 import { CollectionHeader } from '@/components/collection/CollectionHeader';
 import { CollectionProducts } from '@/components/collection/CollectionProducts';
-import { getCollections, getCollectionByHandle, getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
+import { getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ sort?: string; page?: string }>;
+  searchParams: Promise<{ sort?: string }>;
 }
+
+export const revalidate = 3600;
 
 export async function generateStaticParams() {
   const collections = await getCollectionsStatic();
-  return collections.map((collection) => ({
-    handle: collection.handle,
-  }));
+  return collections
+    .filter((collection) => collection.handle)
+    .map((collection) => ({
+      handle: collection.handle as string,
+    }));
 }
 
 export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
@@ -39,10 +43,11 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
 
 export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
   const { handle } = await params;
-  const { sort = 'newest', page = '1' } = await searchParams;
+  const { sort = 'newest' } = await searchParams;
 
   // Fetch collection metadata from database
-  const collection = await getCollectionByHandle(handle);
+  // Static (cookie-free) client so `revalidate = 3600` actually applies.
+  const collection = await getCollectionByHandleStatic(handle);
 
   // Use DB title/description, or fallback to formatted handle
   const collectionTitle = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -78,7 +83,6 @@ export default async function CollectionPage({ params, searchParams }: Collectio
       <CollectionProducts
         handle={handle}
         initialSort={sort as 'newest' | 'price-asc' | 'price-desc' | 'title'}
-        initialPage={parseInt(page)}
       />
     </main>
   );

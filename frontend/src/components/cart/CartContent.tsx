@@ -6,11 +6,9 @@ import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { ChevronRight, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Shield, Truck, RotateCcw } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice, cn } from '@/lib/utils';
+import { formatPrice, cn, isPriceOnSale } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
-
-const FREE_SHIPPING_THRESHOLD = 999;
-const FREE_FAST_SHIPPING_THRESHOLD = 1999;
+import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
 
 export function CartContent() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,7 +77,7 @@ export function CartContent() {
             Your bag is empty
           </h2>
           <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-md mx-auto mb-8">
-            Looks like you haven't added anything to your bag yet.
+            Looks like you haven&apos;t added anything to your bag yet.
             Discover our exclusive artist collections.
           </p>
           <Link href="/">
@@ -244,9 +242,9 @@ export function CartContent() {
                         <p className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
                           {formatPrice(item.price * item.quantity)}
                         </p>
-                        {item.compareAtPrice && item.compareAtPrice > item.price && (
+                        {isPriceOnSale(item.price, item.compareAtPrice) && (
                           <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 line-through">
-                            {formatPrice(item.compareAtPrice * item.quantity)}
+                            {formatPrice((item.compareAtPrice ?? 0) * item.quantity)}
                           </p>
                         )}
                       </div>
@@ -283,7 +281,7 @@ export function CartContent() {
                 {totalSavings > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
-                      You're saving
+                      You&apos;re saving
                     </span>
                     <span className="font-[family-name:var(--font-jakarta)] text-emerald-500">
                       -{formatPrice(totalSavings)}

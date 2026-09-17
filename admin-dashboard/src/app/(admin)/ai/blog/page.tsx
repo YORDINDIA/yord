@@ -14,20 +14,25 @@ export default function AiBlogPage() {
   async function generate() {
     setLoading(true);
     setMessage(null);
-    const response = await fetch('/api/ai/blog', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, keywords })
-    });
-    const data = await response.json();
-    setLoading(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Failed to generate');
-      return;
+    try {
+      const response = await fetch('/api/ai/blog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, keywords })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || 'Failed to generate');
+        return;
+      }
+      setDraft(data.body_html);
+      setSummary(data.summary_html);
+      setCitations(data.citations || []);
+    } catch {
+      setMessage('Network error, try again.');
+    } finally {
+      setLoading(false);
     }
-    setDraft(data.body_html);
-    setSummary(data.summary_html);
-    setCitations(data.citations || []);
   }
 
   async function saveDraft() {

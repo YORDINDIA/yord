@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import type { ProductWithDetails } from '@/types/database';
 
@@ -35,10 +35,14 @@ function SearchContent() {
     }
   }, []);
 
+  // Sync URL query param (external navigation state) to input + results; deferred to avoid cascading render.
   useEffect(() => {
     if (query) {
-      setSearchInput(query);
-      searchProducts(query);
+      const q = query;
+      queueMicrotask(() => {
+        setSearchInput(q);
+        void searchProducts(q);
+      });
     }
   }, [query, searchProducts]);
 

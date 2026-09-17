@@ -19,6 +19,7 @@ export interface Database {
       transactions: { Row: Transaction; Insert: Partial<Transaction>; Update: Partial<Transaction> };
       fulfillments: { Row: Fulfillment; Insert: Partial<Fulfillment>; Update: Partial<Fulfillment> };
       refunds: { Row: Refund; Insert: Partial<Refund>; Update: Partial<Refund> };
+      refund_transactions: { Row: RefundTransaction; Insert: Partial<RefundTransaction>; Update: Partial<RefundTransaction> };
       price_rules: { Row: PriceRule; Insert: Partial<PriceRule>; Update: Partial<PriceRule> };
       discount_codes: { Row: DiscountCode; Insert: Partial<DiscountCode>; Update: Partial<DiscountCode> };
       blogs: { Row: Blog; Insert: Partial<Blog>; Update: Partial<Blog> };
@@ -47,6 +48,9 @@ export interface Product {
   published_scope: string | null;
   template_suffix: string | null;
   tags: string | null;
+  // Cached minimum variant price (supabase/migrations/001_min_price.sql).
+  // NULL until backfilled.
+  min_price: number | string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -340,6 +344,12 @@ export interface Refund {
   processed_at: string | null;
 }
 
+export interface RefundTransaction {
+  refund_id: number;
+  transaction_id: number;
+  created_at: string | null;
+}
+
 export interface PriceRule {
   id: number;
   title: string;
@@ -413,7 +423,6 @@ export interface Article {
 }
 
 export interface AdminUser {
-  id: number | null;
   user_id: string;
   role: string;
   is_active: boolean | null;

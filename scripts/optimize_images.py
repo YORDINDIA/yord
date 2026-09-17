@@ -35,8 +35,11 @@ import numpy as np
 from PIL import Image
 import requests
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import Client
 from tqdm import tqdm
+
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.supabase_helpers import get_supabase_client
 
 # Load environment variables
 load_dotenv()
@@ -271,6 +274,9 @@ class StorageManager:
 
     def download_image(self, path: str, max_retries: int = 3) -> bytes:
         """Download image from Supabase storage with retry logic."""
+        # TODO: route this loop through utils.retry.retry_with_backoff
+        # (adds Retry-After + jitter); left as-is to avoid behavior change
+        # in the threaded optimize path without test cover.
         last_error = None
         for attempt in range(max_retries):
             try:
@@ -333,7 +339,7 @@ class OptimizationOrchestrator:
     """Coordinates the optimization workflow."""
 
     def __init__(self, dry_run: bool = False):
-        self.supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        self.supabase: Client = get_supabase_client()
         self.storage = StorageManager(self.supabase)
         self.db = DatabaseManager(self.supabase)
         self.processor = ImageProcessor()
@@ -581,6 +587,9 @@ class OptimizationOrchestrator:
 
 
 def main():
+    # TODO: build this parser on utils.cli.create_parser() for the shared
+    # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose surface
+    # (kept bespoke for now: --sample/--workers have no shared equivalent).
     parser = argparse.ArgumentParser(
         description='Optimize images in Supabase storage',
         formatter_class=argparse.RawDescriptionHelpFormatter,

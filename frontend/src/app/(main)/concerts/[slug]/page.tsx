@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { MapPin, Calendar, ArrowLeft, Music, ShoppingBag } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { CONCERTS, getConcertBySlug, getConcertsByArtist } from '@/lib/data/concerts';
+import { getCitySlugByName } from '@/lib/data/cities';
 import { ARTISTS } from '@/types/database';
 import { JsonLd, eventSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
@@ -217,7 +218,7 @@ export default async function ConcertPage({ params }: ConcertPageProps) {
           </h2>
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/concerts/city/${concert.city.toLowerCase()}`}
+              href={`/concerts/city/${getCitySlugByName(concert.city)}`}
               className="px-4 py-2 bg-gold-200/20 border border-gold-200/40 text-gold-200 text-sm font-[family-name:var(--font-jakarta)]"
             >
               {concert.city}
@@ -227,7 +228,7 @@ export default async function ConcertPage({ params }: ConcertPageProps) {
               .map((city) => (
                 <Link
                   key={city}
-                  href={`/concerts/city/${city.toLowerCase()}`}
+                  href={`/concerts/city/${getCitySlugByName(city)}`}
                   className="px-4 py-2 bg-noir-800 border border-noir-700 text-ivory-300 text-sm font-[family-name:var(--font-jakarta)] hover:border-gold-200 hover:text-gold-200 transition-colors"
                 >
                   {city}
