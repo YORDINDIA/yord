@@ -1,11 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// Write methods only: safe methods (GET/HEAD/OPTIONS) never trigger the lookup.
-const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
-// Every page in this app except /login is an admin page (all live under the
-// (admin) route group); keep this list in sync with src/app/(admin)/*.
+// Every page in this app except /login and /access-denied is an admin page
+// (all live under the (admin) route group); keep this list in sync with
+// src/app/(admin)/*.
 const ADMIN_PAGE_PREFIXES = [
   '/ai',
   '/analytics',
@@ -24,6 +22,7 @@ const ADMIN_PAGE_PREFIXES = [
 
 function isAdminPage(pathname: string) {
   if (pathname === '/') return true;
+  if (pathname === '/access-denied') return false;
   return ADMIN_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
@@ -63,22 +62,35 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isLogin) {
+    // Bounce authenticated users off the login page. Non-admins go to
+    // /access-denied instead of /dashboard: sending them to /dashboard would
+    // redirect them straight back here (login -> dashboard -> denied loop).
+    const { data: loginAdmin } = await supabase
+      .from('admin_users')
+      .select('is_active')
+      .eq('user_id', user.id)
+      .single();
+    if (!loginAdmin || (loginAdmin as { is_active: boolean | null }).is_active !== true) {
+      return NextResponse.redirect(new URL('/access-denied', request.url));
+    }
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Server actions POST to page URLs and skip layout, so enforce admin on writes here.
+  // Every page in this app except /login and /access-denied is an admin page.
+  // Enforce the admin gate on ALL methods, not just writes: page Server
+  // Components execute their queries before the layout renders, so a
+  // writes-only check leaks data to authenticated non-admins.
   // Uses the anon SSR client (same self-read as (admin)/layout.tsx), never the
   // service-role key: service keys must stay in Node-only code (requireAdmin).
-  // Scoped to admin-page writes only: /api/* writes are covered per-route by
-  // requireAdmin(), and safe methods never need the lookup.
-  if (user && !isLogin && !isApi && WRITE_METHODS.has(request.method) && isAdminPage(pathname)) {
+  // /api/* writes are covered per-route by requireAdmin().
+  if (user && !isLogin && !isApi && isAdminPage(pathname)) {
     const { data: admin } = await supabase
       .from('admin_users')
       .select('is_active')
       .eq('user_id', user.id)
       .single();
     if (!admin || (admin as { is_active: boolean | null }).is_active !== true) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.redirect(new URL('/access-denied', request.url));
     }
   }
 
@@ -89,6 +101,7 @@ export const config = {
   matcher: [
     '/',
     '/login',
+    '/access-denied',
     '/api/:path*',
     '/ai/:path*',
     '/analytics/:path*',

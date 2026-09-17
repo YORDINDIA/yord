@@ -2,6 +2,13 @@
 -- Run in Supabase SQL editor after 001_admin_tables.sql, and after
 -- supabase/migrations/002_refund_idempotency.sql (which creates
 -- refund_transactions). The refund table + reservation RPC live there.
+--
+-- Storefront tables (products, orders, refunds, transactions, ...) have no
+-- RLS in scripts/schema.sql yet: every read/write goes through the anon or
+-- service-role key, so enabling RLS without permissive SELECT policies would
+-- break the storefront. Do NOT enable RLS on those tables until the
+-- storefront is audited for anon-key access (tracked alongside the
+-- supabase-clients cutover).
 
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;

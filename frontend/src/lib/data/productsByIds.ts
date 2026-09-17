@@ -5,6 +5,12 @@ import type { ProductWithDetails } from '@/types/database';
 
 export type IdsSort = 'newest' | 'price-asc' | 'price-desc' | 'title' | 'featured';
 
+/** True when the products.min_price cache is usable for SQL ordering. */
+function hasMinPrice(row: ProductWithDetails): boolean {
+  const v = Number((row as { min_price?: unknown }).min_price);
+  return Number.isFinite(v);
+}
+
 /**
  * Single shared product select. Superset (widest) of every catalog query so
  * switching callers to it cannot regress UI fields: detail pages need
@@ -60,6 +66,7 @@ export async function fetchProductsByIds(
       .in('id', chunkIds)
       .eq('status', 'active');
     if (!isPriceSort && sort === 'title') q = q.order('title', { ascending: true });
+    else if (isPriceSort) q = q.order('min_price', { ascending: sort === 'price-asc', nullsFirst: false });
     else q = q.order('published_at', { ascending: false });
     return q.range(rangeFrom, rangeTo);
   };
@@ -75,7 +82,16 @@ export async function fetchProductsByIds(
     }
     const all = results.flatMap((r) => ((r.data || []) as ProductWithDetails[]));
     const count = results.reduce((sum, r) => sum + (r.count || 0), 0);
-    const sorted = sortProductsByPrice(all, sort === 'price-asc' ? 'asc' : 'desc');
+    // min_price ordering is authoritative only when every row is backfilled;
+    // otherwise re-sort client-side from variant prices so un-backfilled
+    // rows land in the right position instead of the NULL tail.
+    const sorted = all.every(hasMinPrice)
+      ? all.sort((a, b) => {
+          const pa = Number((a as { min_price?: unknown }).min_price);
+          const pb = Number((b as { min_price?: unknown }).min_price);
+          return sort === 'price-asc' ? pa - pb || a.id - b.id : pb - pa || a.id - b.id;
+        })
+      : sortProductsByPrice(all, sort === 'price-asc' ? 'asc' : 'desc');
     return { data: sorted.slice(from, to + 1), count };
   }
 

@@ -16,18 +16,44 @@ from (select product_id, min(price) as min_price
 where p.id = v.product_id
   and p.min_price is null;
 
--- 3. Keep min_price fresh on variant writes.
+-- 3. Keep min_price fresh on variant writes. Handles product moves
+-- (UPDATE ... SET product_id): both the old and the new product are
+-- refreshed, otherwise the old product keeps a stale cached minimum.
 create or replace function public.refresh_product_min_price()
 returns trigger
 language plpgsql
 as $$
+declare
+  v_old_product_id bigint;
+  v_new_product_id bigint;
 begin
-  update public.products p
-  set min_price = (select min(price)
-                   from public.product_variants
-                   where product_id = coalesce(new.product_id, old.product_id))
-  where p.id = coalesce(new.product_id, old.product_id);
-  return coalesce(new, old);
+  v_old_product_id := case when tg_op = 'DELETE' then old.product_id else null end;
+  v_new_product_id := case when tg_op = 'DELETE' then null else new.product_id end;
+  if tg_op = 'UPDATE' then
+    v_old_product_id := old.product_id;
+  end if;
+
+  if v_new_product_id is not null then
+    update public.products p
+    set min_price = (select min(price)
+                     from public.product_variants
+                     where product_id = v_new_product_id)
+    where p.id = v_new_product_id;
+  end if;
+
+  if v_old_product_id is not null
+     and (v_new_product_id is null or v_old_product_id <> v_new_product_id) then
+    update public.products p
+    set min_price = (select min(price)
+                     from public.product_variants
+                     where product_id = v_old_product_id)
+    where p.id = v_old_product_id;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $$;
 
@@ -38,6 +64,8 @@ create trigger trg_refresh_product_min_price
 
 -- 4. Collection membership with price, so collection/artist pages can
 --    order in SQL instead of chunked .in() + client merge.
+--    Wired into getProductsByCollection / getProductsByArtistHandle /
+--    getProductsFiltered via products.min_price ordering (see queries.ts).
 create or replace view public.collection_products as
   select c.collection_id,
          p.id as product_id,
@@ -47,3 +75,9 @@ create or replace view public.collection_products as
   from public.collects c
   join public.products p on p.id = c.product_id
   where p.status = 'active';
+
+-- Price-sort index: product listing pages order active products by
+-- (min_price, id) when min_price is backfilled; NULLS LAST keeps
+-- un-backfilled legacy rows at the tail of price-asc sorts.
+create index if not exists products_status_min_price_idx
+  on public.products (status, min_price asc nulls last, id asc);

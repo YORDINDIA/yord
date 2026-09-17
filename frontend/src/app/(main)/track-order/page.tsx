@@ -33,8 +33,14 @@ export default function TrackOrderPage() {
 
     try {
       const supabase = createClient();
+      // Orders are named YORD-<epochSeconds>-<hexSuffix> and order_number
+      // packs both halves (epoch * 65536 + suffix), so accept either the
+      // full name or the bare numeric order_number.
       const rawNumber = orderNumber.trim().slice(0, 50);
-      const numeric = parseInt(rawNumber.replace(/^YORD-/i, ''), 10);
+      const suffixMatch = rawNumber.match(/^YORD-(\d+)-([0-9A-Fa-f]{1,8})$/i);
+      const numeric = suffixMatch
+        ? Number(suffixMatch[1]) * 65536 + parseInt(suffixMatch[2], 16)
+        : parseInt(rawNumber.replace(/^YORD-/i, ''), 10);
       // Quote the name predicate so input chars cannot break out of the filter
       const safeName = sanitizeOrPattern(rawNumber);
 

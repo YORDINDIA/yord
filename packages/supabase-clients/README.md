@@ -23,7 +23,7 @@ One typed package exporting three factories:
 `Database` stays in the consuming app (`frontend/src/types/database.ts`)
 and is passed as a generic, so this package takes no dependency on it.
 
-## Cutover steps (follow-up crew)
+## Cutover steps (tracked: https://github.com/YORDINDIA/yord/issues — "supabase-clients cutover")
 
 1. Move the three factories here, generic over `Database`, reading keys
    from arguments (same style as `packages/auth`).
@@ -32,6 +32,11 @@ and is passed as a generic, so this package takes no dependency on it.
    green with `npx tsc --noEmit` after each app.
 4. Delete the two `lib/supabase/server.ts` files only when both apps pass
    typecheck + build on the package import.
+
+Known drift (same issue): `frontend/src/types/database.ts` is the byte-copy
+of `@yord/db-types`; `admin-dashboard/src/types/database.ts` is a
+hand-maintained superset (extra admin/ai tables). Port the admin tables into
+`packages/db-types` when convenient.
 
 ## Status
 

@@ -333,7 +333,9 @@ export function escapeLike(value: string): string {
  * NOTE: only correct when applied to the FULL matching set before pagination.
  * Sorting a single DB page produces globally wrong order, so callers fetching
  * price sorts must fetch the full set (up to PRICE_SORT_FETCH_LIMIT) first,
- * then sort, then slice the page window.
+ * then sort, then slice the page window. Now used only as a fallback for
+ * rows whose cached products.min_price is NULL (pre-backfill); prefer SQL
+ * ordering by min_price (see supabase/migrations/001_min_price.sql).
  */export const PRICE_SORT_FETCH_LIMIT = 500;
 
 /** Lowest variant price, tolerant of DECIMAL-as-string at runtime. */

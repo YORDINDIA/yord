@@ -51,14 +51,33 @@ export async function POST(req: Request) {
 
     // Step 2: atomic reservation BEFORE any gateway call. A crash from here on
     // leaves a `pending reservation` refunds row to reconcile.
-    const refundId = await getNextId('refunds');
-    const { data: reserved, error: reserveError } = await service.rpc('reserve_refund', {
-      p_refund_id: refundId,
-      p_transaction_id: transactionId,
-      p_amount: refundAmount ?? null,
-    });
+    // Retry id allocation once: two concurrent admins can draw the same
+    // admin_next_id value, and the loser's explicit-id insert then fails
+    // with 23505. Retrying with a fresh id keeps the retry safe (no money
+    // has moved yet); a second collision surfaces as a 500.
+    let refundId = await getNextId('refunds');
+    let reserved: unknown = null;
+    let reserveError: { message?: string } | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const attemptResult = await service.rpc('reserve_refund', {
+        p_refund_id: refundId,
+        p_transaction_id: transactionId,
+        p_amount: refundAmount ?? null,
+      });
+      reserved = attemptResult.data;
+      reserveError = attemptResult.error;
+      if (!reserveError) break;
+      const msg = reserveError.message || '';
+      const idCollision =
+        msg.includes('duplicate') || (reserveError as { code?: string }).code === '23505';
+      if (!idCollision || attempt === 1) break;
+      refundId = await getNextId('refunds');
+    }
     if (reserveError) {
       const message = reserveError.message || '';
+      if (message.includes('TRANSACTION_NOT_FOUND')) {
+        return NextResponse.json({ error: 'Transaction not found for this order' }, { status: 404 });
+      }
       if (message.includes('ALREADY_REFUNDED')) {
         return NextResponse.json({ error: 'Transaction already refunded' }, { status: 409 });
       }
