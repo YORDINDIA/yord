@@ -32,12 +32,16 @@ export function isAllowedImageUrl(value: string): boolean {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     const host = url.hostname.toLowerCase();
-    return (
-      host.endsWith('.supabase.co') ||
-      host.endsWith('.supabase.in') ||
-      host.endsWith('supabase.co') ||
-      host.endsWith('supabase.in')
-    );
+    // Own Supabase project's storage only. A blanket *.supabase.co allowlist
+    // would let an admin SSRF arbitrary third-party Supabase buckets through
+    // the image-edit fetch; the project host comes from env so previews and
+    // local dev keep working.
+    const projectHost = (process.env.NEXT_PUBLIC_SUPABASE_URL || '')
+      .replace(/^https?:\/\//, '')
+      .split(/[/?#]/)[0]
+      ?.toLowerCase();
+    if (!projectHost) return false;
+    return host === projectHost;
   } catch {
     return false;
   }

@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { MAX_ORDER_LINES, MAX_QTY_PER_LINE } from '@/lib/pricing';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
 import { logDbError, logWarn } from '@/lib/logger';
-import { EMAIL_RE } from '@/lib/rate-limit';
+import { EMAIL_RE, clientIp, isRateLimited, rateLimitResponse } from '@/lib/rate-limit';
 
 function getClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -95,6 +95,12 @@ async function refundCapturedPayment(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate-limit the money-moving endpoint (create-order is limited too;
+    // verify must not be the unthrottled back door).
+    if (isRateLimited(`verify-payment:${clientIp(request)}`, 30, 60 * 1000)) {
+      return rateLimitResponse();
+    }
+
     const clients = getClients();
     if (!clients) {
       logWarn('verify-payment', 'MISCONFIGURED', 'Missing checkout env vars');
@@ -228,14 +234,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Order number: epoch seconds are the human-readable part, but two
+    // checkouts in the same second would collide on order_number (track-order
+    // looks orders up by it). Fold 2 random bytes in so same-second orders
+    // stay unique while keeping the YORD-<epoch>-<hex> display format.
     const orderNumber = Math.floor(Date.now() / 1000);
-    const orderName = `YORD-${orderNumber}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const orderSuffix = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const orderName = `YORD-${orderNumber}-${orderSuffix}`;
+    const uniqueOrderNumber = orderNumber * 65536 + parseInt(orderSuffix, 16);
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         name: orderName,
-        order_number: orderNumber,
+        order_number: uniqueOrderNumber,
         email: orderData.email.toLowerCase().trim(),
         phone: orderData.phone.trim(),
         financial_status: 'paid',

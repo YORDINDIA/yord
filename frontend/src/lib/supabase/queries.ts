@@ -527,10 +527,14 @@ export async function getProductsFiltered(
     query = query.ilike('product_type', `%${escapeLike(productType)}%`);
   }
 
-  // Apply sorting (price sorts fetch the full set below, then slice)
+  // Apply sorting. Price sorts order by the cached min_price in SQL (see
+  // supabase/migrations/001_min_price.sql); rows that predate the backfill
+  // (NULL min_price) are re-sorted client-side from variant prices below.
   const isPriceSort = sortBy === 'price-asc' || sortBy === 'price-desc';
   if (sortBy === 'title') {
     query = query.order('title', { ascending: true });
+  } else if (isPriceSort) {
+    query = query.order('min_price', { ascending: sortBy === 'price-asc', nullsFirst: false });
   } else {
     query = query.order('published_at', { ascending: false });
   }
@@ -546,11 +550,16 @@ export async function getProductsFiltered(
 
   let products = (data || []) as ProductWithDetails[];
 
-  // Price sorts apply to the fetched window (the newest PRICE_SORT_FETCH_LIMIT
-  // rows), then slice the requested page. Correct while the active catalog stays
-  // under that cap; beyond it the sorted pages and `count` disagree.
+  // SQL min_price ordering is authoritative only when every fetched row is
+  // backfilled. Otherwise the NULL-min_price rows (sorted to the tail by
+  // NULLS LAST) land in the wrong position, so re-sort client-side from
+  // variant prices. Correct while the filtered catalog stays under
+  // PRICE_SORT_FETCH_LIMIT; beyond it the sorted pages and `count` disagree.
+  if (isPriceSort && !products.every((p) => Number.isFinite(Number((p as { min_price?: unknown }).min_price)))) {
+    products = sortProductsByPrice(products, sortBy === 'price-asc' ? 'asc' : 'desc');
+  }
   if (isPriceSort) {
-    products = sortProductsByPrice(products, sortBy === 'price-asc' ? 'asc' : 'desc').slice(from, to + 1);
+    products = products.slice(from, to + 1);
   }
 
   return {

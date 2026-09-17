@@ -1,6 +1,7 @@
 export const runtime = 'nodejs';
 
 import { imageModel } from '@/lib/ai/openai';
+import { assertAiAllowed } from '@/lib/ai/guard';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/utils/admin';
 import { isAllowedImageUrl } from '@/lib/utils/sanitize';
@@ -13,6 +14,9 @@ export async function POST(req: Request) {
     const auth = await requireAdmin();
     if ('error' in auth) return auth.error;
     const { service } = auth;
+
+    const denied = assertAiAllowed(auth.user.id);
+    if (denied) return denied;
 
     if (!process.env.OPENAI_API_KEY) {
       return failJson('NOT_CONFIGURED', 'Image service not configured', 500);

@@ -88,13 +88,19 @@ export function ProductsGrid({
         query = query.ilike('product_type', `%${escapeLike(filters.type)}%`);
       }
 
-      // Apply sorting
+      // Apply sorting: price sorts order by the cached min_price in SQL
+      // (supabase/migrations/001_min_price.sql); un-backfilled rows are
+      // re-sorted client-side from variant prices below.
       switch (sortBy) {
         case 'title':
           query = query.order('title', { ascending: true });
           break;
         case 'price-asc':
+          query = query.order('min_price', { ascending: true, nullsFirst: false });
+          break;
         case 'price-desc':
+          query = query.order('min_price', { ascending: false, nullsFirst: false });
+          break;
         default:
           query = query.order('published_at', { ascending: false });
       }
@@ -112,9 +118,13 @@ export function ProductsGrid({
 
       let fetchedProducts = (data || []) as ProductWithDetails[];
 
-      // Global price sort, then slice the requested window
-      if (isPriceSort) {
+      // Global price sort, then slice the requested window. SQL min_price
+      // ordering is authoritative only when every row is backfilled; fall
+      // back to variant-price sorting so NULL-min_price rows land correctly.
+      if (isPriceSort && !fetchedProducts.every((p) => Number.isFinite(Number((p as { min_price?: unknown }).min_price)))) {
         fetchedProducts = sortProductsByPrice(fetchedProducts, sortBy === 'price-asc' ? 'asc' : 'desc');
+      }
+      if (isPriceSort) {
         const start = (pageNum - 1) * pageSize;
         fetchedProducts = fetchedProducts.slice(start, start + pageSize);
       }

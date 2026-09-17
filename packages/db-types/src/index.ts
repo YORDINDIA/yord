@@ -94,6 +94,9 @@ export interface Product {
   published_scope: string | null;
   template_suffix: string | null;
   tags: string | null;
+  // Cached minimum variant price (supabase/migrations/001_min_price.sql).
+  // NULL until backfilled; price sorts fall back to client-side ordering.
+  min_price: number | string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,11 +1,21 @@
-// Refund-validation contract tests. Pure logic only: no live Razorpay/Supabase.
-// Local pure mirrors of app/api/refunds/route.ts amount parsing, the
-// over-refund guard, and the partial-vs-full classification. If the route
-// changes its rule, update the mirror here.
+// Refund tests. The route's cumulative-cap math lives in the
+// reserve_refund() RPC (supabase/migrations/002_refund_idempotency.sql), which
+// unit tests cannot call; these tests pin the small pure pieces that DO live
+// in the route module's dependency surface: paise rounding of admin-typed
+// amounts and the route's isPartial classification rule
+// (cumulative < txn total => partial).
 
 import { describe, expect, it } from 'vitest';
 
-// --- Local mirrors of route logic (kept in sync by contract) ---
+// --- Route-shaped pure helpers (same expressions as refunds/route.ts) ---
+
+function toPaise(amount: number): number {
+  return Math.round(amount * 100);
+}
+
+function isPartialRefund(cumulativePaise: number, txnPaise: number): boolean {
+  return Number.isFinite(txnPaise) && txnPaise > 0 ? cumulativePaise < txnPaise : false;
+}
 
 function parseRefundAmount(amount: unknown): number | undefined {
   // Mirrors refunds/route.ts: empty/absent -> full refund (undefined);
@@ -49,7 +59,13 @@ describe('refund validation', () => {
     expect(() => parseRefundAmount('abc')).toThrow('amount must be a positive number');
   });
 
-  it('rejects over-refunds and classifies partial vs full', () => {
+  it('classifies partial vs full from the reserved cumulative total', () => {
+    // Same expression as the route: cumulative < txn total => partial, so a
+    // final partial refund that completes the total still marks fully refunded.
+    const txnPaise = toPaise(1000);
+    expect(isPartialRefund(toPaise(1000), txnPaise)).toBe(false);
+    expect(isPartialRefund(toPaise(500), txnPaise)).toBe(true);
+    expect(isPartialRefund(txnPaise, 0)).toBe(false);
     expect(checkRefundAmount(100000, 1000)).toEqual({ ok: true, partial: false });
     expect(checkRefundAmount(50000, 1000)).toEqual({ ok: true, partial: true });
     expect(checkRefundAmount(undefined, 1000)).toEqual({ ok: true, partial: false });

@@ -14,11 +14,25 @@ const MAX_CALLS_PER_DAY = 200;
 const minuteBuckets = new Map<string, number[]>();
 const dayBuckets = new Map<string, number[]>();
 
+// Bound memory like the storefront rate limiter: evict the oldest key (Map
+// preserves insertion order) once the table grows past this many users.
+const MAX_USERS = 10_000;
+
+function setBucket(bucket: Map<string, number[]>, key: string, hits: number[]) {
+  if (!bucket.has(key) && bucket.size >= MAX_USERS) {
+    const oldest = bucket.keys().next().value;
+    if (oldest !== undefined) bucket.delete(oldest);
+  }
+  // Refresh recency so hot users are not the eviction victim.
+  if (bucket.has(key)) bucket.delete(key);
+  bucket.set(key, hits);
+}
+
 function hit(bucket: Map<string, number[]>, key: string, windowMs: number): number {
   const now = Date.now();
   const hits = (bucket.get(key) || []).filter((t) => now - t < windowMs);
   hits.push(now);
-  bucket.set(key, hits);
+  setBucket(bucket, key, hits);
   return hits.length;
 }
 
