@@ -24,7 +24,6 @@
     "@yord/ui": "*",
     "clsx": "^2.1.1",
     "framer-motion": "^12.27.4",
-    "isomorphic-dompurify": "^4.2.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",
     "posthog-js": "^1.351.1",
