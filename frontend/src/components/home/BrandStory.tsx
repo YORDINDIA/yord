@@ -183,7 +183,7 @@ export function BrandStory() {
                   transition={{ delay: 0.9 }}
                   className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50 mb-6 italic"
                 >
-                  "Where Every Thread Tells a Story"
+                  &quot;Where Every Thread Tells a Story&quot;
                 </motion.h3>
 
                 <motion.div

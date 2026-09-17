@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductInfo } from '@/components/product/ProductInfo';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
-import { getProductByHandle } from '@/lib/supabase/queries';
+import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
 import { ARTISTS } from '@/types/database';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
@@ -11,6 +11,8 @@ import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 interface ProductPageProps {
   params: Promise<{ handle: string }>;
 }
+
+export const revalidate = 3600;
 
 export async function generateStaticParams() {
   const supabase = createStaticClient();
@@ -26,7 +28,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { handle } = await params;
-  const product = await getProductByHandle(handle);
+  const product = await getProductByHandleStatic(handle);
 
   if (!product) {
     return { title: 'Product Not Found' };
@@ -62,7 +64,9 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { handle } = await params;
-  const productData = await getProductByHandle(handle);
+  // Static (cookie-free) client so `revalidate = 3600` actually applies; the
+  // cookie-based variant forced dynamic rendering.
+  const productData = await getProductByHandleStatic(handle);
 
   if (!productData) {
     notFound();
@@ -124,7 +128,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Product Info */}
           <ProductInfo
-            product={product}
+            key={product.id}
+            product={{
+              ...product,
+              image: product.images[0]?.src || null,
+            }}
           />
         </div>
       </section>

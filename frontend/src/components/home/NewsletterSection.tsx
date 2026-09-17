@@ -4,19 +4,23 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { Mail, CheckCircle, Loader2, Sparkles } from 'lucide-react';
 
+// Static burst layout computed once at module scope (not during render);
+// identical particles for every success animation, no per-render regeneration.
+const SUCCESS_PARTICLES = Array.from({ length: 12 }, (_, i) => {
+  const angle = (i / 12) * 360;
+  const distance = 80 + Math.random() * 40;
+  return {
+    id: i,
+    angle,
+    distance,
+    size: 4 + Math.random() * 4,
+    delay: Math.random() * 0.2,
+  };
+});
+
 // Success particle component for burst animation
 function SuccessParticles({ show }: { show: boolean }) {
-  const particles = Array.from({ length: 12 }, (_, i) => {
-    const angle = (i / 12) * 360;
-    const distance = 80 + Math.random() * 40;
-    return {
-      id: i,
-      angle,
-      distance,
-      size: 4 + Math.random() * 4,
-      delay: Math.random() * 0.2,
-    };
-  });
+  const particles = SUCCESS_PARTICLES;
 
   return (
     <AnimatePresence>
@@ -83,10 +87,10 @@ export function NewsletterSection() {
   const [isFocused, setIsFocused] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
 
-  // Trigger particles on success
+  // Trigger particles on success; deferred: syncs animation flag from fetch status.
   useEffect(() => {
     if (status === 'success') {
-      setShowParticles(true);
+      queueMicrotask(() => setShowParticles(true));
       const timer = setTimeout(() => setShowParticles(false), 1500);
       return () => clearTimeout(timer);
     }

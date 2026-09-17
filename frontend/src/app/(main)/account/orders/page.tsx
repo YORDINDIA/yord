@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Package, ChevronRight, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn, formatDate, formatPrice } from '@/lib/utils';
 
 interface Order {
   id: number;
@@ -71,22 +71,6 @@ export default function OrdersPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency || 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -150,7 +134,7 @@ export default function OrdersPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="font-[family-name:var(--font-bebas)] text-xl text-gold-200">
-                    {formatCurrency(order.total_price, order.currency)}
+                    {formatPrice(order.total_price, order.currency)}
                   </span>
                   <ChevronRight className="w-5 h-5 text-ivory-500 group-hover:text-gold-200 transition-colors" />
                 </div>

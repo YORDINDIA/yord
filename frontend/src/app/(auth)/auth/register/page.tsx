@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Loader2, Mail, Lock, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getSafeRedirect } from '@/lib/redirect';
 
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/account';
+  const redirectTo = getSafeRedirect(searchParams.get('redirect'));
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');

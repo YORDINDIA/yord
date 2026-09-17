@@ -27,22 +27,27 @@ class DataAuditor:
         }
 
     def count_table(self, table_name):
-        """Get count of records in a table."""
+        """Get count of records in a table.
+
+        Returns the row count, or None if the query failed. None means
+        "unknown" -- callers must not treat it as 0 (empty).
+        """
         try:
             response = self.supabase.table(table_name).select('*', count='exact').limit(0).execute()
             return response.count or 0
         except Exception as e:
-            return f"ERROR: {str(e)}"
+            print(f"  Error counting {table_name}: {e}")
+            return None
 
     def audit_customers(self):
         """Audit customer data completeness."""
         print("\n--- Auditing CUSTOMERS ---")
 
         total = self.count_table('customers')
-        print(f"Total customers: {total}")
+        print(f"Total customers: {total if total is not None else 'QUERY FAILED'}")
 
-        if isinstance(total, str):  # Error
-            self.results['tables']['customers'] = {'error': total}
+        if total is None:  # Query failed -- unknown, not zero
+            self.results['tables']['customers'] = {'error': 'count query failed'}
             return
 
         # Get sample customers to check data
@@ -106,10 +111,10 @@ class DataAuditor:
         print("\n--- Auditing CUSTOMER_ADDRESSES ---")
 
         total = self.count_table('customer_addresses')
-        print(f"Total addresses: {total}")
+        print(f"Total addresses: {total if total is not None else 'QUERY FAILED'}")
 
-        if isinstance(total, str):
-            self.results['tables']['customer_addresses'] = {'error': total}
+        if total is None:
+            self.results['tables']['customer_addresses'] = {'error': 'count query failed'}
             return
 
         # Sample addresses
@@ -132,10 +137,10 @@ class DataAuditor:
         print("\n--- Auditing PRODUCT_IMAGES ---")
 
         total = self.count_table('product_images')
-        print(f"Total images: {total}")
+        print(f"Total images: {total if total is not None else 'QUERY FAILED'}")
 
-        if isinstance(total, str):
-            self.results['tables']['product_images'] = {'error': total}
+        if total is None:
+            self.results['tables']['product_images'] = {'error': 'count query failed'}
             return
 
         # Count with supabase_url
@@ -227,9 +232,14 @@ class DataAuditor:
 
         for table in tables:
             count = self.count_table(table)
-            self.results['tables'][table] = {'total': count}
-            status = "OK" if isinstance(count, int) and count > 0 else "EMPTY" if count == 0 else "ERROR"
-            print(f"  {table:30} {str(count):>10} [{status}]")
+            self.results['tables'][table] = {'total': count} if count is not None else {'error': 'count query failed'}
+            if count is None:
+                status = "ERROR"
+            elif count > 0:
+                status = "OK"
+            else:
+                status = "EMPTY"
+            print(f"  {table:30} {str(count) if count is not None else 'QUERY FAILED':>10} [{status}]")
 
     def run_full_audit(self):
         """Run complete audit."""

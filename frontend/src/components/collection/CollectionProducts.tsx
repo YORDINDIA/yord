@@ -16,13 +16,13 @@ import {
 } from '@/components/product/ProductGrid';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
-import { sortProductsByPrice, getProductBadge } from '@/lib/utils';
+import { getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { fetchProductsByIds } from '@/lib/data/productsByIds';
 import type { ProductWithDetails, Collection } from '@/types/database';
 
 interface CollectionProductsProps {
   handle: string;
   initialSort?: SortOption;
-  initialPage?: number;
 }
 
 const PAGE_SIZE = 12;
@@ -30,7 +30,6 @@ const PAGE_SIZE = 12;
 export function CollectionProducts({
   handle,
   initialSort = 'newest',
-  initialPage = 1,
 }: CollectionProductsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -42,11 +41,14 @@ export function CollectionProducts({
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic id: stale in-flight fetches (old sort) are ignored on resolve
+  const requestIdRef = useRef(0);
 
   const hasMore = products.length < totalCount;
 
   // Fetch products from Supabase
   const fetchProducts = useCallback(async (pageNum: number, append: boolean = false) => {
+    const requestId = ++requestIdRef.current;
     if (!append) setLoading(true);
     setError(null);
 
@@ -64,6 +66,7 @@ export function CollectionProducts({
       const collData = collectionData as Collection | null;
 
       if (collectionError || !collData) {
+        if (requestId !== requestIdRef.current) return;
         setCollection(null);
         setProducts([]);
         setTotalCount(0);
@@ -80,6 +83,7 @@ export function CollectionProducts({
         .eq('collection_id', collData.id);
 
       if (collectsError || !collectsData || collectsData.length === 0) {
+        if (requestId !== requestIdRef.current) return;
         setProducts([]);
         setTotalCount(0);
         setLoading(false);
@@ -88,52 +92,12 @@ export function CollectionProducts({
 
       const productIds = (collectsData as { product_id: number }[]).map(c => c.product_id);
 
-      // Calculate pagination
-      const from = (pageNum - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-
-      // Build query with sorting
-      let query = supabase
-        .from('products')
-        .select(`
-          *,
-          product_variants (
-            id, title, price, compare_at_price,
-            inventory_quantity, option1, option2, option3, position
-          ),
-          product_images (
-            id, src, supabase_url, alt, position
-          )
-        `, { count: 'exact' })
-        .in('id', productIds)
-        .eq('status', 'active');
-
-      // Apply database sorting
-      switch (sortBy) {
-        case 'title':
-          query = query.order('title', { ascending: true });
-          break;
-        case 'newest':
-        default:
-          query = query.order('published_at', { ascending: false });
-      }
-
-      const { data: productsData, error: productsError, count } = await query.range(from, to);
-
-      if (productsError) {
-        setError('Failed to load products');
-        setLoading(false);
-        return;
-      }
-
-      let fetchedProducts = (productsData || []) as ProductWithDetails[];
-
-      // Client-side price sorting (since price is on variants)
-      if (sortBy === 'price-asc') {
-        fetchedProducts = sortProductsByPrice(fetchedProducts, 'asc');
-      } else if (sortBy === 'price-desc') {
-        fetchedProducts = sortProductsByPrice(fetchedProducts, 'desc');
-      }
+      const { data: fetchedProducts, count: total } = await fetchProductsByIds(supabase, productIds, {
+        sort: sortBy,
+        page: pageNum,
+        pageSize: PAGE_SIZE,
+      });
+      if (requestId !== requestIdRef.current) return;
 
       // Handle empty results
       if (fetchedProducts.length === 0 && append) {
@@ -142,17 +106,22 @@ export function CollectionProducts({
       }
 
       if (append) {
-        setProducts(prev => [...prev, ...fetchedProducts]);
+        // Dedupe by id: a stale fetch resolving late must not duplicate rows
+        setProducts(prev => {
+          const seen = new Set(prev.map(p => p.id));
+          return [...prev, ...fetchedProducts.filter(p => !seen.has(p.id))];
+        });
       } else {
         setProducts(fetchedProducts);
       }
 
-      setTotalCount(count || 0);
+      setTotalCount(total || 0);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error fetching collection products:', err);
       setError('An unexpected error occurred');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [handle, sortBy, products.length]);
 
@@ -162,10 +131,12 @@ export function CollectionProducts({
     { hasMore, isLoading: loading }
   );
 
-  // Fetch on mount and when sort changes
+  // Fetch on mount and when sort changes; deferred: fetch syncs external Supabase store.
   useEffect(() => {
-    resetPage();
-    fetchProducts(1, false);
+    queueMicrotask(() => {
+      resetPage();
+      void fetchProducts(1, false);
+    });
   }, [sortBy, handle]);
 
   // Close dropdown on click outside
@@ -179,8 +150,8 @@ export function CollectionProducts({
 
   // Helper to get product display data
   const getProductDisplayData = (product: ProductWithDetails) => {
-    const variant = product.product_variants?.[0];
-    const image = product.product_images?.sort((a, b) => a.position - b.position)?.[0];
+    const variant = getFirstByPosition(product.product_variants);
+    const image = getFirstByPosition(product.product_images);
 
     return {
       handle: product.handle,

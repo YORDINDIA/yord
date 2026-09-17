@@ -8,8 +8,7 @@ import { CheckoutForm, CheckoutData } from '@/components/checkout/CheckoutForm';
 import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useRazorpay } from '@/hooks/useRazorpay';
-
-const GST_RATE = 0.18;
+import { computeTotals } from '@/lib/pricing';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -20,10 +19,9 @@ export default function CheckoutPage() {
   const clearCart = useCartStore((state) => state.clearCart);
   const { initiatePayment, error: paymentError } = useRazorpay();
 
-  // Calculate total with GST
+  // Calculate total with GST (single source in lib/pricing)
   const subtotal = subtotalFn();
-  const gstAmount = Math.round(subtotal * GST_RATE);
-  const total = subtotal + gstAmount;
+  const { gstAmount, total } = computeTotals(subtotal);
 
   const handlePlaceOrder = async (data: CheckoutData) => {
     setIsProcessing(true);
@@ -31,15 +29,13 @@ export default function CheckoutPage() {
 
     try {
       // Initiate Razorpay payment with full order data
+      // (server recomputes totals from DB prices; client totals are display-only)
       const paymentResponse = await initiatePayment({
-        amount: total,
         customerName: `${data.shipping.firstName} ${data.shipping.lastName}`,
         customerEmail: data.shipping.email,
         customerPhone: data.shipping.phone,
         cartItems: items,
         shippingAddress: data.shipping,
-        subtotal,
-        gstAmount,
       });
 
       if (!paymentResponse) {
@@ -68,9 +64,10 @@ export default function CheckoutPage() {
       };
       sessionStorage.setItem('yord_last_order', JSON.stringify(orderDetails));
 
-      // Clear cart and redirect to success page
+      // Clear cart and redirect to success page.
+      // Pass the YORD order name (trackable) rather than the Razorpay gateway id.
       clearCart();
-      router.push('/checkout/success');
+      router.push(`/checkout/success?order_name=${encodeURIComponent(paymentResponse.order_name)}`);
     } catch (error) {
       console.error('Order failed:', error);
       setOrderError(error instanceof Error ? error.message : 'Order failed. Please try again.');

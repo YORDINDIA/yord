@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import {
   loadRazorpayScript,
   createRazorpayCheckout,
-  formatAmountForRazorpay,
   RazorpayPaymentResponse,
   RazorpayCheckoutOptions,
 } from '@/lib/razorpay/client';
@@ -24,27 +23,29 @@ interface ShippingAddress {
 }
 
 interface CreateOrderData {
-  amount: number;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
   cartItems: CartItem[];
   shippingAddress: ShippingAddress;
-  subtotal: number;
-  gstAmount: number;
 }
 
 interface UseRazorpayReturn {
   isLoading: boolean;
   error: string | null;
-  initiatePayment: (data: CreateOrderData) => Promise<RazorpayPaymentResponse | null>;
+  initiatePayment: (data: CreateOrderData) => Promise<VerifiedPaymentResponse | null>;
+}
+
+// Razorpay handler payload plus the trackable YORD order name from verify-payment.
+export interface VerifiedPaymentResponse extends RazorpayPaymentResponse {
+  order_name: string;
 }
 
 export function useRazorpay(): UseRazorpayReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const initiatePayment = useCallback(async (data: CreateOrderData): Promise<RazorpayPaymentResponse | null> => {
+  const initiatePayment = useCallback(async (data: CreateOrderData): Promise<VerifiedPaymentResponse | null> => {
     setIsLoading(true);
     setError(null);
 
@@ -55,13 +56,16 @@ export function useRazorpay(): UseRazorpayReturn {
         throw new Error('Failed to load Razorpay. Please try again.');
       }
 
-      // Create order on server
+      // Create order on server (server computes totals from DB prices)
       const orderResponse = await fetch('/api/checkout/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: formatAmountForRazorpay(data.amount),
           currency: 'INR',
+          items: data.cartItems.map((item) => ({
+            variantId: item.variantId,
+            quantity: item.quantity,
+          })),
         }),
       });
 
@@ -91,7 +95,8 @@ export function useRazorpay(): UseRazorpayReturn {
           },
           handler: async (response) => {
             try {
-              // Verify payment and create order on server
+              // Verify payment and create order on server (30s timeout so a
+              // hung verify never leaves the checkout promise pending forever)
               const verifyResponse = await fetch('/api/checkout/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -99,24 +104,18 @@ export function useRazorpay(): UseRazorpayReturn {
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
-                  // Order data for Supabase
+                  // Order data for Supabase (server recomputes prices/totals)
                   orderData: {
                     email: data.customerEmail,
                     phone: data.customerPhone,
-                    subtotal: data.subtotal,
-                    gstAmount: data.gstAmount,
-                    total: data.amount,
                     shippingAddress: data.shippingAddress,
                     cartItems: data.cartItems.map(item => ({
-                      productId: item.productId,
                       variantId: item.variantId,
-                      title: item.title,
-                      variantTitle: item.variantTitle,
-                      price: item.price,
                       quantity: item.quantity,
                     })),
                   },
                 }),
+                signal: AbortSignal.timeout(30000),
               });
 
               if (!verifyResponse.ok) {
@@ -124,7 +123,8 @@ export function useRazorpay(): UseRazorpayReturn {
                 throw new Error(errorData.error || 'Payment verification failed');
               }
 
-              resolve(response);
+              const verifyData = await verifyResponse.json();
+              resolve({ ...response, order_name: verifyData.order_name });
             } catch (err) {
               reject(err);
             }

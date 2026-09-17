@@ -1,42 +1,65 @@
 export const runtime = 'nodejs';
 
-import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { requireAdmin } from '@/lib/utils/admin';
+import { escapeHtml, slugify } from '@/lib/utils/sanitize';
+import { clampText, failJson, okJson } from '@/lib/utils/prompt';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
+    const { service } = auth;
+
     const { topic, summary_html, body_html, tags, citations } = await req.json();
-    const supabase = createServiceClient();
-    const { data: blog } = await supabase.from('blogs').select('id').order('created_at', { ascending: true }).limit(1).single();
+    if (!topic || typeof topic !== 'string' || !body_html || typeof body_html !== 'string') {
+      return failJson('BAD_REQUEST', 'topic and body_html are required', 400);
+    }
+
+    const { data: blog } = await service
+      .from('blogs')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
     if (!blog) {
-      return NextResponse.json({ error: 'No blog available' }, { status: 400 });
+      return failJson('BAD_REQUEST', 'No blog available', 400);
     }
 
     const id = await getNextId('articles');
     const now = new Date().toISOString();
-    const handle = (topic || 'ai-draft').toLowerCase().replace(/\s+/g, '-');
-    const citationBlock = Array.isArray(citations) && citations.length
-      ? `<h4>Citations</h4><ul>${citations.map((c: string) => `<li>${c}</li>`).join('')}</ul>`
-      : '';
-    const finalBody = `${body_html || ''}${citationBlock}`;
+    const safeTopic = clampText(topic, 500);
+    const handle = slugify(safeTopic);
+    const citationBlock =
+      Array.isArray(citations) && citations.length
+        ? `<h4>Citations</h4><ul>${citations.map((c: unknown) => `<li>${escapeHtml(String(c))}</li>`).join('')}</ul>`
+        : '';
+    const finalBody = `${body_html}${citationBlock}`;
 
-    await supabase.from('articles').insert({
+    const { error } = await service.from('articles').insert({
       id,
       blog_id: blog.id,
-      title: topic || 'AI Draft',
+      title: safeTopic,
       handle,
       author: 'YORD Team',
       body_html: finalBody || null,
-      summary_html: summary_html || null,
-      tags: tags || null,
+      summary_html: typeof summary_html === 'string' ? summary_html : null,
+      tags: typeof tags === 'string' ? tags : null,
       published: false,
       created_at: now,
       updated_at: now,
     });
+    if (error) {
+      if (error.message.includes('duplicate') || error.code === '23505') {
+        return failJson('CONFLICT', 'An article with this handle already exists', 409);
+      }
+      console.error('articles insert failed', error);
+      return failJson('INTERNAL', 'Failed to save article', 500);
+    }
 
-    return NextResponse.json({ success: true, id });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return okJson({ id }, { success: true, id });
+  } catch (error: unknown) {
+    console.error('Blog save failed', error);
+    return failJson('INTERNAL', 'Failed to save article', 500);
   }
 }

@@ -15,7 +15,10 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import Client
+
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.supabase_helpers import get_supabase_client
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +37,7 @@ BATCH_SIZE = 50
 
 class MediaMigrator:
     def __init__(self):
-        self.supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        self.supabase: Client = get_supabase_client()
         self.temp_dir = tempfile.mkdtemp(prefix='shopify_media_')
         self.stats = {
             'total_images': 0,
@@ -120,6 +123,9 @@ class MediaMigrator:
 
     def download_image(self, url: str, image_id: int) -> tuple:
         """Download image from Shopify CDN."""
+        # TODO: route this loop through utils.retry.retry_with_backoff
+        # (honors Retry-After on 429 + jitter); left as-is to avoid
+        # behavior change in the threaded download path without test cover.
         for attempt in range(RETRY_ATTEMPTS):
             try:
                 # Parse URL to get filename
@@ -345,7 +351,7 @@ def migrate_collection_images():
     print("COLLECTION IMAGE MIGRATION")
     print("=" * 60)
 
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    supabase = get_supabase_client()
 
     # Create local backup directory
     backup_dir = Path(__file__).parent.parent / 'data' / 'media' / 'collections'
@@ -418,6 +424,8 @@ def migrate_collection_images():
 
 def main():
     """Main entry point."""
+    # TODO: adopt utils.cli.create_parser() for shared
+    # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose flags.
     print("=" * 60)
     print("SHOPIFY TO SUPABASE MEDIA MIGRATION")
     print("=" * 60)

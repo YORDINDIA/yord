@@ -88,6 +88,9 @@ Configuration in `utils/config.py`:
 
 ## Verification & Audit
 
+Runbook: [`MIGRATION_AUDIT_REPORT.md`](./MIGRATION_AUDIT_REPORT.md) — full
+pre/post-migration audit checklist. Start there before running verify.
+
 ### `verify_migration.py`
 Post-migration verification - checks data integrity and counts.
 
@@ -242,6 +245,14 @@ Error details are written to JSON files:
 - `optimization_errors.json`
 - `upload_errors.json`
 
+## Ops Runbook
+
+1. 429 storm: wait it out -- `utils/retry.py` honors `Retry-After` with backoff+jitter; rerun same command.
+2. Resume: rerun with `--resume` (or `--checkpoint-file X`); delete `*_checkpoint.json` for clean restart.
+3. Error schema: `[{"table": str, "id": value, "error": str, "ts": iso-UTC}]` per file above.
+4. Counts: `None`/`ERROR` means query failed (retry creds/network), not zero rows.
+5. Logs rotate at 5MB x3 (`migration.log`, `media_migration.log`); attach latest + error JSON when reporting.
+
 ## Migration Order
 
 For a fresh migration, run in this order:
@@ -253,3 +264,13 @@ For a fresh migration, run in this order:
 5. Populate collections: `populate_collections.py --mode=keyword --execute`
 6. Verify: `verify_migration.py --full`
 7. Optimize images: `optimize_images.py --execute`
+
+Or drive the same order through the `yord` runner (plans, streams logs
+to `.yord/runs/<timestamp>/`, writes `ledger.json`):
+
+```bash
+python yord.py migrate --dry-run    # plan + env check, no writes
+python yord.py migrate --execute    # full pipeline
+python yord.py migrate --execute --from blogs   # resume at step
+python yord.py verify               # verify_migration.py
+```

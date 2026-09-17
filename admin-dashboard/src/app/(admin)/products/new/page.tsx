@@ -2,11 +2,14 @@ import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
 import { logAudit } from '@/lib/utils/audit';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function createProduct(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const title = String(formData.get('title') || '').trim();
+  if (!title) return;
   const handle = String(formData.get('handle') || '').trim();
   const vendor = String(formData.get('vendor') || '').trim();
   const productType = String(formData.get('product_type') || '').trim();
@@ -21,7 +24,7 @@ async function createProduct(formData: FormData) {
   const now = new Date().toISOString();
   const { data: { user } } = await supabase.auth.getUser();
 
-  await supabase.from('products').insert({
+  const { error: productError } = await supabase.from('products').insert({
     id: productId,
     title,
     handle: handle || title.toLowerCase().replace(/\s+/g, '-'),
@@ -33,8 +36,9 @@ async function createProduct(formData: FormData) {
     created_at: now,
     updated_at: now,
   });
+  if (productError) throw new Error(productError.message);
 
-  await supabase.from('product_variants').insert({
+  const { error: variantError } = await supabase.from('product_variants').insert({
     id: variantId,
     product_id: productId,
     title: 'Default',
@@ -44,6 +48,7 @@ async function createProduct(formData: FormData) {
     created_at: now,
     updated_at: now,
   });
+  if (variantError) throw new Error(variantError.message);
 
   if (user) {
     await logAudit({
@@ -54,6 +59,8 @@ async function createProduct(formData: FormData) {
       after: { title, handle, price, inventory },
     });
   }
+  revalidatePath('/products');
+  redirect('/products');
 }
 
 export default function NewProductPage() {

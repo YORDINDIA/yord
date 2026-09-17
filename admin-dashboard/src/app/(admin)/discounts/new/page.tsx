@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase/server';
 import { getNextId } from '@/lib/utils/ids';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 async function createDiscount(formData: FormData) {
   'use server';
   const supabase = await createServerClient();
   const title = String(formData.get('title') || '').trim();
   const code = String(formData.get('code') || '').trim();
+  if (!title || !code) return;
   const value = Number(formData.get('value') || 0);
   const valueType = String(formData.get('value_type') || 'percentage');
   const startsAtRaw = String(formData.get('starts_at') || '').trim();
@@ -18,7 +21,7 @@ async function createDiscount(formData: FormData) {
   const codeId = await getNextId('discount_codes');
   const now = new Date().toISOString();
 
-  await supabase.from('price_rules').insert({
+  const { error: ruleError } = await supabase.from('price_rules').insert({
     id: priceRuleId,
     title,
     value,
@@ -33,14 +36,18 @@ async function createDiscount(formData: FormData) {
     created_at: now,
     updated_at: now,
   });
+  if (ruleError) throw new Error(ruleError.message);
 
-  await supabase.from('discount_codes').insert({
+  const { error: codeError } = await supabase.from('discount_codes').insert({
     id: codeId,
     price_rule_id: priceRuleId,
     code,
     created_at: now,
     updated_at: now,
   });
+  if (codeError) throw new Error(codeError.message);
+  revalidatePath('/discounts');
+  redirect('/discounts');
 }
 
 export default function NewDiscountPage() {

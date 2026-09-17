@@ -22,7 +22,8 @@ interface BlogPageProps {
 
 export default async function BlogPage({ searchParams }: BlogPageProps) {
   const params = await searchParams;
-  const page = parseInt(params.page || '1', 10);
+  const rawPage = parseInt(params.page || '1', 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.min(rawPage, 100) : 1;
   const pageSize = 12;
 
   const { data: articles, count } = await getArticles(page, pageSize);

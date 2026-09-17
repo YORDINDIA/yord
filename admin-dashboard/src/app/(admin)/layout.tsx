@@ -19,7 +19,7 @@ export default async function AdminLayout({
     .eq('user_id', user.id)
     .single();
 
-  if (!error && (!admin || admin.is_active === false)) {
+  if (error || !admin || !admin.is_active) {
     return (
       <div className="auth-wrap">
         <div className="card auth-card">

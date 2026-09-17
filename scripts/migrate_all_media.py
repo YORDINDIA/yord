@@ -29,6 +29,7 @@ import sys
 import json
 import argparse
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -59,13 +60,13 @@ from utils.supabase_helpers import get_supabase_client
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging (rotating: 5MB x 3 backups, so long runs never fill disk)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('media_migration.log')
+        RotatingFileHandler('media_migration.log', maxBytes=5 * 1024 * 1024, backupCount=3)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -865,6 +866,8 @@ class MediaMigrationOrchestrator:
 
 
 def main():
+    # TODO: adopt utils.cli.create_parser() for shared
+    # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose flags.
     parser = argparse.ArgumentParser(
         description='Comprehensive Shopify media migration to Supabase',
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -40,7 +40,8 @@ function buildFilterUrl(
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const params = await searchParams;
-  const page = parseInt(params.page || '1');
+  const rawPage = parseInt(params.page || '1', 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.min(rawPage, 100) : 1;
   const pageSize = 20;
   const artistFilter = params.artist || undefined;
   const typeFilter = params.type || undefined;

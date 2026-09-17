@@ -35,10 +35,14 @@ function SearchContent() {
     }
   }, []);
 
+  // Sync URL query param (external navigation state) to input + results; deferred to avoid cascading render.
   useEffect(() => {
     if (query) {
-      setSearchInput(query);
-      searchProducts(query);
+      const q = query;
+      queueMicrotask(() => {
+        setSearchInput(q);
+        void searchProducts(q);
+      });
     }
   }, [query, searchProducts]);
 

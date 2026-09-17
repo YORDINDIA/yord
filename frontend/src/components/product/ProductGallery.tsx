@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, sortByPosition } from '@/lib/utils';
 
 interface ProductImage {
   id: number;
@@ -23,7 +23,7 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
 
-  const sortedImages = [...images].sort((a, b) => a.position - b.position);
+  const sortedImages = sortByPosition(images);
   const selectedImage = sortedImages[selectedIndex];
 
   const goToPrevious = () => {

@@ -18,6 +18,7 @@ export function CustomCursor() {
     text: null,
   });
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   // Use motion values for smooth cursor position
   const mouseX = useMotionValue(0);
@@ -28,23 +29,29 @@ export function CustomCursor() {
   const ringX = useSpring(mouseX, springConfig);
   const ringY = useSpring(mouseY, springConfig);
 
-  // Detect touch device
+  // Detect touch device or reduced-motion preference (no custom cursor then)
   useEffect(() => {
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const checkTouch = () => {
       setIsTouchDevice(
         'ontouchstart' in window ||
         navigator.maxTouchPoints > 0 ||
         window.matchMedia('(pointer: coarse)').matches
       );
+      setReducedMotion(motionQuery.matches);
     };
     checkTouch();
     window.addEventListener('resize', checkTouch);
-    return () => window.removeEventListener('resize', checkTouch);
+    motionQuery.addEventListener('change', checkTouch);
+    return () => {
+      window.removeEventListener('resize', checkTouch);
+      motionQuery.removeEventListener('change', checkTouch);
+    };
   }, []);
 
   // Track mouse position
   useEffect(() => {
-    if (isTouchDevice) return;
+    if (isTouchDevice || reducedMotion) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
@@ -99,10 +106,10 @@ export function CustomCursor() {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mouseover', handleMouseOver);
     };
-  }, [isTouchDevice, mouseX, mouseY]);
+  }, [isTouchDevice, reducedMotion, mouseX, mouseY]);
 
-  // Don't render on touch devices
-  if (isTouchDevice) return null;
+  // Don't render on touch devices or when reduced motion is preferred
+  if (isTouchDevice || reducedMotion) return null;
 
   const { visible, clicked, hovered, text } = cursorState;
 

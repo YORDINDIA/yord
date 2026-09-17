@@ -9,17 +9,19 @@ import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   formatPrice,
-  getImageUrl,
-  getPrimaryImage,
-  getSecondaryImage,
-  getLowestPriceVariant,
-  isOnSale,
   getDiscountPercentage,
+  getFirstByPosition,
+  getImageUrl,
+  getLowestPriceVariant,
+  getPrimaryImage,
+  getProductBadge,
+  getSecondaryImage,
   isInStock,
+  isPriceOnSale,
 } from '@/lib/utils';
 import { SaleBadge, LimitedBadge, SoldOutBadge, ArtistBadge, Badge } from './Badge';
-import type { ProductWithDetails, CartItem } from '@/types/database';
-import { ARTISTS } from '@/types/database';
+import type { ProductVariant, ProductWithDetails, CartItem } from '@/types/database';
+import { ARTISTS, vendorToHandle } from '@/types/database';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 
@@ -53,6 +55,12 @@ export interface ProductCardSimpleProps {
   className?: string;
   // Optional full product data for cart functionality
   product?: ProductWithDetails;
+  // Optional ids for wishlist/cart when full product data is unavailable
+  // (e.g. related-product cards that only fetch a subset of columns)
+  productId?: number;
+  variantId?: number | null;
+  variantTitle?: string | null;
+  maxQuantity?: number;
 }
 
 export type ProductCardProps = ProductCardWithDataProps | ProductCardSimpleProps;
@@ -63,13 +71,12 @@ function isSimpleProps(props: ProductCardProps): props is ProductCardSimpleProps
 
 const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
   (props, ref) => {
-    const [isHovered, setIsHovered] = useState(false);
     const [imageError, setImageError] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [showQuickView, setShowQuickView] = useState(false);
     const addItem = useCartStore((state) => state.addItem);
     const toggleWishlist = useWishlistStore((state) => state.toggleItem);
-    const isInWishlist = useWishlistStore((state) => state.isInWishlist);
+    const wishlistItems = useWishlistStore((state) => state.items);
 
     // Normalize props to a common format
     const isSimple = isSimpleProps(props);
@@ -108,13 +115,18 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
 
       // Extract variant data from product if available
       if (productData) {
-        const variant = productData.product_variants?.[0];
+        const variant = getFirstByPosition(productData.product_variants);
         if (variant) {
           variantId = variant.id;
           productId = productData.id;
           variantTitle = variant.title;
           maxQuantity = variant.inventory_quantity > 0 ? variant.inventory_quantity : 10;
         }
+      } else if (props.productId != null) {
+        productId = props.productId;
+        variantId = props.variantId ?? null;
+        variantTitle = props.variantTitle ?? null;
+        maxQuantity = props.maxQuantity ?? 10;
       }
     } else {
       const product = props.product;
@@ -130,11 +142,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
       compareAtPrice = lowestVariant?.compare_at_price;
       primaryImageUrl = primaryImage ? getImageUrl(primaryImage) : null;
       secondaryImageUrl = secondaryImage ? getImageUrl(secondaryImage) : null;
-      badgeType = isOnSale(lowestVariant)
-        ? 'SALE'
-        : product.tags?.toLowerCase().includes('limited')
-        ? 'LIMITED'
-        : null;
+      badgeType = getProductBadge(product, lowestVariant);
       inStock = isInStock(product);
       priority = props.priority ?? false;
       className = props.className;
@@ -179,35 +187,26 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
       });
     };
 
-    // Check if product is in wishlist
-    const isWishlisted = productId !== null && isInWishlist(productId);
+    // Check if product is in wishlist (subscribes to items so the heart re-renders)
+    const isWishlisted =
+      productId !== null && wishlistItems.some((i) => i.productId === productId);
 
-    // Calculate sale info
-    const onSale = compareAtPrice != null && compareAtPrice > price;
-    const discount = onSale ? Math.round(((compareAtPrice! - price) / compareAtPrice!) * 100) : 0;
+    // Calculate sale info (Number-safe: DECIMAL arrives as string at runtime)
+    const onSale = isPriceOnSale(price, compareAtPrice);
+    const discount = getDiscountPercentage(
+      { price, compare_at_price: compareAtPrice } as unknown as ProductVariant
+    );
     const isLimited = badgeType === 'LIMITED';
 
     // Get artist accent color
-    const artistHandle = artist?.toLowerCase().replace(/\s+/g, '-');
+    const artistHandle = artist ? vendorToHandle(artist) : null;
     const artistData = artistHandle ? ARTISTS[artistHandle] : null;
     const accentColor = isSimple && props.accentColor ? props.accentColor : artistData?.accentColor;
 
     return (
       <motion.div
         ref={ref}
-        className={cn('group relative', className)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        whileHover={{
-          y: -8,
-          transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
-        }}
-        style={{
-          boxShadow: isHovered
-            ? '0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.15), 0 16px 32px rgba(0,0,0,0.2), 0 32px 64px rgba(0,0,0,0.1)'
-            : '0 2px 8px rgba(0,0,0,0.1)',
-          transition: 'box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
-        }}
+        className={cn('group relative transition-shadow duration-300 hover:-translate-y-2 hover:shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.15),0_16px_32px_rgba(0,0,0,0.2),0_32px_64px_rgba(0,0,0,0.1)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]', className)}
         data-cursor="pointer"
       >
         <Link href={`/product/${handle}`} className="block">
@@ -228,7 +227,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                   className={cn(
                     'object-cover transition-all duration-700 ease-out',
-                    isHovered && secondaryImageUrl ? 'opacity-0 scale-105' : 'opacity-100 scale-100'
+                    secondaryImageUrl ? 'group-hover:opacity-0 group-hover:scale-105 opacity-100 scale-100' : 'opacity-100 scale-100'
                   )}
                   priority={priority}
                   onLoad={() => setImageLoaded(true)}
@@ -249,8 +248,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                 className={cn(
-                  'object-cover transition-all duration-700 ease-out',
-                  isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+                  'object-cover transition-all duration-700 ease-out opacity-0 scale-105 group-hover:opacity-100 group-hover:scale-100'
                 )}
               />
             )}
@@ -269,11 +267,8 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
             </div>
 
             {/* Quick Actions */}
-            <motion.div
-              className="absolute top-3 right-3 flex flex-col gap-2"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: isHovered ? 1 : 0, x: isHovered ? 0 : 10 }}
-              transition={{ duration: 0.3 }}
+            <div
+              className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto max-md:opacity-100 max-md:pointer-events-auto"
             >
               <button
                 onClick={handleToggleWishlist}
@@ -300,14 +295,11 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                   <Eye size={18} />
                 </button>
               )}
-            </motion.div>
+            </div>
 
             {/* Add to Cart Button (Mobile: visible, Desktop: on hover) */}
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 p-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 20 }}
-              transition={{ duration: 0.3 }}
+            <div
+              className="absolute bottom-0 left-0 right-0 p-4 opacity-0 translate-y-5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto max-md:opacity-100 max-md:translate-y-0 max-md:pointer-events-auto"
             >
               <button
                 onClick={handleAddToCart}
@@ -324,16 +316,13 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                 <ShoppingBag size={16} />
                 {!inStock ? 'SOLD OUT' : 'VIEW OPTIONS'}
               </button>
-            </motion.div>
+            </div>
 
             {/* Artist Accent Border (on hover) */}
             {accentColor && (
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 h-[2px]"
+              <div
+                className="absolute bottom-0 left-0 right-0 h-[2px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
                 style={{ backgroundColor: accentColor }}
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: isHovered ? 1 : 0 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
               />
             )}
           </div>

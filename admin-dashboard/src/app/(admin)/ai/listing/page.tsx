@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Product } from '@/types/database';
 
 interface ListingSuggestion {
   title?: string;
@@ -14,7 +13,7 @@ interface ListingSuggestion {
 
 export default function ListingAiPage() {
   const supabase = createClient();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<{ id: number; title: string }[]>([]);
   const [productId, setProductId] = useState<string>('');
   const [suggestion, setSuggestion] = useState<ListingSuggestion | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,7 +31,8 @@ export default function ListingAiPage() {
 
   useEffect(() => {
     if (!productId) return;
-    setAiImageUrl(null);
+    // Deferred: syncs selected-product (external DB row) to local image state.
+    queueMicrotask(() => setAiImageUrl(null));
     supabase.from('product_images').select('id, supabase_url, src').eq('product_id', Number(productId)).order('position', { ascending: true }).limit(1)
       .then(({ data }) => {
         const img = data?.[0];
@@ -45,35 +45,45 @@ export default function ListingAiPage() {
     if (!productId) return;
     setLoading(true);
     setMessage(null);
-    const response = await fetch('/api/ai/listing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId })
-    });
-    const data = await response.json();
-    setLoading(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Failed to generate');
-      return;
+    try {
+      const response = await fetch('/api/ai/listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || 'Failed to generate');
+        return;
+      }
+      setSuggestion(data.suggestion);
+    } catch {
+      setMessage('Network error, try again.');
+    } finally {
+      setLoading(false);
     }
-    setSuggestion(data.suggestion);
   }
 
   async function generateImage() {
     if (!imageUrl) return;
     setImageLoading(true);
-    const response = await fetch('/api/ai/image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, prompt: 'Enhance this product image for premium ecommerce.' }),
-    });
-    const data = await response.json();
-    setImageLoading(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Image generation failed');
-      return;
+    try {
+      const response = await fetch('/api/ai/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, prompt: 'Enhance this product image for premium ecommerce.' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || 'Image generation failed');
+        return;
+      }
+      setAiImageUrl(data.previewUrl);
+    } catch {
+      setMessage('Network error, try again.');
+    } finally {
+      setImageLoading(false);
     }
-    setAiImageUrl(data.previewUrl);
   }
 
   async function applyImage() {

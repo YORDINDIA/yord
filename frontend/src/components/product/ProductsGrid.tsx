@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { LoadingMoreIndicator } from './ProductGrid';
 import { createClient } from '@/lib/supabase/client';
+import { escapeLike, sortProductsByPrice, PRICE_SORT_FETCH_LIMIT } from '@/lib/utils';
 import type { ProductWithDetails } from '@/types/database';
 
 interface ProductsGridProps {
@@ -31,14 +32,21 @@ export function ProductsGrid({
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
+  // Monotonic id: stale in-flight fetches (old filters) are ignored on resolve
+  const requestIdRef = useRef(0);
 
   const hasMore = products.length < totalCount;
 
-  // Reset when filters change
+  // Reset when filters change (also invalidates in-flight fetches); deferred: syncs props to local paging state.
   useEffect(() => {
-    setProducts(initialProducts);
-    setTotalCount(initialTotalCount);
-    setPage(1);
+    requestIdRef.current += 1;
+    const nextProducts = initialProducts;
+    const nextTotal = initialTotalCount;
+    queueMicrotask(() => {
+      setProducts(nextProducts);
+      setTotalCount(nextTotal);
+      setPage(1);
+    });
   }, [initialProducts, initialTotalCount, filters.artist, filters.type, filters.sort]);
 
   const fetchMoreProducts = async (pageNum: number) => {
@@ -46,11 +54,15 @@ export function ProductsGrid({
     if (loadingMoreRef.current) return;
     loadingMoreRef.current = true;
     setLoadingMore(true);
+    const requestId = ++requestIdRef.current;
 
     try {
       const supabase = createClient();
-      const from = (pageNum - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const sortBy = filters.sort as SortOption;
+      const isPriceSort = sortBy === 'price-asc' || sortBy === 'price-desc';
+      // Price sorts fetch the full set (capped), sort globally, then slice
+      const from = isPriceSort ? 0 : (pageNum - 1) * pageSize;
+      const to = isPriceSort ? PRICE_SORT_FETCH_LIMIT - 1 : from + pageSize - 1;
 
       let query = supabase
         .from('products')
@@ -68,29 +80,28 @@ export function ProductsGrid({
 
       // Apply artist filter
       if (filters.artist) {
-        query = query.ilike('vendor', filters.artist);
+        query = query.ilike('vendor', `%${escapeLike(filters.artist)}%`);
       }
 
       // Apply product type filter
       if (filters.type) {
-        query = query.ilike('product_type', filters.type);
+        query = query.ilike('product_type', `%${escapeLike(filters.type)}%`);
       }
 
       // Apply sorting
-      const sortBy = filters.sort as SortOption;
       switch (sortBy) {
         case 'title':
           query = query.order('title', { ascending: true });
           break;
         case 'price-asc':
         case 'price-desc':
-          query = query.order('published_at', { ascending: false });
-          break;
         default:
           query = query.order('published_at', { ascending: false });
       }
 
       const { data, error, count } = await query.range(from, to);
+
+      if (requestId !== requestIdRef.current) return;
 
       if (error) {
         console.error('Error fetching more products:', error);
@@ -101,19 +112,11 @@ export function ProductsGrid({
 
       let fetchedProducts = (data || []) as ProductWithDetails[];
 
-      // Client-side price sorting
-      if (sortBy === 'price-asc') {
-        fetchedProducts = fetchedProducts.sort((a, b) => {
-          const priceA = a.product_variants?.[0]?.price || 0;
-          const priceB = b.product_variants?.[0]?.price || 0;
-          return priceA - priceB;
-        });
-      } else if (sortBy === 'price-desc') {
-        fetchedProducts = fetchedProducts.sort((a, b) => {
-          const priceA = a.product_variants?.[0]?.price || 0;
-          const priceB = b.product_variants?.[0]?.price || 0;
-          return priceB - priceA;
-        });
+      // Global price sort, then slice the requested window
+      if (isPriceSort) {
+        fetchedProducts = sortProductsByPrice(fetchedProducts, sortBy === 'price-asc' ? 'asc' : 'desc');
+        const start = (pageNum - 1) * pageSize;
+        fetchedProducts = fetchedProducts.slice(start, start + pageSize);
       }
 
       // Handle empty results - stop infinite scroll
@@ -124,11 +127,16 @@ export function ProductsGrid({
         return;
       }
 
-      setProducts(prev => [...prev, ...fetchedProducts]);
+      // Dedupe by id: a stale fetch resolving late must not duplicate rows
+      setProducts(prev => {
+        const seen = new Set(prev.map(p => p.id));
+        return [...prev, ...fetchedProducts.filter(p => !seen.has(p.id))];
+      });
       if (count !== null) {
         setTotalCount(count);
       }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Unexpected error fetching products:', err);
     } finally {
       loadingMoreRef.current = false;
