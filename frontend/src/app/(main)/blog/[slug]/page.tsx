@@ -4,7 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, User, Clock } from 'lucide-react';
 import { getArticleBySlug, getArticleBySlugStatic, getRelatedArticles, getArticlesStatic } from '@/lib/supabase/queries';
-import { formatDate, estimateReadTime, sanitizeHtml } from '@/lib/utils';
+import { formatDate } from '@yord/ui';
+import { sanitizeHtml } from '@/lib/sanitize';
+import { estimateReadTime } from '@/lib/text';
 import { JsonLd, articleSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArticlePageProps {

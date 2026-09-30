@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { LoadingMoreIndicator } from './ProductGrid';
 import { createClient } from '@/lib/supabase/client';
-import { escapeLike, sortProductsByPrice, PRICE_SORT_FETCH_LIMIT } from '@/lib/utils';
+import { sortProductsByPrice, PRICE_SORT_FETCH_LIMIT } from '@/lib/product';
+import { escapeLike } from '@/lib/search';
 import type { ProductWithDetails } from '@yord/db-types';
 
 interface ProductsGridProps {

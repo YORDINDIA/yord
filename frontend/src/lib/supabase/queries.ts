@@ -2,7 +2,9 @@ import { createServerClient, createStaticClient } from './server';
 import type { ProductWithDetails, Collection, ArtistData, Article, ArticleWithBlog } from '@yord/db-types';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 import { stripHtml } from '@yord/ui';
-import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice, escapeLike } from '@/lib/utils';
+import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/product';
+import type { SortOption } from '@/lib/product';
+import { escapeLike } from '@/lib/search';
 import { fetchProductsByIds, PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { isSupabaseUnconfigured, queryOrThrow, throwDbError } from '@/lib/result';
 import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
@@ -366,7 +368,9 @@ export async function getTopProductsByArtistHandle(
  * The load-bearing catalog read: failure throws `DatabaseError` so
  * `/products` renders the error boundary instead of "No products found".
  */
-export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'title';
+// Canonical sort vocabulary lives in `@/lib/product`; re-exported here so
+// existing `@/lib/supabase/queries` import sites keep working.
+export type { SortOption } from '@/lib/product';
 
 export interface ProductFilterOptions {
   artist?: string;

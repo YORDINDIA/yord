@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 export interface AddressData {
   firstName: string;

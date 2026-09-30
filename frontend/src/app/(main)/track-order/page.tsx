@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Package, Search, Loader2, Check, AlertCircle, MapPin, Calendar, Truck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { formatDate, formatPrice, sanitizeOrPattern } from '@/lib/utils';
+import { formatDate, formatPrice } from '@yord/ui';
+import { sanitizeOrPattern } from '@/lib/search';
 
 interface OrderDetails {
   id: number;

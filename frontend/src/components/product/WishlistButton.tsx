@@ -2,7 +2,7 @@
 
 import { Heart } from 'lucide-react';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 interface WishlistButtonProps {
   productId: number;

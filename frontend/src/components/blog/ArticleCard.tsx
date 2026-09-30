@@ -4,7 +4,7 @@ import { forwardRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@yord/ui';
 import type { Article, ArticleWithBlog } from '@yord/db-types';
 
 interface ArticleCardProps {

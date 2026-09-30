@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, ShoppingBag, X, ShoppingCart } from 'lucide-react';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
-import { formatPrice, isPriceOnSale } from '@/lib/utils';
+import { formatPrice } from '@yord/ui';
+import { isPriceOnSale } from '@/lib/product';
 
 export default function WishlistPage() {
   const router = useRouter();

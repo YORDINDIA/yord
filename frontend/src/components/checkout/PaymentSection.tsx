@@ -1,7 +1,7 @@
 'use client';
 
 import { CreditCard, Landmark, Wallet } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 export type PaymentMethod = 'razorpay' | 'upi' | 'netbanking' | 'cod';
 

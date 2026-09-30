@@ -1,10 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/utils';
+import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/product';
 import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
 import { logDbError } from '@/lib/logger';
 import type { ProductWithDetails } from '@yord/db-types';
+import type { SortOption } from '@/lib/product';
 
-export type IdsSort = 'newest' | 'price-asc' | 'price-desc' | 'title' | 'featured';
+/** Id-list fetch shares the single catalog sort vocabulary. */
+export type IdsSort = SortOption;
 
 /** True when the products.min_price cache is usable for SQL ordering. */
 function hasMinPrice(row: ProductWithDetails): boolean {

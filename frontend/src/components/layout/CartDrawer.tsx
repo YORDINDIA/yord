@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice, cn, isPriceOnSale } from '@/lib/utils';
+import { formatPrice, cn } from '@yord/ui';
+import { isPriceOnSale } from '@/lib/product';
 import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
 import { Button } from '@/components/ui/Button';
 
