@@ -15,15 +15,22 @@ interface ProductPageProps {
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const supabase = createStaticClient();
-  const { data: products } = await supabase
-    .from('products')
-    .select('handle')
-    .eq('status', 'active');
+  // Build-time enumeration degrades to [] so a catalog hiccup or missing env
+  // during the build does not fail it; unlisted handles render on demand.
+  try {
+    const supabase = createStaticClient();
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('handle')
+      .eq('status', 'active');
+    if (error) return [];
 
-  return (products || []).map((p: { handle: string }) => ({
-    handle: p.handle,
-  }));
+    return (products || []).map((p: { handle: string }) => ({
+      handle: p.handle,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {

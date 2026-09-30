@@ -145,7 +145,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
       if (requestId !== searchRequestId.current) return;
       if (!error && data) {
-        setResults(data as ProductWithDetails[]);
+        setResults(data as unknown as ProductWithDetails[]);
       }
     } catch (err) {
       console.error('Search error:', err);

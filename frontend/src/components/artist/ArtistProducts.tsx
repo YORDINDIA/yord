@@ -78,11 +78,19 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
 
     // Helper fetches the full capped set for price sorts, then slices the
     // page window, so order is globally correct across chunk boundaries.
-    const { data, count } = await fetchProductsByIds(supabase, productIds, {
-      sort: sortBy,
-      page: pageNum,
-      pageSize: PAGE_SIZE,
-    });
+    // Interim guard until Phase 4 moves this grid to the paginated API:
+    // a failed chunk fetch degrades to an empty page, not a stuck loader.
+    let data: ProductWithDetails[] | null = null;
+    let count: number | null = null;
+    try {
+      ({ data, count } = await fetchProductsByIds(supabase, productIds, {
+        sort: sortBy,
+        page: pageNum,
+        pageSize: PAGE_SIZE,
+      }));
+    } catch (err) {
+      console.error('Error fetching artist products:', err);
+    }
 
     if (!data) {
       if (!append) setProducts([]);

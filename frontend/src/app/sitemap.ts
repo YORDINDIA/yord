@@ -1,11 +1,28 @@
 import type { MetadataRoute } from 'next';
 import { createStaticClient } from '@/lib/supabase/server';
+import { isSupabaseUnconfigured } from '@/lib/result';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES } from '@/lib/data/cities';
 
 const BASE_URL = 'https://yordindia.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Concert pages (static data, no backend needed)
+  const concertPages: MetadataRoute.Sitemap = CONCERTS.map((c) => ({
+    url: `${BASE_URL}/concerts/${c.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+
+  // City concert pages (static data, no backend needed)
+  const cityPages: MetadataRoute.Sitemap = CITIES.map((city) => ({
+    url: `${BASE_URL}/concerts/city/${city.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }));
+
   const supabase = createStaticClient();
 
   // Static pages
@@ -26,6 +43,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE_URL}/concert-merchandise-india`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
   ];
+
+  // Backend-less builds emit the static URL set only; dynamic URLs reappear
+  // at the next build once Supabase is configured.
+  if (isSupabaseUnconfigured()) {
+    return [...staticPages, ...concertPages, ...cityPages];
+  }
 
   // Product pages
   const { data: products } = await supabase
@@ -87,22 +110,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly' as const,
       priority: 0.6,
     }));
-
-  // Concert pages
-  const concertPages: MetadataRoute.Sitemap = CONCERTS.map((c) => ({
-    url: `${BASE_URL}/concerts/${c.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.7,
-  }));
-
-  // City concert pages
-  const cityPages: MetadataRoute.Sitemap = CITIES.map((city) => ({
-    url: `${BASE_URL}/concerts/city/${city.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.6,
-  }));
 
   return [
     ...staticPages,

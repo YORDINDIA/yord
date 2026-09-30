@@ -2,6 +2,8 @@ import { getTopProductsCached } from '@/lib/supabase/cached-queries';
 import { ARTISTS } from '@yord/db-types';
 import type { TransformedProductWithSource } from '@yord/db-types';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { degrade } from '@/lib/result';
+import { SectionRetry } from '@/components/ui/SectionRetry';
 import { ArtistProductsSectionClient } from './ArtistProductsSectionClient';
 
 interface ArtistProductsSectionProps {
@@ -10,8 +12,18 @@ interface ArtistProductsSectionProps {
 }
 
 export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistProductsSectionProps) {
-  // Cached catalog read: prerenderable under `revalidate`, tagged per artist
-  const products = await getTopProductsCached(artistHandle, limit);
+  // Cached catalog read: prerenderable under `revalidate`, tagged per artist.
+  // A failed section degrades to an inline error + retry, never a blank page.
+  const result = await degrade(
+    getTopProductsCached(artistHandle, limit),
+    [],
+    `home:artist-${artistHandle}`,
+    'products',
+  );
+  if (!result.ok) {
+    return <SectionRetry title="Could not load this collection" />;
+  }
+  const products = result.value;
 
   // Get artist metadata
   const artistData = ARTISTS[artistHandle];
