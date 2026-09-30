@@ -1,51 +1,44 @@
 export const runtime = 'nodejs';
 
-import { logAudit } from '@/lib/utils/audit';
 import { requireAdmin } from '@/lib/utils/admin';
-import { clampText, failJson, okJson } from '@/lib/utils/prompt';
+import { failJson, okJson } from '@/lib/utils/prompt';
+import { applyListingSuggestionAction } from '@/server/actions/products';
 
+/**
+ * Apply an AI listing suggestion to a product.
+ *
+ * The route wrote `body_html` straight from the model response into a column the
+ * storefront renders with `dangerouslySetInnerHTML`, with no sanitization and no
+ * shared schema. It now delegates to `applyListingSuggestionAction`, which
+ * sanitizes the HTML, validates through `aiListingApplySchema`, and audits the
+ * before/after pair through the same `audit()` helper as every other product
+ * write.
+ */
 export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
+
+  let payload: unknown;
   try {
-    const auth = await requireAdmin();
-    if ('error' in auth) return auth.error;
-    const { user, service } = auth;
-
-    const { productId, suggestion } = await req.json();
-    if (!productId || typeof suggestion?.title !== 'string' || typeof suggestion?.body_html !== 'string') {
-      return failJson('BAD_REQUEST', 'productId and suggestion title/body_html are required', 400);
-    }
-
-    const { data: before } = await service.from('products').select('*').eq('id', productId).single();
-    if (!before) {
-      return failJson('NOT_FOUND', 'Product not found', 404);
-    }
-
-    const { error } = await service
-      .from('products')
-      .update({
-        title: suggestion.title.slice(0, 255),
-        body_html: suggestion.body_html,
-        tags: typeof suggestion.tags === 'string' ? clampText(suggestion.tags) : before.tags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', productId);
-    if (error) {
-      console.error('Product update failed', error);
-      return failJson('INTERNAL', 'Failed to apply suggestion', 500);
-    }
-
-    await logAudit({
-      actorId: user.id,
-      action: 'ai_apply',
-      entity: 'products',
-      entityId: String(productId),
-      before,
-      after: suggestion,
-    });
-
-    return okJson({ success: true }, { success: true });
-  } catch (error: unknown) {
-    console.error('Listing apply failed', error);
-    return failJson('INTERNAL', 'Failed to apply suggestion', 500);
+    payload = await req.json();
+  } catch {
+    return failJson('BAD_REQUEST', 'Request body must be JSON', 400);
   }
+
+  const body = payload as { productId?: unknown; suggestion?: unknown };
+  const suggestion = body.suggestion as { title?: unknown; body_html?: unknown; tags?: unknown } | undefined;
+
+  const result = await applyListingSuggestionAction({
+    productId: Number(body.productId),
+    suggestion: {
+      title: String(suggestion?.title ?? ''),
+      body_html: String(suggestion?.body_html ?? ''),
+      tags: typeof suggestion?.tags === 'string' ? suggestion.tags : undefined,
+    },
+  });
+
+  if (result.status === 'error') {
+    return failJson('BAD_REQUEST', result.formError ?? 'Failed to apply the suggestion.', 400);
+  }
+  return okJson({ productId: result.data?.productId ?? null }, { success: true });
 }

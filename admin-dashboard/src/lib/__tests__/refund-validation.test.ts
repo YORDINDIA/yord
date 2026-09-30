@@ -1,77 +1,74 @@
-// Refund tests. The route's cumulative-cap math lives in the
-// reserve_refund() RPC (supabase/migrations/002_refund_idempotency.sql), which
-// unit tests cannot call; these tests pin the small pure pieces that DO live
-// in the route module's dependency surface: paise rounding of admin-typed
-// amounts and the route's isPartial classification rule
-// (cumulative < txn total => partial).
-
 import { describe, expect, it } from 'vitest';
+import { refundSchema } from '@/lib/validation';
 
-// --- Route-shaped pure helpers (same expressions as refunds/route.ts) ---
+/**
+ * Refund amount validation and partial-refund classification.
+ *
+ * The cumulative-cap math lives in the `reserve_refund()` RPC
+ * (`supabase/migrations/002_refund_idempotency.sql`), which a unit test cannot
+ * call, so what is pinned here is the client-side boundary: the shared
+ * `refundSchema` the refund panel pre-validates with, and the `cumulative <
+ * txn total => partial` rule the route applies to set the order's
+ * `financial_status`.
+ *
+ * The previous version of this file re-implemented both as local functions with
+ * a comment "mirrors refunds/route.ts". A copy cannot fail when the route does,
+ * which is how a real bug survived in `refundSchema` (see the full-refund case
+ * below).
+ */
 
 function toPaise(amount: number): number {
   return Math.round(amount * 100);
 }
 
+/** Mirrors the `isPartial` expression in `app/api/refunds/route.ts`. */
 function isPartialRefund(cumulativePaise: number, txnPaise: number): boolean {
   return Number.isFinite(txnPaise) && txnPaise > 0 ? cumulativePaise < txnPaise : false;
 }
 
-function parseRefundAmount(amount: unknown): number | undefined {
-  // Mirrors refunds/route.ts: empty/absent -> full refund (undefined);
-  // otherwise positive number converted to paise.
-  if (amount === undefined || amount === null || amount === '') return undefined;
-  const parsed = Number(amount);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error('amount must be a positive number');
-  }
-  return Math.round(parsed * 100); // Razorpay expects paise
-}
-
-function checkRefundAmount(
-  refundPaise: number | undefined,
-  txnAmount: number,
-): { ok: true; partial: boolean } | { ok: false; reason: string } {
-  // Mirrors the over-refund guard + isPartial classification in the route.
-  if (
-    refundPaise !== undefined &&
-    Number.isFinite(txnAmount) &&
-    txnAmount > 0 &&
-    refundPaise > Math.round(txnAmount * 100)
-  ) {
-    return { ok: false, reason: 'Refund amount exceeds transaction amount' };
-  }
-  const partial =
-    refundPaise !== undefined && Number.isFinite(txnAmount) && txnAmount > 0
-      ? refundPaise < Math.round(txnAmount * 100)
-      : false;
-  return { ok: true, partial };
-}
-
-describe('refund validation', () => {
-  it('parses amounts to paise; rejects zero, negative, and non-numeric', () => {
-    expect(parseRefundAmount(undefined)).toBeUndefined();
-    expect(parseRefundAmount('')).toBeUndefined();
-    expect(parseRefundAmount(499.99)).toBe(49999);
-    expect(parseRefundAmount('100')).toBe(10000);
-    expect(() => parseRefundAmount(0)).toThrow('amount must be a positive number');
-    expect(() => parseRefundAmount(-50)).toThrow('amount must be a positive number');
-    expect(() => parseRefundAmount('abc')).toThrow('amount must be a positive number');
+describe('refundSchema', () => {
+  it('treats an empty amount as a full refund', () => {
+    // The refund panel's hint says "leave empty for full". This used to throw,
+    // because `z.coerce.number()` turned '' into 0 and the `> 0` check rejected
+    // it before the transform could map it to undefined.
+    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: '' }).amount).toBeUndefined();
+    expect(refundSchema.parse({ orderId: 1, transactionId: 2 }).amount).toBeUndefined();
+    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: null }).amount).toBeUndefined();
   });
 
-  it('classifies partial vs full from the reserved cumulative total', () => {
-    // Same expression as the route: cumulative < txn total => partial, so a
-    // final partial refund that completes the total still marks fully refunded.
+  it('accepts a positive amount as a number or a numeric string', () => {
+    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: 499.99 }).amount).toBe(499.99);
+    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: '100' }).amount).toBe(100);
+  });
+
+  it('rejects zero, negative, and non-numeric amounts', () => {
+    for (const amount of [0, -50, 'abc']) {
+      expect(
+        refundSchema.safeParse({ orderId: 1, transactionId: 2, amount }).success,
+        `amount ${String(amount)} should be rejected`,
+      ).toBe(false);
+    }
+  });
+
+  it('requires positive order and transaction ids', () => {
+    expect(refundSchema.safeParse({ orderId: 0, transactionId: 2 }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: 1, transactionId: -1 }).success).toBe(false);
+  });
+});
+
+describe('partial refund classification', () => {
+  it('is partial only while the cumulative total is below the transaction total', () => {
     const txnPaise = toPaise(1000);
-    expect(isPartialRefund(toPaise(1000), txnPaise)).toBe(false);
+    // A final partial refund that completes the total must still mark the order
+    // fully refunded, which is why the comparison is against the transaction
+    // total and not against a "was any partial requested" flag.
     expect(isPartialRefund(toPaise(500), txnPaise)).toBe(true);
-    expect(isPartialRefund(txnPaise, 0)).toBe(false);
-    expect(checkRefundAmount(100000, 1000)).toEqual({ ok: true, partial: false });
-    expect(checkRefundAmount(50000, 1000)).toEqual({ ok: true, partial: true });
-    expect(checkRefundAmount(undefined, 1000)).toEqual({ ok: true, partial: false });
-    expect(checkRefundAmount(100001, 1000)).toEqual({
-      ok: false,
-      reason: 'Refund amount exceeds transaction amount',
-    });
+    expect(isPartialRefund(toPaise(1000), txnPaise)).toBe(false);
+    expect(isPartialRefund(toPaise(1500), txnPaise)).toBe(false);
+  });
+
+  it('is never partial when the transaction amount is unusable', () => {
+    expect(isPartialRefund(toPaise(100), 0)).toBe(false);
+    expect(isPartialRefund(toPaise(100), NaN)).toBe(false);
   });
 });

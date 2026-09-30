@@ -1,29 +1,29 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ADMIN_ROUTE_PREFIXES, PUBLIC_ROUTE_PREFIXES, isOneOf } from '@/lib/constants';
 
-// Every page in this app except /login and /access-denied is an admin page
-// (all live under the (admin) route group); keep this list in sync with
-// src/app/(admin)/*.
-const ADMIN_PAGE_PREFIXES = [
-  '/ai',
-  '/analytics',
-  '/articles',
-  '/blogs',
-  '/collections',
-  '/customers',
-  '/dashboard',
-  '/discounts',
-  '/inventory',
-  '/media',
-  '/orders',
-  '/products',
-  '/settings',
-];
+/**
+ * Admin gate.
+ *
+ * `ADMIN_ROUTE_PREFIXES` in `lib/constants.ts` is the list of gated segments,
+ * and `isAdminRoute` reads it at request time. The `matcher` below is a separate
+ * list because Next statically parses it: spreading the constant fails the build
+ * ("can't recognize the exported `config` field"). Previously the two lists
+ * each named the same routes with no check that they agreed, so adding a page
+ * to one and not the other left it ungated. `src/lib/__tests__/routes.test.ts`
+ * asserts they match the real `src/app/(admin)/*` tree.
+ */
 
-function isAdminPage(pathname: string) {
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTE_PREFIXES.some(
+    (prefix) => pathname === `/${prefix}` || pathname.startsWith(`/${prefix}/`),
+  );
+}
+
+function isAdminRoute(pathname: string): boolean {
   if (pathname === '/') return true;
-  if (pathname === '/access-denied') return false;
-  return ADMIN_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const segment = pathname.split('/').filter(Boolean)[0];
+  return isOneOf(ADMIN_ROUTE_PREFIXES, segment);
 }
 
 export async function middleware(request: NextRequest) {
@@ -40,63 +40,71 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
         },
       },
-    }
+    },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-
-  const isLogin = pathname.startsWith('/login');
   const isApi = pathname.startsWith('/api');
 
-  if (!user && !isLogin) {
+  if (!user) {
     if (isApi) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (isPublicRoute(pathname)) return response;
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && isLogin) {
-    // Bounce authenticated users off the login page. Non-admins go to
-    // /access-denied instead of /dashboard: sending them to /dashboard would
-    // redirect them straight back here (login -> dashboard -> denied loop).
-    const { data: loginAdmin } = await supabase
-      .from('admin_users')
-      .select('is_active')
-      .eq('user_id', user.id)
-      .single();
-    if (!loginAdmin || (loginAdmin as { is_active: boolean | null }).is_active !== true) {
-      return NextResponse.redirect(new URL('/access-denied', request.url));
-    }
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (isApi) {
+    // /api routes authorize per-handler with requireAdmin(); middleware only
+    // guarantees there is a session, so an unauthenticated fetch gets a 401
+    // with the right shape instead of a redirect.
+    return response;
   }
 
-  // Every page in this app except /login and /access-denied is an admin page.
-  // Enforce the admin gate on ALL methods, not just writes: page Server
-  // Components execute their queries before the layout renders, so a
-  // writes-only check leaks data to authenticated non-admins.
-  // Uses the anon SSR client (same self-read as (admin)/layout.tsx), never the
-  // service-role key: service keys must stay in Node-only code (requireAdmin).
-  // /api/* writes are covered per-route by requireAdmin().
-  if (user && !isLogin && !isApi && isAdminPage(pathname)) {
-    const { data: admin } = await supabase
-      .from('admin_users')
-      .select('is_active')
-      .eq('user_id', user.id)
-      .single();
-    if (!admin || (admin as { is_active: boolean | null }).is_active !== true) {
-      return NextResponse.redirect(new URL('/access-denied', request.url));
-    }
+  const { data: admin } = await supabase
+    .from('admin_users')
+    .select('is_active')
+    .eq('user_id', user.id)
+    .single();
+  const isActiveAdmin =
+    Boolean(admin) && (admin as { is_active: boolean | null }).is_active === true;
+
+  if (isPublicRoute(pathname)) {
+    // Bounce authenticated users off /login and /access-denied. Non-admins go to
+    // /access-denied, not /dashboard, which would bounce straight back here.
+    return NextResponse.redirect(
+      new URL(isActiveAdmin ? '/dashboard' : '/access-denied', request.url),
+    );
+  }
+
+  if (isAdminRoute(pathname) && !isActiveAdmin) {
+    return NextResponse.redirect(new URL('/access-denied', request.url));
   }
 
   return response;
 }
 
+/**
+ * Route coverage.
+ *
+ * Next statically parses this array at build time, so it cannot be spread from
+ * `ADMIN_ROUTE_PREFIXES` — a `.map()` here fails the build with "can't
+ * recognize the exported `config` field". The two lists are therefore spelled
+ * out, and `src/lib/__tests__/routes.test.ts` asserts they agree: it walks the
+ * real `src/app/(admin)/*` tree and fails if a page exists here but not in
+ * `ADMIN_ROUTE_PREFIXES` (or the reverse), which is what the two lists drifting
+ * apart actually looked like.
+ */
 export const config = {
   matcher: [
     '/',

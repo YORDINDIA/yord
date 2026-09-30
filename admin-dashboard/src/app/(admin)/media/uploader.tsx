@@ -1,95 +1,112 @@
-"use client";
+'use client';
 
 import { useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { toast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useActionForm } from '@/components/forms/ActionForm';
+import {
+  ALLOWED_MEDIA_TYPES,
+  MAX_MEDIA_BYTES,
+  MAX_MEDIA_FILES,
+} from '@/lib/constants';
+import { uploadMediaAction } from '@/server/actions/media';
 
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_BYTES = 10_000_000;
+function formatMb(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
 
+/**
+ * Drag-and-drop uploader.
+ *
+ * This used to call `supabase.storage.from('products').upload(...)` from the
+ * browser with the anon key: the write bypassed `requireAdmin()` and left no
+ * audit record. It now submits a real `<form action>` to `uploadMediaAction`,
+ * which re-checks the same limits server-side and uploads with the service
+ * client. The browser-side checks remain as fast feedback, not as the boundary.
+ *
+ * Drag-and-drop is routed through the file input (a DataTransfer is assigned to
+ * `input.files`, then the form is submitted) so both paths hit one code path.
+ */
 export default function MediaUploader() {
-  const [dragOver, setDragOver] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const supabase = createClient();
+  const { toast } = useToast();
 
-  async function uploadFiles(files: FileList | File[]) {
-    const list = Array.from(files);
-    if (list.length === 0) return;
-    setLoading(true);
-    const urls: string[] = [];
-    for (const file of list.slice(0, 10)) {
-      if (!ALLOWED_TYPES.has(file.type)) {
-        toast(`${file.name}: only JPG, PNG, WebP allowed.`, 'error');
-        continue;
-      }
-      if (file.size > MAX_BYTES) {
-        toast(`${file.name}: max 10 MB.`, 'error');
-        continue;
-      }
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin';
-      const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'bin';
-      const path = `admin/${crypto.randomUUID()}.${safeExt}`;
-      const { error } = await supabase.storage.from('products').upload(path, file, {
-        upsert: false,
-        contentType: file.type,
-      });
-      if (error) {
-        toast(`${file.name}: ${error.message}`, 'error');
-      } else {
-        const { data } = supabase.storage.from('products').getPublicUrl(path);
-        urls.push(data.publicUrl);
-      }
-    }
-    setLoading(false);
-    if (urls.length > 0) {
-      setDone(urls);
-      toast(`${urls.length} image${urls.length === 1 ? '' : 's'} uploaded.`, 'success');
-      router.refresh();
-    }
+  const { formAction, pending } = useActionForm<{ urls: string[] }>(uploadMediaAction, {
+    // `useActionForm` already toasts the error and the success message.
+    onResult: (result) => {
+      if (result.status === 'success') router.refresh();
+    },
+  });
+
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function onDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragOver(false);
+    const input = inputRef.current;
+    if (!input || event.dataTransfer.files.length === 0) return;
+    input.files = event.dataTransfer.files;
+    formRef.current?.requestSubmit();
   }
 
   return (
     <div>
       <div
         className="card"
-        style={{ borderStyle: 'dashed', textAlign: 'center', cursor: 'pointer', background: dragOver ? 'rgba(243,177,63,0.12)' : undefined }}
+        style={{
+          borderStyle: 'dashed',
+          textAlign: 'center',
+          cursor: 'pointer',
+          background: dragOver ? 'rgba(243,177,63,0.12)' : undefined,
+        }}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          void uploadFiles(e.dataTransfer.files);
-        }}
+        onDrop={onDrop}
         role="button"
+        tabIndex={0}
         aria-label="Upload images"
+        aria-busy={pending}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
       >
-        <div className="card-title">{loading ? 'Uploading…' : 'Drop images here or click to browse'}</div>
-        <div className="helper">JPG, PNG, WebP · max 10 MB each · up to 10 at once</div>
+        <div className="card-title">
+          {pending ? 'Uploading…' : 'Drop images here or click to browse'}
+        </div>
+        <div className="helper">
+          JPG, PNG, WebP · max {formatMb(MAX_MEDIA_BYTES)} each · up to {MAX_MEDIA_FILES} at once
+        </div>
+      </div>
+
+      <form ref={formRef} action={formAction} style={{ display: 'none' }}>
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          name="files"
+          accept={ALLOWED_MEDIA_TYPES.join(',')}
           multiple
-          hidden
           onChange={(e) => {
-            if (e.target.files) void uploadFiles(e.target.files);
+            if (e.target.files && e.target.files.length > 0) {
+              if (e.target.files.length > MAX_MEDIA_FILES) {
+                toast(`Uploading the first ${MAX_MEDIA_FILES} images.`, 'info');
+              }
+              formRef.current?.requestSubmit();
+            }
+            // Reset so re-picking the same file fires onChange again.
             e.target.value = '';
           }}
+          aria-label="Choose images to upload"
         />
-      </div>
-      {done.length > 0 && (
-        <div className="helper" style={{ marginTop: 8, wordBreak: 'break-all' }}>
-          Uploaded {done.length}: {done[0]}{done.length > 1 ? ` (+${done.length - 1} more)` : ''}
-        </div>
-      )}
+      </form>
     </div>
   );
 }

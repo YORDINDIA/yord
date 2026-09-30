@@ -5,6 +5,7 @@ import { getOutputText } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, clampText, failJson, okJson, xmlBlock } from '@/lib/utils/prompt';
+import { aiMarketingSchema, firstIssue } from '@/lib/validation';
 
 export async function POST(req: Request) {
   try {
@@ -15,11 +16,11 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
-    const { brief } = await req.json();
-    if (!brief || typeof brief !== 'string') {
-      return failJson('BAD_REQUEST', 'brief is required', 400);
+    const parsed = aiMarketingSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return failJson('BAD_REQUEST', firstIssue(parsed.error, 'brief is required', 'brief'), 400);
     }
-    const safeBrief = clampText(brief);
+    const safeBrief = clampText(parsed.data.brief);
     const prompt = `Create a concise marketing ops plan for YORD India. Include SEO opportunities, campaign ideas, and suggested tags. Use bullet points.
 ${UNTRUSTED_DATA_GUARD}
 ${xmlBlock('brief', safeBrief)}`;

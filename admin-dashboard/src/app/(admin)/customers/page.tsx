@@ -1,71 +1,112 @@
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase/server';
+import type { Metadata } from 'next';
+import { Users } from 'lucide-react';
+import DataTable, { type DataTableColumn } from '@/components/data/DataTable';
+import Pagination from '@/components/data/Pagination';
+import { listCustomers } from '@/lib/data/customers';
+import { firstParam, pageCount } from '@/lib/pagination';
 import { formatCurrency } from '@/lib/utils/format';
+import type { Customer } from '@yord/db-types';
 
-const PAGE_SIZE = 25;
+export const metadata: Metadata = { title: 'Customers · YORD Admin' };
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
-  const supabase = await createServerClient();
+type Search = Record<string, string | string[] | undefined>;
+
+/**
+ * Customer list.
+ *
+ * The pager used to be hand-rolled (`?q=${encodeURIComponent(q)}&page=${n}`),
+ * which dropped every other filter the moment one was added. It now goes through
+ * the shared `Pagination`, which rebuilds the full query string.
+ */
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
   const resolved = await searchParams;
-  const q = resolved?.q?.trim() || '';
-  const page = Math.max(1, Number(resolved?.page) || 1);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+  const params: Record<string, string | undefined> = {
+    q: firstParam(resolved.q)?.trim() || undefined,
+  };
 
-  let request = supabase
-    .from('customers')
-    .select('id, first_name, last_name, email, total_spent, orders_count, tags', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
+  const { rows, count, page, pageSize } = await listCustomers({
+    q: params.q,
+    page: Number(firstParam(resolved.page)) || 1,
+  });
 
-  if (q) {
-    const safe = q.replace(/[%(),"]/g, '').trim().slice(0, 100);
-    if (safe) request = request.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`);
-  }
-
-  const { data: customers, count } = await request;
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+  const columns: DataTableColumn<Customer>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      render: (row) => (
+        <Link href={`/customers/${row.id}`}>
+          {row.first_name} {row.last_name}
+        </Link>
+      ),
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      render: (row) => row.email || '—',
+      hideOnTablet: true,
+    },
+    {
+      key: 'orders',
+      header: 'Orders',
+      align: 'right',
+      render: (row) => String(row.orders_count ?? 0),
+    },
+    {
+      key: 'spent',
+      header: 'Total Spent',
+      align: 'right',
+      render: (row) => formatCurrency(row.total_spent, 'INR'),
+    },
+  ];
 
   return (
     <div className="card">
       <div className="card-header">
         <div>
           <div className="section-title">Customers</div>
-          <div className="helper">{count ?? 0} customers · page {page} of {totalPages}</div>
+          <div className="helper">
+            {count} customers · page {page} of {pageCount(count, pageSize)}
+          </div>
         </div>
-        <form>
-          <input className="input" name="q" placeholder="Search name or email" defaultValue={q} />
+        <form className="toolbar" role="search" action="/customers" method="get">
+          <input
+            className="input"
+            type="search"
+            name="q"
+            placeholder="Search name or email"
+            defaultValue={params.q ?? ''}
+            aria-label="Search customers"
+          />
+          <button className="button" type="submit">
+            Search
+          </button>
         </form>
       </div>
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Orders</th>
-              <th>Total Spent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(customers || []).map((customer) => (
-              <tr key={customer.id}>
-                <td><Link href={`/customers/${customer.id}`}>{customer.first_name} {customer.last_name}</Link></td>
-                <td>{customer.email || '-'}</td>
-                <td>{customer.orders_count ?? 0}</td>
-                <td>{formatCurrency(customer.total_spent, 'INR')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="pagination">
-        <span className="helper">Showing {(customers || []).length} of {count ?? 0}</span>
-        <div className="toolbar">
-          {page > 1 && <Link className="button" href={`/customers?q=${encodeURIComponent(q)}&page=${page - 1}`}>Previous</Link>}
-          {page < totalPages && <Link className="button" href={`/customers?q=${encodeURIComponent(q)}&page=${page + 1}`}>Next</Link>}
-        </div>
-      </div>
+
+      <DataTable
+        caption="Customers"
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        emptyTitle="No customers match this search"
+        emptyHint="Try a different name or email."
+        emptyIcon={<Users size={28} />}
+      />
+
+      <Pagination
+        basePath="/customers"
+        params={params}
+        page={page}
+        pageSize={pageSize}
+        total={count}
+        shown={rows.length}
+        label="customers"
+      />
     </div>
   );
 }

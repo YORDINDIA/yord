@@ -27,5 +27,9 @@ export default async function AdminLayout({
     redirect('/access-denied');
   }
 
-  return <AdminShell title="YORD Admin">{children}</AdminShell>;
+  return (
+    <AdminShell title="YORD Admin" email={user.email ?? null}>
+      {children}
+    </AdminShell>
+  );
 }

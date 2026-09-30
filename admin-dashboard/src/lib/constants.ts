@@ -51,6 +51,17 @@ export const DISCOUNT_VALUE_TYPES = ['percentage', 'fixed_amount'] as const;
  */
 export const LOW_STOCK_THRESHOLD = 5;
 
+/** Badge tone for a stock quantity. */
+export function stockTone(quantity: number): 'out' | 'low' | 'ok' {
+  if (quantity <= 0) return 'out';
+  return quantity <= LOW_STOCK_THRESHOLD ? 'low' : 'ok';
+}
+
+/** Narrow `value` to a member of a const list (status vocabularies, MIME allowlists). */
+export function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+  return typeof value === 'string' && (list as readonly string[]).includes(value);
+}
+
 /** Max bytes for a single admin media upload (client hint + server enforcement). */
 export const MAX_MEDIA_BYTES = 10_000_000;
 

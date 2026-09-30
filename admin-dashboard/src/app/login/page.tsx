@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@/types/database';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 function LoginForm() {
   const router = useRouter();
@@ -15,10 +14,9 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Auth only, via the shared memoized browser client. Every data read in the
+  // admin app goes through `lib/data` and every write through a server action.
+  const supabase = getSupabaseClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

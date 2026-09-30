@@ -1,12 +1,11 @@
 "use client";
 
 import { LogOut, Search } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@/types/database';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 function breadcrumbs(pathname: string): { label: string; href: string }[] {
   const segments = pathname.split('/').filter(Boolean);
@@ -20,24 +19,15 @@ function breadcrumbs(pathname: string): { label: string; href: string }[] {
   return crumbs.slice(-3);
 }
 
-export default function Topbar({ title }: { title: string }) {
+export default function Topbar({ title, email }: { title: string; email: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [supabase] = useState(() =>
-    createBrowserClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    ),
-  );
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-  }, [supabase]);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    // Sign-out is the browser's only Supabase use. Every data read goes through
+    // `lib/data`, every write through a server action.
+    await getSupabaseClient().auth.signOut();
     router.replace('/login');
   }
 

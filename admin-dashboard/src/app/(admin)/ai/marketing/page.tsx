@@ -1,33 +1,44 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/components/ui/ToastProvider';
+import { aiMarketingSchema } from '@/lib/validation';
+import { postJson } from '@/lib/utils/post-json';
 
+/**
+ * Marketing ops generator.
+ *
+ * The only change here is that the brief is checked with the same
+ * `aiMarketingSchema` the route validates with, and failures raise a toast
+ * instead of rendering a bare message card at the bottom of the page. The route
+ * still re-validates, so this is fast feedback, not the boundary.
+ */
 export default function AiMarketingPage() {
   const [brief, setBrief] = useState('');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function generate() {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('/api/ai/marketing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setMessage(data.error || 'Failed to generate');
-        return;
-      }
-      setOutput(data.output || '');
-    } catch {
-      setMessage('Network error, try again.');
-    } finally {
-      setLoading(false);
+    const parsed = aiMarketingSchema.safeParse({ brief });
+    if (!parsed.success) {
+      toast(parsed.error.issues[0]?.message ?? 'Enter a brief first.', 'error');
+      return;
     }
+
+    setLoading(true);
+    const result = await postJson<{ output?: string }>(
+      '/api/ai/marketing',
+      parsed.data,
+      'Failed to generate.',
+    );
+    setLoading(false);
+    if (!result.ok) {
+      toast(result.message, 'error');
+      return;
+    }
+    setOutput(result.data.output ?? '');
+    toast('Suggestions generated.', 'success');
   }
 
   return (
@@ -41,11 +52,25 @@ export default function AiMarketingPage() {
         </div>
         <div className="form-grid">
           <div>
-            <label className="helper">Brief</label>
-            <input className="input" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="e.g. Boost IPL collection sales" />
+            <label className="helper" htmlFor="marketing-brief">
+              Brief
+            </label>
+            <input
+              className="input"
+              id="marketing-brief"
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder="e.g. Boost IPL collection sales"
+            />
           </div>
-          <button className="button primary" type="button" onClick={generate} disabled={loading}>
-            {loading ? 'Generating...' : 'Generate'}
+          <button
+            className="button primary"
+            type="button"
+            onClick={generate}
+            disabled={loading || !brief}
+            aria-busy={loading}
+          >
+            {loading ? 'Generating…' : 'Generate'}
           </button>
         </div>
       </div>
@@ -55,7 +80,6 @@ export default function AiMarketingPage() {
           <pre style={{ whiteSpace: 'pre-wrap', marginTop: 12 }}>{output}</pre>
         </div>
       )}
-      {message && <div className="card"><div className="helper">{message}</div></div>}
     </div>
   );
 }

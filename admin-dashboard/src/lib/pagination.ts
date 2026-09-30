@@ -6,6 +6,11 @@ import { MAX_SEARCH_LENGTH, PAGE_SIZE } from '@/lib/constants';
  * local `qs()`. One implementation, unit-tested in `src/lib/__tests__`.
  */
 
+/** First value of a Next.js `searchParams` entry (`string | string[] | undefined`). */
+export function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 /** 1-based page number, coerced to a positive integer. */
 export function clampPage(value: unknown): number {
   const n = Number(value);
@@ -46,8 +51,8 @@ export function sanitizeSearch(value: unknown): string {
  */
 export function qs(
   basePath: string,
-  current: Record<string, string | undefined>,
-  overrides: Record<string, string | number | undefined> = {},
+  current: Record<string, string | null | undefined>,
+  overrides: Record<string, string | number | null | undefined> = {},
 ): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries({ ...current, ...overrides })) {

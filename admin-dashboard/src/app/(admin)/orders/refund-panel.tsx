@@ -1,84 +1,138 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from 'react';
-import { toast } from '@/components/ui/Toast';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/ToastProvider';
+import { refundSchema } from '@/lib/validation';
+import { formatCurrency } from '@/lib/utils/format';
+import { postJson } from '@/lib/utils/post-json';
 
-interface Transaction {
+/** Shape the refund panel needs; the real `Transaction` row has more columns. */
+export interface RefundTransaction {
   id: number;
   payment_id: string | null;
   amount: number | null;
+  currency?: string | null;
   status?: string | null;
 }
 
-export default function RefundPanel({ orderId, transactions }: { orderId: number; transactions: Transaction[] }) {
+/**
+ * Refund trigger.
+ *
+ * The money path stays the authenticated `POST /api/refunds` route, because
+ * refund idempotency depends on `reserve_refund()` running before the gateway
+ * call (supabase/migrations/002_refund_idempotency.sql) — moving that into a
+ * server action would not change the ordering, but keeping the existing,
+ * reviewed route is the smaller risk.
+ *
+ * The amount is checked with `refundSchema` before the request is sent. That is
+ * fast feedback only: the route hand-validates its payload and is the boundary.
+ * Failures raise one toast through the provider.
+ */
+export default function RefundPanel({
+  orderId,
+  transactions,
+}: {
+  orderId: number;
+  transactions: RefundTransaction[];
+}) {
   const refundable = useMemo(
     () => transactions.filter((t) => (t.status || '').toLowerCase() !== 'refunded'),
     [transactions],
   );
   const [transactionId, setTransactionId] = useState(refundable[0]?.id ?? 0);
   const [amount, setAmount] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
+  const router = useRouter();
 
-  const disabled = loading || done || refundable.length === 0 || !transactionId;
+  const disabled = pending || done || refundable.length === 0 || !transactionId;
 
-  async function submit() {
+  function submit() {
     if (disabled) return;
-    const parsedAmount = amount.trim() === '' ? undefined : Number(amount);
-    if (parsedAmount !== undefined && (!Number.isFinite(parsedAmount) || parsedAmount <= 0)) {
-      const err = 'Enter a positive amount, or leave empty for a full refund.';
-      setMessage(err);
-      toast(err, 'error');
+    const raw = amount.trim();
+    // Fast feedback; the API route re-validates.
+    const parsed = refundSchema.safeParse({
+      orderId,
+      transactionId,
+      amount: raw === '' ? undefined : raw,
+    });
+    if (!parsed.success) {
+      toast(parsed.error.issues[0]?.message ?? 'Check the refund amount.', 'error');
       return;
     }
-    setLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('/api/refunds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, transactionId, amount: parsedAmount }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const err = data.error || 'Refund failed';
-        setMessage(err);
-        toast(err, 'error');
+    startTransition(async () => {
+      const result = await postJson<{ refundId: string }>(
+        '/api/refunds',
+        parsed.data,
+        'Refund failed',
+      );
+      if (!result.ok) {
+        toast(result.message, 'error');
         return;
       }
       setDone(true);
-      setMessage('Refund initiated successfully.');
-      toast('Refund initiated successfully.', 'success');
-    } catch {
-      setMessage('Network error, try again.');
-      toast('Network error, try again.', 'error');
-    } finally {
-      setLoading(false);
-    }
+      toast(`Refund ${result.data.refundId} initiated.`, 'success');
+      router.refresh();
+    });
   }
 
   return (
     <div className="form-grid">
       {refundable.length === 0 && (
-        <div className="helper">No refundable transactions. Everything here is already refunded.</div>
+        <div className="helper">
+          No refundable transactions. Everything here is already refunded.
+        </div>
       )}
       <div>
-        <label className="helper">Transaction</label>
-        <select className="select" value={transactionId} onChange={(e) => setTransactionId(Number(e.target.value))} disabled={refundable.length === 0}>
+        <label className="helper" htmlFor="refund-transaction">
+          Transaction
+        </label>
+        <select
+          id="refund-transaction"
+          className="select"
+          value={transactionId}
+          onChange={(e) => setTransactionId(Number(e.target.value))}
+          disabled={refundable.length === 0 || pending}
+        >
           {refundable.map((txn) => (
-            <option key={txn.id} value={txn.id}>#{txn.id} · {txn.payment_id || 'no payment id'}</option>
+            <option key={txn.id} value={txn.id}>
+              #{txn.id} · {txn.payment_id || 'no payment id'} ·{' '}
+              {formatCurrency(txn.amount, txn.currency || 'INR')}
+            </option>
           ))}
         </select>
       </div>
       <div>
-        <label className="helper">Amount (optional)</label>
-        <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="leave empty for full" inputMode="decimal" />
+        <label className="helper" htmlFor="refund-amount">
+          Amount (optional)
+        </label>
+        <input
+          id="refund-amount"
+          className="input"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="leave empty for full"
+          inputMode="decimal"
+          disabled={pending}
+          aria-describedby="refund-amount-hint"
+        />
+        <div className="helper" id="refund-amount-hint">
+          Partial refunds are capped at the remaining refundable amount.
+        </div>
       </div>
-      <button className="button" type="button" onClick={submit} disabled={disabled}>
-        {loading ? 'Processing...' : done ? 'Refunded' : refundable.length === 0 ? 'Nothing to refund' : 'Trigger Refund'}
-      </button>
-      {message && <div className="helper">{message}</div>}
+      <div>
+        <button className="button" type="button" onClick={submit} disabled={disabled}>
+          {pending
+            ? 'Processing…'
+            : done
+              ? 'Refunded'
+              : refundable.length === 0
+                ? 'Nothing to refund'
+                : 'Trigger Refund'}
+        </button>
+      </div>
     </div>
   );
 }
