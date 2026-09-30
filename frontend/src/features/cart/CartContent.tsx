@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { ChevronRight, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Shield, Truck, RotateCcw } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
+import { useCartHydrated } from '@/hooks/useHydrated';
+import { Skeleton } from '@/features/ui/Skeleton';
 import { formatPrice, cn } from '@yord/ui';
 import { isPriceOnSale } from '@/lib/product';
 import { Button } from '@/features/ui/Button';
@@ -14,6 +16,7 @@ import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shi
 export function CartContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef, { once: true });
+  const hydrated = useCartHydrated();
 
   const items = useCartStore((state) => state.items);
   const removeItem = useCartStore((state) => state.removeItem);
@@ -66,7 +69,12 @@ export function CartContent() {
         </p>
       </motion.div>
 
-      {items.length === 0 ? (
+      {!hydrated ? (
+        /* Pre-hydration items is the store default, not the real cart */
+        <div className="py-12">
+          <Skeleton variant="grid" count={4} />
+        </div>
+      ) : items.length === 0 ? (
         /* Empty Cart State */
         <motion.div
           initial={{ opacity: 0, y: 20 }}
