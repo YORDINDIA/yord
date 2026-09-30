@@ -37,12 +37,18 @@ python yord.py migrate --dry-run       # whole pipeline plan + env check; --exec
 ## Architecture
 
 ### Frontend (`frontend/src/`)
-- `app/` — App Router pages + API routes (`api/` covers checkout, contact, newsletter, search); dynamic `[handle]/` routes for products/collections/artists.
-- `components/` (`ui/`, `layout/`, `home/`, `product/`, …), `hooks/` (`useAuth`, `useRazorpay`), `providers/`.
-- `lib/supabase/` — three clients in `client.ts` (browser) / `server.ts` (regular, service, static) + queries in `queries.ts`. `lib/stores/` — Zustand cart/wishlist with localStorage persistence (client-only).
-- `types/database.ts` — Supabase schema types (byte-identical copy of `packages/db-types`; treat the package as canonical). Path alias `@/*` → `./src/*`. Design tokens live in `packages/ui/src/tokens.css`, imported at the top of `app/globals.css`.
+- `app/` — thin App Router routes + `error.tsx`/`loading.tsx`/`not-found.tsx` per segment; API routes (`api/` covers checkout, contact, newsletter, search, **products**); dynamic `[handle]/` routes for products/collections/artists.
+- `features/` — feature slices (`catalog/`, `product/`, `artist/`, `collection/`, `cart/`, `checkout/`, `home/`, `layout/`, `ui/`, `auth/`, `support/`, `concerts/`, `blog/`). Routes fetch + render metadata; presentational/client work lives here. The one catalog grid is `features/catalog/CatalogGrid.tsx`.
+- `hooks/` (`useAuth`, `useRazorpay`, `useProductsInfinite`, `useHydrated`), `providers/` (PostHog + React Query `QueryClientProvider`).
+- `lib/supabase/` — three clients in `client.ts` (browser) / `server.ts` (regular, service, static) + queries in `queries.ts`. `lib/stores/` — Zustand cart/wishlist with localStorage persistence (client-only). Focused helpers: `lib/product.ts` (catalog logic + canonical `SortOption`), `lib/search.ts` (PostgREST escaping), `lib/sanitize.ts` (`sanitizeHtml`), `lib/text.ts`, `lib/errors.ts` + `lib/result.ts` (error model), `lib/catalog-url.ts` lives at `features/catalog/catalogUrl.ts`.
+- Schema types come only from `@yord/db-types` (no local copy). Formatting (`cn`, `formatPrice`, `formatDate`, `truncate`, `stripHtml`) comes only from `@yord/ui`. Path alias `@/*` → `./src/*`. Design tokens live in `packages/ui/src/tokens.css`, imported at the top of `app/globals.css`.
 - Server Components fetch via `queries.ts` by default; `'use client'` only for interactivity (cart, forms, modals).
+- **Error model:** empty → `[]`, missing row → `null` (page calls `notFound()`), failed read → throws `DatabaseError` (nearest `error.tsx`). Optional sections use `queryOrDegrade`. Never render "no results" for a failed read.
+- **Unconfigured Supabase (no URL/anon key):** reads degrade to empty so a backend-less `next build` prerenders; clients use a placeholder endpoint + warn. A *configured but unreachable* backend throws → error boundaries. Do NOT set dummy Supabase vars in CI builds — that selects the throw path and fails static prerenders.
+- **Catalog pagination:** page 1 is SSR HTML; pages 2+ come from `GET /api/products` (zod params, 60/min IP limit) via `useInfiniteQuery`. `?sort=` navigates to fresh SSR; `?page=` syncs via `replaceState`.
+- **Cart ownership:** guest carts are claimed on sign-in only after persist rehydration (`claimCartForUser`); actions selectors use `useShallow`. Gate persisted reads on `useCartHydrated`/`useWishlistHydrated` to avoid empty-flash.
 - Auth: `src/proxy.ts` (Next 16's middleware) guards `/account/*` via Supabase SSR cookies; auth pages redirect logged-in users to `/account`.
+- Tests: `npm run test` (vitest, `src/lib/__tests__/` + `src/**/*.test.ts`) — currently error-model, product-helper, search-filter, sanitize, and checkout-gate suites (42 tests).
 - Stack: Supabase (Postgres + Auth), Razorpay payments, Tailwind 4 "Noir Luxe" theme (`src/app/globals.css`: `--noir-*` backgrounds, `--gold-*` accents, `--ivory-*` text, per-artist colors), PostHog analytics, framer-motion.
 
 ### Admin (`admin-dashboard/src/`)
