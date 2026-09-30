@@ -21,6 +21,21 @@ import { ARTISTS } from '@yord/db-types';
  */
 export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'title';
 
+const SORT_VALUES: readonly string[] = ['newest', 'price-asc', 'price-desc', 'title'];
+
+/** Validate a raw `?sort=` param; unknown values fall back to `newest`. */
+export function parseSortParam(value: unknown): SortOption {
+  return typeof value === 'string' && SORT_VALUES.includes(value)
+    ? (value as SortOption)
+    : 'newest';
+}
+
+/** Validate a raw `?page=` param; clamps to 1..100. */
+export function parsePageParam(value: unknown): number {
+  const page = typeof value === 'string' ? parseInt(value, 10) : NaN;
+  return Number.isFinite(page) && page > 0 ? Math.min(page, 100) : 1;
+}
+
 /** Primary image URL (prefer Supabase URL, fallback to Shopify CDN). */
 export function getImageUrl(image: ProductImage | null | undefined): string {
   if (!image) return '/placeholder-product.jpg';

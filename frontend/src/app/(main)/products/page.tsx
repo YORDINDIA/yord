@@ -1,6 +1,7 @@
-import { getProductsFiltered, getProductTypes, getArtistsWithMetadata, type SortOption } from '@/lib/supabase/queries';
+import { getProductsFiltered, getProductTypes, getArtistsWithMetadata } from '@/lib/supabase/queries';
 import { degrade } from '@/lib/result';
-import { ProductsGrid } from '@/features/product/ProductsGrid';
+import { parseSortParam, parsePageParam } from '@/lib/product';
+import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { ProductToolbar } from '@/features/catalog/ProductToolbar';
 import { ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
@@ -23,12 +24,11 @@ interface ProductsPageProps {
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const params = await searchParams;
-  const rawPage = parseInt(params.page || '1', 10);
-  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.min(rawPage, 100) : 1;
+  const page = parsePageParam(params.page);
   const pageSize = 20;
   const artistFilter = params.artist || undefined;
   const typeFilter = params.type || undefined;
-  const sortBy = (params.sort as SortOption) || 'newest';
+  const sortBy = parseSortParam(params.sort);
 
   // The product list is load-bearing: a failed read throws and the error
   // boundary renders. Filter metadata is optional: on failure the page still
@@ -99,17 +99,19 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           currentArtist={currentArtist}
         />
 
-        {/* Product Grid */}
+        {/* Product Grid — page 1 is SSR HTML; pages 2+ append via /api/products */}
         {products.length > 0 ? (
-          <ProductsGrid
+          <CatalogGrid
             initialProducts={products}
             totalCount={count}
-            filters={{
+            initialPage={page}
+            query={{
+              mode: 'filter',
               artist: artistFilter,
               type: typeFilter,
               sort: sortBy,
+              pageSize,
             }}
-            pageSize={pageSize}
           />
         ) : (
           <div className="text-center py-16">

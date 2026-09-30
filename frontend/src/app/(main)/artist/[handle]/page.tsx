@@ -1,12 +1,14 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { getArtistByHandle, getArtistsWithMetadata } from '@/lib/supabase/queries';
+import { getArtistByHandle, getArtistsWithMetadata, getProductsByCollectionHandle } from '@/lib/supabase/queries';
+import { parseSortParam, parsePageParam } from '@/lib/product';
 import { ArtistHero } from '@/features/artist/ArtistHero';
-import { ArtistProducts } from '@/features/artist/ArtistProducts';
+import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArtistPageProps {
   params: Promise<{ handle: string }>;
+  searchParams: Promise<{ sort?: string; page?: string }>;
 }
 
 export const revalidate = 3600;
@@ -44,14 +46,29 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
   };
 }
 
-export default async function ArtistPage({ params }: ArtistPageProps) {
+export default async function ArtistPage({ params, searchParams }: ArtistPageProps) {
   const { handle } = await params;
+  const { sort: rawSort, page: rawPage } = await searchParams;
+  const sort = parseSortParam(rawSort);
+  const page = parsePageParam(rawPage);
+  const pageSize = 16;
+
   // Static (cookie-free) client so `revalidate = 3600` actually applies.
   const artist = await getArtistByHandle(handle, true);
 
   if (!artist) {
     notFound();
   }
+
+  // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products. The artist
+  // two-hop skips the published gate, matching the old client fetch.
+  const result = await getProductsByCollectionHandle(
+    handle,
+    { sort, page, pageSize },
+    { publishedOnly: false, useStatic: true },
+  );
+  const products = result?.data ?? [];
+  const count = result?.count ?? 0;
 
   return (
     <main>
@@ -67,7 +84,41 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       <ArtistHero artist={artist} />
 
       {/* Products Grid */}
-      <ArtistProducts artist={artist} />
+      <section
+        className="py-24 bg-noir-950"
+        style={{
+          '--artist-accent': artist.accentColor,
+          '--artist-secondary': artist.secondaryColor,
+        } as React.CSSProperties}
+      >
+        <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+          <CatalogGrid
+            initialProducts={products}
+            totalCount={count}
+            initialPage={page}
+            query={{ mode: 'artist', handle, sort, pageSize }}
+            showSort
+            showGridToggle
+            toolbarClassName="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12"
+            accentColor={artist.accentColor}
+            toolbarLeft={
+              <div>
+                <p
+                  className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] mb-3"
+                  style={{ color: artist.accentColor }}
+                >
+                  {artist.name.toUpperCase()} COLLECTION
+                </p>
+                <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+                  Shop the Collection
+                </h2>
+              </div>
+            }
+            emptyTitle="No products found"
+            emptyMessage={`Check back soon for new ${artist.name} merchandise.`}
+          />
+        </div>
+      </section>
     </main>
   );
 }

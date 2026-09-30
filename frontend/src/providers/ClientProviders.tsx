@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PHProvider } from '@/providers/PostHogProvider';
 
 const PostHogPageView = dynamic(
@@ -14,11 +16,27 @@ const CustomCursor = dynamic(
 );
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
+  // One client per browser session (useState initializer, never recreated).
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            // Catalog pages revalidate server-side; client refetch on focus
+            // would discard SSR HTML for no benefit.
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+        },
+      }),
+  );
   return (
     <PHProvider>
-      <PostHogPageView />
-      <CustomCursor />
-      {children}
+      <QueryClientProvider client={queryClient}>
+        <PostHogPageView />
+        <CustomCursor />
+        {children}
+      </QueryClientProvider>
     </PHProvider>
   );
 }
