@@ -4,11 +4,54 @@
  */
 
 /**
- * Relations every table declares for supabase-js' `.select('*, rel()')` parser.
- * The generated-types convention is an empty tuple; `never[]` keeps the
- * relationship inference working without naming each FK.
+ * Foreign-key metadata, keyed by relation name.
+ *
+ * supabase-js needs this to type embedded selects (`.select('*, variants(*)')`).
+ * Row types remain the authoritative source of column shapes; these entries
+ * only describe the joins, so the column lists are intentionally partial.
  */
-type Relations = [];
+type Fk<Relation extends string, Column extends string> = {
+  foreignKeyName: string;
+  columns: [Column];
+  isOneToOne?: boolean;
+  referencedRelation: Relation;
+  referencedColumns: ['id'];
+};
+
+/** Products ⇄ variants / images / options / collects / line items. */
+type ProductRelations = [
+  Fk<'product_variants', 'product_id'>,
+  Fk<'product_images', 'product_id'>,
+  Fk<'product_options', 'product_id'>,
+  Fk<'collects', 'product_id'>,
+  Fk<'line_items', 'product_id'>,
+];
+
+/** Collections ⇄ collects / smart rules. */
+type CollectionRelations = [
+  Fk<'collects', 'collection_id'>,
+  Fk<'smart_collection_rules', 'collection_id'>,
+];
+
+type ArticleRelations = [Fk<'blogs', 'blog_id'>];
+type LineItemRelations = [
+  Fk<'orders', 'order_id'>,
+  Fk<'products', 'product_id'>,
+  Fk<'product_variants', 'variant_id'>,
+];
+type CustomerRelations = [
+  Fk<'orders', 'customer_id'>,
+  Fk<'customer_addresses', 'customer_id'>,
+];
+type OrderRelations = [
+  Fk<'customers', 'customer_id'>,
+  Fk<'line_items', 'order_id'>,
+  Fk<'transactions', 'order_id'>,
+  Fk<'fulfillments', 'order_id'>,
+  Fk<'refunds', 'order_id'>,
+];
+type PriceRuleRelations = [Fk<'discount_codes', 'price_rule_id'>];
+type NoRelations = [];
 
 export interface Database {
   public: {
@@ -22,151 +65,150 @@ export interface Database {
         Insert: Partial<Product> &
           Pick<Product, 'id' | 'title' | 'status' | 'handle'>;
         Update: Partial<Product>;
-        Relationships: Relations;
+        Relationships: ProductRelations;
       };
       product_variants: {
         Row: ProductVariant;
         Insert: Partial<ProductVariant> & Pick<ProductVariant, 'id' | 'product_id'>;
         Update: Partial<ProductVariant>;
-        Relationships: Relations;
+        Relationships: ProductRelations;
       };
       product_images: {
         Row: ProductImage;
         Insert: Partial<ProductImage> & Pick<ProductImage, 'id' | 'product_id'>;
         Update: Partial<ProductImage>;
-        Relationships: Relations;
+        Relationships: ProductRelations;
       };
       product_options: {
         Row: ProductOption;
         Insert: ProductOption;
         Update: Partial<ProductOption>;
-        Relationships: Relations;
+        Relationships: ProductRelations;
       };
       collections: {
         Row: Collection;
         Insert: Partial<Collection> & Pick<Collection, 'id' | 'title'>;
         Update: Partial<Collection>;
-        Relationships: Relations;
+        Relationships: CollectionRelations;
       };
       customers: {
         Row: Customer;
         Insert: Omit<Customer, 'created_at' | 'updated_at'> &
           Partial<Pick<Customer, 'created_at' | 'updated_at'>>;
         Update: Partial<Customer>;
-        Relationships: Relations;
+        Relationships: CustomerRelations;
       };
       orders: {
         Row: Order;
-        Insert: Omit<Order, 'created_at'> & Partial<Pick<Order, 'created_at'>>;
+        Insert: Partial<Order> & Pick<Order, 'id'>;
         Update: Partial<Order>;
-        Relationships: Relations;
+        Relationships: OrderRelations;
       };
       line_items: {
         Row: LineItem;
         Insert: Partial<LineItem> & Pick<LineItem, 'id' | 'order_id'>;
         Update: Partial<LineItem>;
-        Relationships: Relations;
+        Relationships: LineItemRelations;
       };
       blogs: {
         Row: Blog;
         Insert: Partial<Blog> & Pick<Blog, 'id' | 'title'>;
         Update: Partial<Blog>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       articles: {
         Row: Article;
         Insert: Partial<Article> & Pick<Article, 'id' | 'blog_id' | 'title'>;
         Update: Partial<Article>;
-        Relationships: Relations;
+        Relationships: ArticleRelations;
       };
       collects: {
         Row: Collect;
         Insert: Partial<Collect> & Pick<Collect, 'id' | 'collection_id' | 'product_id'>;
         Update: Partial<Collect>;
-        Relationships: Relations;
+        Relationships: CollectionRelations;
       };
       contact_submissions: {
         Row: ContactSubmission;
         Insert: Partial<ContactSubmission>;
         Update: Partial<ContactSubmission>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       newsletter_subscribers: {
         Row: NewsletterSubscriber;
         Insert: Partial<NewsletterSubscriber>;
         Update: Partial<NewsletterSubscriber>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
-      // ── Storefront tables not yet in `Database` above. Kept here rather than
-      // in admin-dashboard/src/types/database.ts (deleted) so one file owns the
-      // schema. Add the matching row interfaces below when the storefront or
-      // admin app needs to select them without a cast.
+      // ── Admin-app tables. Row interfaces live further down in this file so
+      // there is exactly one schema definition for the whole monorepo.
       smart_collection_rules: {
         Row: SmartCollectionRule;
         Insert: Omit<SmartCollectionRule, 'id'> & Partial<Pick<SmartCollectionRule, 'id'>>;
         Update: Partial<SmartCollectionRule>;
+        Relationships: NoRelations;
       };
       inventory_items: {
         Row: InventoryItem;
-        Insert: Omit<InventoryItem, 'created_at' | 'updated_at'>;
+        Insert: Partial<InventoryItem> & Pick<InventoryItem, 'id'>;
         Update: Partial<InventoryItem>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       inventory_levels: {
         Row: InventoryLevel;
-        Insert: InventoryLevel;
+        Insert: Partial<InventoryLevel> &
+          Pick<InventoryLevel, 'inventory_item_id' | 'location_id'>;
         Update: Partial<InventoryLevel>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       locations: {
         Row: Location;
-        Insert: Omit<Location, 'created_at'> & Partial<Pick<Location, 'created_at'>>;
+        Insert: Partial<Location> & Pick<Location, 'id' | 'name'>;
         Update: Partial<Location>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       customer_addresses: {
         Row: CustomerAddress;
-        Insert: Omit<CustomerAddress, 'created_at' | 'updated_at'>;
+        Insert: Partial<CustomerAddress> & Pick<CustomerAddress, 'id' | 'customer_id'>;
         Update: Partial<CustomerAddress>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       transactions: {
         Row: Transaction;
-        Insert: Omit<Transaction, 'created_at'> & Partial<Pick<Transaction, 'created_at'>>;
+        Insert: Partial<Transaction> & Pick<Transaction, 'id' | 'order_id'>;
         Update: Partial<Transaction>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       fulfillments: {
         Row: Fulfillment;
-        Insert: Omit<Fulfillment, 'created_at' | 'updated_at'>;
+        Insert: Partial<Fulfillment> & Pick<Fulfillment, 'id' | 'order_id'>;
         Update: Partial<Fulfillment>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       refunds: {
         Row: Refund;
-        Insert: Omit<Refund, 'created_at' | 'processed_at'> &
-          Partial<Pick<Refund, 'created_at' | 'processed_at'>>;
+        Insert: Partial<Refund> & Pick<Refund, 'id' | 'order_id'>;
         Update: Partial<Refund>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       refund_transactions: {
         Row: RefundTransaction;
-        Insert: RefundTransaction;
+        Insert: Partial<RefundTransaction> &
+          Pick<RefundTransaction, 'refund_id' | 'transaction_id'>;
         Update: Partial<RefundTransaction>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       price_rules: {
         Row: PriceRule;
-        Insert: Omit<PriceRule, 'created_at' | 'updated_at'> &
-          Partial<Pick<PriceRule, 'created_at' | 'updated_at'>>;
+        Insert: Partial<PriceRule> & Pick<PriceRule, 'id' | 'title'>;
         Update: Partial<PriceRule>;
-        Relationships: Relations;
+        Relationships: PriceRuleRelations;
       };
       discount_codes: {
         Row: DiscountCode;
-        Insert: Omit<DiscountCode, 'created_at'> & Partial<Pick<DiscountCode, 'created_at'>>;
+        Insert: Partial<DiscountCode> & Pick<DiscountCode, 'id' | 'price_rule_id' | 'code'>;
         Update: Partial<DiscountCode>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       // ── Admin support tables (admin-dashboard/sql/001_admin_tables.sql,
       // 002_admin_next_id.sql). Default-deny under RLS: see sql/003_admin_rls.sql.
@@ -174,33 +216,33 @@ export interface Database {
         Row: AdminUser;
         Insert: Omit<AdminUser, 'created_at'> & Partial<Pick<AdminUser, 'created_at'>>;
         Update: Partial<AdminUser>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       admin_audit_log: {
         Row: AdminAuditLog;
-        Insert: Omit<AdminAuditLog, 'id' | 'created_at'> &
-          Partial<Pick<AdminAuditLog, 'id' | 'created_at'>>;
+        Insert: Partial<AdminAuditLog> &
+          Pick<AdminAuditLog, 'actor_id' | 'action' | 'entity' | 'entity_id'>;
         Update: Partial<AdminAuditLog>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       ai_jobs: {
         Row: AiJob;
-        Insert: Omit<AiJob, 'id' | 'created_at'> & Partial<Pick<AiJob, 'id' | 'created_at'>>;
+        Insert: Partial<AiJob> & Pick<AiJob, 'type'>;
         Update: Partial<AiJob>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       ai_suggestions: {
         Row: AiSuggestion;
-        Insert: Omit<AiSuggestion, 'id' | 'created_at'> &
-          Partial<Pick<AiSuggestion, 'id' | 'created_at'>>;
+        Insert: Partial<AiSuggestion> &
+          Pick<AiSuggestion, 'entity_type' | 'entity_id' | 'payload_json'>;
         Update: Partial<AiSuggestion>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
       ai_assets: {
         Row: AiAsset;
-        Insert: Omit<AiAsset, 'id' | 'created_at'> & Partial<Pick<AiAsset, 'id' | 'created_at'>>;
+        Insert: Partial<AiAsset> & Pick<AiAsset, 'storage_path'>;
         Update: Partial<AiAsset>;
-        Relationships: Relations;
+        Relationships: NoRelations;
       };
     };
     Views: Record<string, never>;
@@ -221,6 +263,43 @@ export interface Database {
           p_amount?: number | null;
         };
         Returns: { effective: number; cumulative: number }[];
+      };
+      /** Atomic `collects` replace for a collection (sql/004_atomic_writes.sql). */
+      set_collection_products: {
+        Args: { p_collection_id: number; p_product_ids: number[] };
+        Returns: number;
+      };
+      /** Atomic variant batch update (sql/004_atomic_writes.sql). */
+      set_product_variants: {
+        Args: { p_rows: unknown };
+        Returns: number;
+      };
+      /** Promote one image to cover, demoting the previous (sql/004). */
+      set_cover_image: {
+        Args: { p_image_id: number };
+        Returns: number;
+      };
+      /**
+       * Per-day INR revenue rollup (admin-dashboard/sql/004_analytics.sql).
+       * Replaces client-side summation over a `.limit(500)` fetch, which
+       * silently under-reported any window holding more than 500 orders.
+       */
+      revenue_by_day: {
+        Args: { p_since: string };
+        Returns: { day: string; total: number }[];
+      };
+      /**
+       * Units + revenue per product (admin-dashboard/sql/004_analytics.sql).
+       * Grouped by `product_id`, so two products sharing a title stay distinct.
+       */
+      top_products_by_units: {
+        Args: { p_limit: number };
+        Returns: {
+          product_id: number | null;
+          title: string;
+          quantity: number;
+          revenue: number;
+        }[];
       };
     };
     Enums: Record<string, never>;
@@ -254,7 +333,7 @@ export type JsonValue =
 // CORE ENTITIES
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface Product {
+export type Product = {
   id: number;
   title: string;
   body_html: string | null;
@@ -273,7 +352,7 @@ export interface Product {
   updated_at: string;
 }
 
-export interface ProductVariant {
+export type ProductVariant = {
   id: number;
   product_id: number;
   title: string | null;
@@ -300,7 +379,7 @@ export interface ProductVariant {
   updated_at: string;
 }
 
-export interface ProductImage {
+export type ProductImage = {
   id: number;
   product_id: number;
   position: number;
@@ -313,7 +392,7 @@ export interface ProductImage {
   updated_at: string;
 }
 
-export interface ProductOption {
+export type ProductOption = {
   id: number;
   product_id: number;
   name: string;
@@ -321,7 +400,7 @@ export interface ProductOption {
   values: string[] | null;
 }
 
-export interface Collection {
+export type Collection = {
   id: number;
   title: string;
   handle: string | null;
@@ -338,7 +417,7 @@ export interface Collection {
   updated_at: string;
 }
 
-export interface Customer {
+export type Customer = {
   id: number;
   email: string | null;
   first_name: string | null;
@@ -356,7 +435,7 @@ export interface Customer {
   updated_at: string;
 }
 
-export interface Order {
+export type Order = {
   id: number;
   customer_id: number | null;
   name: string | null;
@@ -378,7 +457,7 @@ export interface Order {
   closed_at: string | null;
 }
 
-export interface LineItem {
+export type LineItem = {
   id: number;
   order_id: number;
   product_id: number | null;
@@ -1243,7 +1322,7 @@ export interface ApiError {
 // BLOG TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface Blog {
+export type Blog = {
   id: number;
   title: string;
   handle: string | null;
@@ -1256,7 +1335,7 @@ export interface Blog {
   updated_at: string;
 }
 
-export interface Article {
+export type Article = {
   id: number;
   blog_id: number;
   title: string;
@@ -1286,7 +1365,7 @@ export interface ArticleWithBlog extends Article {
 // JUNCTION + FORM TABLES (queried via collects / public API routes)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface Collect {
+export type Collect = {
   id: number;
   collection_id: number;
   product_id: number;
@@ -1295,7 +1374,7 @@ export interface Collect {
   updated_at: string;
 }
 
-export interface SmartCollectionRule {
+export type SmartCollectionRule = {
   id: number;
   collection_id: number;
   column_name: string;
@@ -1303,7 +1382,7 @@ export interface SmartCollectionRule {
   condition: string;
 }
 
-export interface InventoryItem {
+export type InventoryItem = {
   id: number;
   sku: string | null;
   cost: number | null;
@@ -1316,14 +1395,14 @@ export interface InventoryItem {
   updated_at: string | null;
 }
 
-export interface InventoryLevel {
+export type InventoryLevel = {
   inventory_item_id: number;
   location_id: number;
   available: number | null;
   updated_at: string | null;
 }
 
-export interface Location {
+export type Location = {
   id: number;
   name: string;
   active: boolean | null;
@@ -1340,7 +1419,7 @@ export interface Location {
   created_at: string | null;
 }
 
-export interface CustomerAddress {
+export type CustomerAddress = {
   id: number;
   customer_id: number;
   first_name: string | null;
@@ -1360,7 +1439,7 @@ export interface CustomerAddress {
   updated_at: string | null;
 }
 
-export interface Transaction {
+export type Transaction = {
   id: number;
   order_id: number;
   parent_id: number | null;
@@ -1381,7 +1460,7 @@ export interface Transaction {
   processed_at: string | null;
 }
 
-export interface Fulfillment {
+export type Fulfillment = {
   id: number;
   order_id: number;
   location_id: number | null;
@@ -1398,7 +1477,7 @@ export interface Fulfillment {
   updated_at: string | null;
 }
 
-export interface Refund {
+export type Refund = {
   id: number;
   order_id: number;
   note: string | null;
@@ -1410,13 +1489,13 @@ export interface Refund {
   processed_at: string | null;
 }
 
-export interface RefundTransaction {
+export type RefundTransaction = {
   refund_id: number;
   transaction_id: number;
   created_at: string | null;
 }
 
-export interface PriceRule {
+export type PriceRule = {
   id: number;
   title: string;
   value: number;
@@ -1444,7 +1523,7 @@ export interface PriceRule {
   updated_at: string | null;
 }
 
-export interface DiscountCode {
+export type DiscountCode = {
   id: number;
   price_rule_id: number;
   code: string;
@@ -1457,14 +1536,14 @@ export interface DiscountCode {
 // ADMIN SUPPORT TABLES (admin-dashboard/sql/001_admin_tables.sql)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface AdminUser {
+export type AdminUser = {
   user_id: string;
   role: string;
   is_active: boolean | null;
   created_at: string | null;
 }
 
-export interface AdminAuditLog {
+export type AdminAuditLog = {
   id: number;
   actor_id: string;
   action: string;
@@ -1475,7 +1554,7 @@ export interface AdminAuditLog {
   created_at: string | null;
 }
 
-export interface AiJob {
+export type AiJob = {
   id: number;
   type: string;
   status: string;
@@ -1484,7 +1563,7 @@ export interface AiJob {
   created_at: string | null;
 }
 
-export interface AiSuggestion {
+export type AiSuggestion = {
   id: number;
   job_id: number | null;
   entity_type: string;
@@ -1493,7 +1572,7 @@ export interface AiSuggestion {
   created_at: string | null;
 }
 
-export interface AiAsset {
+export type AiAsset = {
   id: number;
   job_id: number | null;
   storage_path: string;
@@ -1502,7 +1581,7 @@ export interface AiAsset {
   created_at: string | null;
 }
 
-export interface ContactSubmission {
+export type ContactSubmission = {
   id: number;
   name: string;
   email: string;
@@ -1512,7 +1591,7 @@ export interface ContactSubmission {
   created_at: string;
 }
 
-export interface NewsletterSubscriber {
+export type NewsletterSubscriber = {
   id: number;
   email: string;
   subscribed_at: string;

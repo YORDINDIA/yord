@@ -1,14 +1,16 @@
 import type { Database } from '@yord/db-types';
-import { createBrowserClient } from '@supabase/ssr';
+import { createBrowserSupabase } from '@yord/supabase-clients';
 
 /**
  * Browser client. Read-only in the admin app: auth, and nothing else.
  * Every mutation goes through a server action or an authenticated API route.
  */
 export function createClient() {
-  return createBrowserClient<Database>(
+  // The package reads no env (so a key cannot leak into a bundle); the
+  // `NEXT_PUBLIC_` vars stay literal here so Next can inline them.
+  return createBrowserSupabase<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
 

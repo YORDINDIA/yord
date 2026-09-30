@@ -1,38 +1,55 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { Minus, Plus } from "lucide-react";
-import { toast } from "@/components/ui/Toast";
+import { useActionForm } from "@/components/forms/ActionForm";
+import { updateInventoryAction } from "@/server/actions/inventory";
 
+/**
+ * Per-row inventory stepper.
+ *
+ * Previously took a `action` prop and ran it inside a `useTransition`, then
+ * read `{ error }` off the result. It now runs the shared `updateInventoryAction`
+ * through `useActionForm`, so a failed save raises the same toast and banner as
+ * every other admin write, and `pending` comes from the action itself.
+ */
 export default function QuantityStepper({
   variantId,
   initial,
-  action,
 }: {
   variantId: number;
   initial: number;
-  action: (formData: FormData) => Promise<{ error?: string } | void>;
 }) {
   const [value, setValue] = useState(initial);
-  const [pending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
   const dirty = value !== initial;
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData();
-    fd.set("variant_id", String(variantId));
-    fd.set("inventory_quantity", String(value));
-    startTransition(async () => {
-      const result = await action(fd);
-      if (result?.error) {
-        toast(result.error, "error");
-      }
-    });
-  }
+  const { state, pending, formAction } = useActionForm(updateInventoryAction, {
+    onResult: (result) => {
+      // A successful write revalidates the route, which re-renders this row with
+      // the stored quantity; the local edit is now the persisted value.
+      if (result.status === "success") formRef.current?.reset();
+    },
+  });
 
   return (
-    <form onSubmit={onSubmit} className="toolbar">
-      <button type="button" className="button icon-button" aria-label="Decrease" onClick={() => setValue((v) => Math.max(0, v - 1))}>
+    <form ref={formRef} action={formAction} className="toolbar">
+      <input type="hidden" name="variant_id" value={variantId} />
+      <input type="hidden" name="inventory_quantity" value={value} />
+
+      {state.status === "error" && state.formError && (
+        <span className="field-error" role="alert">
+          {state.formError}
+        </span>
+      )}
+
+      <button
+        type="button"
+        className="button icon-button"
+        aria-label={`Decrease inventory for variant ${variantId}`}
+        disabled={pending}
+        onClick={() => setValue((current) => Math.max(0, current - 1))}
+      >
         <Minus size={14} />
       </button>
       <input
@@ -41,16 +58,23 @@ export default function QuantityStepper({
         min={0}
         step={1}
         value={value}
-        onChange={(e) => setValue(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-        style={{ width: 90 }}
-        aria-label="Inventory quantity"
+        aria-label={`Inventory quantity for variant ${variantId}`}
+        onChange={(event) =>
+          setValue(Math.max(0, Math.floor(Number(event.target.value) || 0)))
+        }
       />
-      <button type="button" className="button icon-button" aria-label="Increase" onClick={() => setValue((v) => v + 1)}>
+      <button
+        type="button"
+        className="button icon-button"
+        aria-label={`Increase inventory for variant ${variantId}`}
+        disabled={pending}
+        onClick={() => setValue((current) => current + 1)}
+      >
         <Plus size={14} />
       </button>
       {dirty && (
-        <button type="submit" className="button primary" disabled={pending}>
-          {pending ? "Saving..." : "Save"}
+        <button type="submit" className="button primary" disabled={pending} aria-busy={pending}>
+          {pending ? "Saving…" : "Save"}
         </button>
       )}
     </form>

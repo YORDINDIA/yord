@@ -16,10 +16,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.9.1",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
-    "@tanstack/react-query": "^5.104.0",
     "@yord/auth": "*",
     "@yord/db-types": "*",
     "@yord/supabase-clients": "*",
@@ -32,9 +30,7 @@
     "razorpay": "^2.9.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-hook-form": "^7.89.0",
     "server-only": "^0.0.1",
-    "tailwind-merge": "^3.4.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -1,23 +1,11 @@
 export const runtime = 'nodejs';
 
 import { openai, textModel } from '@/lib/ai/openai';
-import { getOutputText } from '@/lib/ai/parse';
+import { extractJson, getOutputText } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, clampText, failJson, okJson, xmlBlock } from '@/lib/utils/prompt';
-
-function extractJson(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-      return JSON.parse(text.slice(start, end + 1));
-    }
-    throw new Error('Unable to parse JSON');
-  }
-}
+import { aiBlogDraftSchema, firstIssue } from '@/lib/validation';
 
 export async function POST(req: Request) {
   try {
@@ -28,10 +16,13 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
-    const { topic, keywords } = await req.json();
-    if (!topic || typeof topic !== 'string') {
-      return failJson('BAD_REQUEST', 'topic is required', 400);
+    // One schema, shared with the client form: the old check was a bare
+    // `if (!topic || typeof topic !== 'string')`.
+    const parsed = aiBlogDraftSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return failJson('BAD_REQUEST', firstIssue(parsed.error, 'topic is required', 'topic'), 400);
     }
+    const { topic, keywords } = parsed.data;
     const prompt = `Create a blog draft for YORD India. Output JSON only with keys: summary_html, body_html, citations (array).
 ${UNTRUSTED_DATA_GUARD}
 ${xmlBlock('topic', clampText(topic))}

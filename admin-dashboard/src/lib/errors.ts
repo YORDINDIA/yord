@@ -12,7 +12,12 @@ export class DatabaseError extends Error {
   readonly entity: string;
 
   constructor(entity: string, message: string, code?: string) {
-    super(message);
+    // The entity goes into the message, not just a property. Next serializes only
+    // `message` and `digest` when handing an error to a client `error.tsx`, so a
+    // client boundary cannot `instanceof DatabaseError` — it can only match on
+    // the message. Prefixing here keeps that distinguishable from an unexpected
+    // error while leaving the PostgREST detail out of the admin-facing copy.
+    super(`Could not read ${entity}: ${message}`);
     this.name = 'DatabaseError';
     this.entity = entity;
     this.code = code;
@@ -25,6 +30,11 @@ export class ForbiddenError extends Error {
     super(message);
     this.name = 'ForbiddenError';
   }
+}
+
+/** Postgres unique-constraint violation (code 23505) as PostgREST reports it. */
+export function isUniqueViolation(error: { code?: string; message: string }): boolean {
+  return error.code === '23505' || error.message.includes('duplicate');
 }
 
 /** Narrow an unknown thrown value to a message string. */

@@ -1,22 +1,35 @@
 export const runtime = 'nodejs';
 
 import { openai, textModel } from '@/lib/ai/openai';
-import { getOutputText } from '@/lib/ai/parse';
+import { extractJson, getOutputText } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, failJson, okJson, toPlainText, xmlBlock } from '@/lib/utils/prompt';
+import { aiListingRequestSchema, firstIssue } from '@/lib/validation';
+import { getCoverImage } from '@/lib/data/products';
 
-function extractJson(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-      return JSON.parse(text.slice(start, end + 1));
-    }
-    throw new Error('Unable to parse JSON');
+/**
+ * Cover image for the AI studio.
+ *
+ * The studio used to read `product_images` from the browser with the anon key.
+ * This GET runs the same read server-side, so the anon key never touches a
+ * product-images read and the lookup is not a second code path in the client.
+ */
+export async function GET(req: Request) {
+  const auth = await requireAdmin();
+  if ('error' in auth) return auth.error;
+
+  const raw = new URL(req.url).searchParams.get('productId');
+  const productId = Number(raw);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return failJson('BAD_REQUEST', 'productId is required', 400);
   }
+
+  const cover = await getCoverImage(productId);
+  return okJson(
+    { imageId: cover?.id ?? null, imageUrl: cover?.url ?? null },
+    { imageId: cover?.id ?? null, imageUrl: cover?.url ?? null },
+  );
 }
 
 export async function POST(req: Request) {
@@ -28,15 +41,21 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
-    const { productId } = await req.json();
-    if (!productId) {
-      return failJson('BAD_REQUEST', 'productId is required', 400);
+    const parsed = aiListingRequestSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return failJson(
+        'BAD_REQUEST',
+        firstIssue(parsed.error, 'productId is required', 'productId'),
+        400,
+      );
     }
+    const { productId } = parsed.data;
+
     const { data: product } = await service
       .from('products')
-      .select('id, title, body_html, tags, vendor, product_type, product_images(supabase_url, src)')
+      .select('id, title, body_html, tags, vendor, product_type')
       .eq('id', productId)
-      .single();
+      .maybeSingle();
 
     if (!product) {
       return failJson('NOT_FOUND', 'Product not found', 404);

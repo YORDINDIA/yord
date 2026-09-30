@@ -1,3 +1,17 @@
+// Parse a JSON object out of model text, tolerating prose around the braces.
+export function extractJson(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw new Error('Unable to parse JSON');
+  }
+}
+
 // Extract plain text from an OpenAI Responses API result.
 export function getOutputText(response: unknown): string {
   if (!response || typeof response !== 'object') return '';
