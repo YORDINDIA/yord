@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import { HeroSection } from '@/components/home/HeroSection';
-import { ArtistShowcase } from '@/components/home/ArtistShowcase';
-import { FeaturedProducts } from '@/components/home/FeaturedProducts';
-import { ArtistProductsSection } from '@/components/home/ArtistProductsSection';
-import { UpcomingConcertsSection } from '@/components/home/UpcomingConcertsSection';
-import { BrandStory } from '@/components/home/BrandStory';
-import { NewsletterSection } from '@/components/home/NewsletterSection';
-import { SectionDivider } from '@/components/ui/SectionDivider';
+import { HeroSection } from '@/features/home/HeroSection';
+import { ArtistShowcase } from '@/features/home/ArtistShowcase';
+import { FeaturedProducts } from '@/features/home/FeaturedProducts';
+import { ArtistProductsSection } from '@/features/home/ArtistProductsSection';
+import { UpcomingConcertsSection } from '@/features/home/UpcomingConcertsSection';
+import { BrandStory } from '@/features/home/BrandStory';
+import { NewsletterSection } from '@/features/home/NewsletterSection';
+import { SectionDivider } from '@/features/ui/SectionDivider';
 import { JsonLd, organizationSchema, websiteSchema } from '@/lib/seo/jsonld';
 
 export const revalidate = 3600; // Revalidate every hour to keep upcoming concerts fresh

@@ -26,7 +26,7 @@ import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 
 const QuickViewModal = dynamic(
-  () => import('@/components/product/QuickViewModal').then((mod) => mod.QuickViewModal),
+  () => import('@/features/product/QuickViewModal').then((mod) => mod.QuickViewModal),
   { ssr: false }
 );
 

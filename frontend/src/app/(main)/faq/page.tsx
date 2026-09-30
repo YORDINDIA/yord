@@ -1,6 +1,6 @@
 import { JsonLd, faqSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
-import { FAQPageClient } from './FAQClient';
-import type { FAQCategory } from './FAQClient';
+import { FAQPageClient } from '@/features/support/FAQ';
+import type { FAQCategory } from '@/features/support/FAQ';
 
 export const metadata = {
   title: 'FAQ — Concert Merchandise Questions Answered',

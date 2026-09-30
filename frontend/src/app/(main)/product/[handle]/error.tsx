@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ErrorState } from '@/features/ui/ErrorState';
 
 /**
  * Product detail failures render here — never as a 404. A missing row calls

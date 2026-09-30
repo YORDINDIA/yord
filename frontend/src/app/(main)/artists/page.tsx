@@ -1,5 +1,5 @@
 import { getArtistsWithMetadata } from '@/lib/supabase/queries';
-import { ArtistsPageClient } from './ArtistsPageClient';
+import { ArtistsPageClient } from '@/features/artist/ArtistsPageClient';
 
 export const metadata = {
   title: 'Artists — Concert Merchandise for 50+ Artists',

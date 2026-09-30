@@ -8,7 +8,7 @@ import { isPriceOnSale } from '@/lib/product';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/features/ui/Button';
 import { ARTISTS } from '@yord/db-types';
 
 interface ProductVariant {

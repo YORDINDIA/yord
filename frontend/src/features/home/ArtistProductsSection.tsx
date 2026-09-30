@@ -3,7 +3,7 @@ import { ARTISTS } from '@yord/db-types';
 import type { TransformedProductWithSource } from '@yord/db-types';
 import { getFirstByPosition, getProductBadge } from '@/lib/product';
 import { degrade } from '@/lib/result';
-import { SectionRetry } from '@/components/ui/SectionRetry';
+import { SectionRetry } from '@/features/ui/SectionRetry';
 import { ArtistProductsSectionClient } from './ArtistProductsSectionClient';
 
 interface ArtistProductsSectionProps {

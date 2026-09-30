@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Grid, LayoutGrid, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductCard } from '@/features/ui/ProductCard';
 import { cn } from '@yord/ui';
 import type { ProductWithDetails } from '@yord/db-types';
 

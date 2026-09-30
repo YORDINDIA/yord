@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ErrorState } from '@/features/ui/ErrorState';
 
 /** Artist page failures render here; an unknown handle calls `notFound()`. */
 export default function ArtistError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

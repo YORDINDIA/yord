@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
-import { SplitText } from '@/components/ui/SplitText';
-import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { Button } from '@/features/ui/Button';
+import { SplitText } from '@/features/ui/SplitText';
+import { AnimatedCounter } from '@/features/ui/AnimatedCounter';
 
 export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null);

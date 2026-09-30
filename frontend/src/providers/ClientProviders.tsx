@@ -9,7 +9,7 @@ const PostHogPageView = dynamic(
 );
 
 const CustomCursor = dynamic(
-  () => import('@/components/ui/CustomCursor').then((mod) => mod.CustomCursor),
+  () => import('@/features/ui/CustomCursor').then((mod) => mod.CustomCursor),
   { ssr: false }
 );
 

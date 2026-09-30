@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { ProductGallery } from '@/components/product/ProductGallery';
-import { ProductInfo } from '@/components/product/ProductInfo';
-import { RelatedProducts } from '@/components/product/RelatedProducts';
+import { ProductGallery } from '@/features/product/ProductGallery';
+import { ProductInfo } from '@/features/product/ProductInfo';
+import { RelatedProducts } from '@/features/product/RelatedProducts';
 import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
 import { ARTISTS } from '@yord/db-types';

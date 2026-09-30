@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { CartContent } from '@/components/cart/CartContent';
+import { CartContent } from '@/features/cart/CartContent';
 
 export const metadata: Metadata = {
   title: 'Shopping Bag | YORD India',

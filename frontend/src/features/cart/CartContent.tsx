@@ -8,7 +8,7 @@ import { ChevronRight, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Shield, Tru
 import { useCartStore } from '@/lib/stores/cartStore';
 import { formatPrice, cn } from '@yord/ui';
 import { isPriceOnSale } from '@/lib/product';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/features/ui/Button';
 import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
 
 export function CartContent() {

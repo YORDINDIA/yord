@@ -16,7 +16,7 @@ import {
 } from '@/lib/pricing';
 import { EMAIL_RE, isRateLimited } from '@/lib/rate-limit';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
-import { buildSearchOrFilter } from '@/lib/utils';
+import { buildSearchOrFilter } from '@/lib/search';
 import { getSafeRedirect } from '@/lib/redirect';
 
 // --- Local mirrors of route logic (kept in sync by contract) ---

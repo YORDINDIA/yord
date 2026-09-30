@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import { getArtistByHandle, getArtistsWithMetadata } from '@/lib/supabase/queries';
-import { ArtistHero } from '@/components/artist/ArtistHero';
-import { ArtistProducts } from '@/components/artist/ArtistProducts';
+import { ArtistHero } from '@/features/artist/ArtistHero';
+import { ArtistProducts } from '@/features/artist/ArtistProducts';
 import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArtistPageProps {
