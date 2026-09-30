@@ -6,6 +6,7 @@ import { RelatedProducts } from '@/features/product/RelatedProducts';
 import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
 import { ARTISTS } from '@yord/db-types';
+import { stripHtml } from '@yord/ui';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ProductPageProps {
@@ -45,7 +46,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const image = product.product_images?.[0];
   const imageUrl = image?.supabase_url || image?.src;
   const description = product.body_html
-    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 160)
+    ? stripHtml(product.body_html).slice(0, 160)
     : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`;
 
   return {

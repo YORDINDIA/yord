@@ -3,6 +3,7 @@ import { CollectionHeader } from '@/features/collection/CollectionHeader';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { getCollectionsStatic, getCollectionByHandleStatic, getProductsByCollectionHandle } from '@/lib/supabase/queries';
 import { parseSortParam, parsePageParam } from '@/lib/product';
+import { stripHtml } from '@yord/ui';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
   const title = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   // Strip HTML tags from body_html for description
   const description = collection?.body_html
-    ? collection.body_html.replace(/<[^>]*>/g, '').substring(0, 160)
+    ? stripHtml(collection.body_html).substring(0, 160)
     : `Shop ${title} collection at YORD India. Premium concert merchandise.`;
 
   return {
@@ -56,7 +57,7 @@ export default async function CollectionPage({ params, searchParams }: Collectio
   // Use DB title/description, or fallback to formatted handle
   const collectionTitle = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const collectionDescription = collection?.body_html
-    ? collection.body_html.replace(/<[^>]*>/g, '')
+    ? stripHtml(collection.body_html)
     : `Explore our ${collectionTitle} collection.`;
 
   // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products. Unknown

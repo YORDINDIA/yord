@@ -76,7 +76,7 @@ function SearchContent() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search for products, artists..."
-                className="w-full h-14 pl-14 pr-12 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+                className="w-full h-14 pl-14 pr-12 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:border-gold-200"
               />
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-400" />
               {searchInput && (

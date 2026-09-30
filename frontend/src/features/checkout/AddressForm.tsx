@@ -41,7 +41,7 @@ export function AddressForm({ type, data, onChange, errors = {} }: AddressFormPr
   const inputClass = (field: keyof AddressData) => cn(
     'w-full px-4 py-3 bg-noir-900 border text-ivory-100 placeholder:text-ivory-500',
     'font-[family-name:var(--font-jakarta)] text-sm',
-    'focus:outline-none focus:border-gold-200 transition-colors',
+    'focus:border-gold-200 transition-colors',
     errors[field] ? 'border-red-500' : 'border-noir-700'
   );
 

@@ -174,12 +174,19 @@ export function CatalogGrid({
 
           <div className="flex items-center gap-4">
             {showSort && (
-              <div className="relative">
+              <div
+                className="relative"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setShowSortDropdown(false);
+                }}
+              >
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowSortDropdown((v) => !v);
                   }}
+                  aria-haspopup="listbox"
+                  aria-expanded={showSortDropdown}
                   className="flex items-center gap-2 px-4 py-2 bg-noir-900 border border-noir-700 hover:border-ivory-400 transition-colors"
                 >
                   <SlidersHorizontal size={16} className="text-ivory-400" />
@@ -196,11 +203,15 @@ export function CatalogGrid({
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
+                    role="listbox"
+                    aria-label="Sort products"
                     className="absolute top-full right-0 mt-2 w-48 bg-noir-900 border border-noir-700 z-50"
                   >
                     {DEFAULT_SORT_OPTIONS.map((option) => (
                       <button
                         key={option.value}
+                        role="option"
+                        aria-selected={query.sort === option.value}
                         onClick={() => {
                           handleSortChange(option.value);
                           setShowSortDropdown(false);
@@ -225,6 +236,7 @@ export function CatalogGrid({
               <div className="hidden sm:flex items-center border border-noir-700">
                 <button
                   onClick={() => setGridSize('large')}
+                  aria-pressed={gridSize === 'large'}
                   className={cn(
                     'w-10 h-10 flex items-center justify-center transition-colors',
                     gridSize === 'large'
@@ -238,6 +250,7 @@ export function CatalogGrid({
                 </button>
                 <button
                   onClick={() => setGridSize('small')}
+                  aria-pressed={gridSize === 'small'}
                   className={cn(
                     'w-10 h-10 flex items-center justify-center transition-colors',
                     gridSize === 'small'

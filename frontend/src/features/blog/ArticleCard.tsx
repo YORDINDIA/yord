@@ -4,7 +4,7 @@ import { forwardRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { cn, formatDate } from '@yord/ui';
+import { cn, formatDate, stripHtml } from '@yord/ui';
 import type { Article, ArticleWithBlog } from '@yord/db-types';
 
 interface ArticleCardProps {
@@ -79,14 +79,11 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
               {article.title}
             </h3>
 
-            {/* Summary */}
+            {/* Summary (plain text — no innerHTML needed) */}
             {article.summary_html && (
-              <p
-                className="text-ivory-300 text-sm line-clamp-2"
-                dangerouslySetInnerHTML={{
-                  __html: article.summary_html.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
-                }}
-              />
+              <p className="text-ivory-300 text-sm line-clamp-2">
+                {stripHtml(article.summary_html).slice(0, 120) + '...'}
+              </p>
             )}
           </div>
         </Link>

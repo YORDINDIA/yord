@@ -1,5 +1,6 @@
 import type { ProductWithDetails } from '@yord/db-types';
 import type { Concert } from '@/lib/data/concerts';
+import { stripHtml } from '@yord/ui';
 
 const BASE_URL = 'https://yordindia.com';
 
@@ -8,10 +9,13 @@ const BASE_URL = 'https://yordindia.com';
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function JsonLd({ data }: { data: Record<string, unknown> | Record<string, unknown>[] }) {
+  // Escape `<`: merchant content (titles, descriptions) can contain a literal
+  // `</script>`, which would otherwise break out of this block into raw HTML.
+  const json = JSON.stringify(data).replace(/</g, '\\u003c');
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: json }}
     />
   );
 }
@@ -79,7 +83,7 @@ export function productSchema(product: ProductWithDetails) {
   const price = variant?.price || 0;
   const inStock = (variant?.inventory_quantity || 0) > 0;
   const description = product.body_html
-    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 500)
+    ? stripHtml(product.body_html).slice(0, 500)
     : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise.`;
 
   return {
@@ -173,7 +177,7 @@ export function articleSchema(article: {
     },
     image: article.supabase_image_url || article.image_src || undefined,
     description: article.body_html
-      ? article.body_html.replace(/<[^>]*>/g, '').slice(0, 160)
+      ? stripHtml(article.body_html).slice(0, 160)
       : `Read ${article.title} on the YORD India blog.`,
   };
 }

@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getArticles } from '@/lib/supabase/queries';
-import { formatDate } from '@yord/ui';
+import { formatDate, stripHtml } from '@yord/ui';
 import type { ArticleWithBlog } from '@yord/db-types';
 
 export const metadata: Metadata = {
@@ -60,7 +60,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-12">
+              <nav aria-label="Blog pages" className="flex flex-wrap justify-center gap-2 mt-12">
                 {page > 1 && (
                   <Link
                     href={`/blog?page=${page - 1}`}
@@ -73,6 +73,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                   <Link
                     key={p}
                     href={`/blog?page=${p}`}
+                    aria-label={`Blog page ${p}`}
+                    aria-current={p === page ? 'page' : undefined}
                     className={`w-10 h-10 flex items-center justify-center transition-colors ${
                       p === page
                         ? 'bg-gold-200 text-noir-950'
@@ -90,7 +92,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                     NEXT
                   </Link>
                 )}
-              </div>
+              </nav>
             )}
           </>
         )}
@@ -146,14 +148,11 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
             {article.title}
           </h2>
 
-          {/* Summary */}
+          {/* Summary (plain text — no innerHTML needed) */}
           {article.summary_html && (
-            <p
-              className="text-ivory-300 text-sm line-clamp-3"
-              dangerouslySetInnerHTML={{
-                __html: article.summary_html.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
-              }}
-            />
+            <p className="text-ivory-300 text-sm line-clamp-3">
+              {stripHtml(article.summary_html).slice(0, 150) + '...'}
+            </p>
           )}
 
           {/* Tags */}

@@ -29,23 +29,22 @@ export function CustomCursor() {
   const ringX = useSpring(mouseX, springConfig);
   const ringY = useSpring(mouseY, springConfig);
 
-  // Detect touch device or reduced-motion preference (no custom cursor then)
+  // No custom cursor without a fine pointer (touch-only devices) or when
+  // reduced motion is preferred. Positive `(pointer: fine)` detection (not
+  // touch heuristics) so hybrid touchscreen laptops with a mouse keep it.
   useEffect(() => {
+    const pointerQuery = window.matchMedia('(pointer: fine)');
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const checkTouch = () => {
-      setIsTouchDevice(
-        'ontouchstart' in window ||
-        navigator.maxTouchPoints > 0 ||
-        window.matchMedia('(pointer: coarse)').matches
-      );
+    const check = () => {
+      setIsTouchDevice(!pointerQuery.matches);
       setReducedMotion(motionQuery.matches);
     };
-    checkTouch();
-    window.addEventListener('resize', checkTouch);
-    motionQuery.addEventListener('change', checkTouch);
+    check();
+    pointerQuery.addEventListener('change', check);
+    motionQuery.addEventListener('change', check);
     return () => {
-      window.removeEventListener('resize', checkTouch);
-      motionQuery.removeEventListener('change', checkTouch);
+      pointerQuery.removeEventListener('change', check);
+      motionQuery.removeEventListener('change', check);
     };
   }, []);
 

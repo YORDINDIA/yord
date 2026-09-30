@@ -44,6 +44,28 @@ export function ProductInfo({ product }: ProductInfoProps) {
     () => pickVariant(product.variants)
   );
   const [quantity, setQuantity] = useState(1);
+  const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied'>('idle');
+
+  // Native share sheet on mobile, clipboard fallback on desktop.
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: product.title, url });
+        setShareState('shared');
+        return;
+      } catch {
+        return; // user dismissed — no fallback, no error UI
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareState('copied');
+      setTimeout(() => setShareState('idle'), 2000);
+    } catch {
+      // clipboard unavailable — stay silent, the button did nothing harmful
+    }
+  };
 
   // Re-sync when navigating between products (the instance is reused).
   // Render-phase update: the documented alternative to setState-in-effect.
@@ -353,8 +375,13 @@ export function ProductInfo({ product }: ProductInfoProps) {
         <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400">
           SHARE
         </span>
-        <button className="w-8 h-8 flex items-center justify-center text-ivory-400 hover:text-gold-200 transition-colors">
-          <Share2 size={16} />
+        <button
+          onClick={handleShare}
+          aria-label={shareState === 'copied' ? 'Product link copied' : 'Share this product'}
+          title={shareState === 'copied' ? 'Link copied!' : undefined}
+          className="w-8 h-8 flex items-center justify-center text-ivory-400 hover:text-gold-200 transition-colors"
+        >
+          {shareState === 'copied' ? <Check size={16} /> : <Share2 size={16} />}
         </button>
       </motion.div>
     </div>

@@ -253,7 +253,7 @@ export function NewsletterSection() {
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}
                       placeholder="Enter your email address"
-                      className="relative w-full bg-noir-900 border border-noir-700 text-ivory-50 px-6 py-4 text-base placeholder:text-ivory-400 focus:border-gold-200 focus:outline-none transition-all duration-300"
+                      className="relative w-full bg-noir-900 border border-noir-700 text-ivory-50 px-6 py-4 text-base placeholder:text-ivory-400 focus:border-gold-200 transition-all duration-300"
                       style={{
                         boxShadow: isFocused
                           ? '0 0 20px rgba(255, 217, 102, 0.2), 0 0 40px rgba(255, 217, 102, 0.1)'
