@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { AddressForm, AddressData } from './AddressForm';
 import { PaymentSection, PaymentMethod } from './PaymentSection';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 interface CheckoutFormProps {
   onPlaceOrder: (data: CheckoutData) => Promise<void>;

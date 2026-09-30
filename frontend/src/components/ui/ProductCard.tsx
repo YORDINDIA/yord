@@ -6,9 +6,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { Heart, ShoppingBag, Eye } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
+import { formatPrice } from '@yord/ui';
 import {
-  formatPrice,
   getDiscountPercentage,
   getFirstByPosition,
   getImageUrl,
@@ -18,7 +18,7 @@ import {
   getSecondaryImage,
   isInStock,
   isPriceOnSale,
-} from '@/lib/utils';
+} from '@/lib/product';
 import { SaleBadge, LimitedBadge, SoldOutBadge, ArtistBadge, Badge } from './Badge';
 import type { ProductVariant, ProductWithDetails, CartItem } from '@yord/db-types';
 import { ARTISTS, vendorToHandle } from '@yord/db-types';

@@ -2,7 +2,7 @@ import { getUpcomingConcertsByArtist } from '@/lib/data/concerts';
 import { getTopProductsByArtistHandle } from '@/lib/supabase/queries';
 import { ARTISTS } from '@yord/db-types';
 import type { TransformedProductWithSource } from '@yord/db-types';
-import { getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { getFirstByPosition, getProductBadge } from '@/lib/product';
 import { UpcomingConcertsSectionClient, type ConcertArtistData } from './UpcomingConcertsSectionClient';
 
 export async function UpcomingConcertsSection() {

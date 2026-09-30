@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createStaticClient } from '@/lib/supabase/server';
-import { buildSearchOrFilter } from '@/lib/utils';
+import { buildSearchOrFilter } from '@/lib/search';
 import { PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { logDbError } from '@/lib/logger';
 

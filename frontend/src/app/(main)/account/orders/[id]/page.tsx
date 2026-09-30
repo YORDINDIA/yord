@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Package, Calendar, Truck } from 'lucide-react';
 import { createServerClient } from '@/lib/supabase/server';
-import { formatDate, formatPrice } from '@/lib/utils';
+import { formatDate, formatPrice } from '@yord/ui';
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;

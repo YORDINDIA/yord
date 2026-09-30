@@ -6,8 +6,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Search, X, Loader2, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { cn, formatPrice, getFirstByPosition } from '@/lib/utils';
-import { buildSearchOrFilter } from '@/lib/utils';
+import { cn, formatPrice } from '@yord/ui';
+import { getFirstByPosition } from '@/lib/product';
+import { buildSearchOrFilter } from '@/lib/search';
 import type { ProductWithDetails } from '@yord/db-types';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 

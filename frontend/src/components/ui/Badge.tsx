@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: 'default' | 'sale' | 'new' | 'limited' | 'soldout' | 'artist';

@@ -6,7 +6,8 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { createClient } from '@/lib/supabase/client';
-import { escapeLike, getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { getFirstByPosition, getProductBadge } from '@/lib/product';
+import { escapeLike } from '@/lib/search';
 import { vendorToHandle } from '@yord/db-types';
 import type { ProductWithDetails } from '@yord/db-types';
 

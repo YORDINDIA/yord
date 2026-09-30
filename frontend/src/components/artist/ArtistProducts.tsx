@@ -10,14 +10,14 @@ import {
   LoadingMoreIndicator,
   GridToggle,
   SortDropdown,
-  SORT_OPTIONS_WITH_FEATURED,
+  DEFAULT_SORT_OPTIONS,
   getGridClasses,
   type SortOption,
   type GridSize,
 } from '@/components/product/ProductGrid';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
-import { transformProductForCard } from '@/lib/utils';
+import { transformProductForCard } from '@/lib/product';
 import { fetchProductsByIds } from '@/lib/data/productsByIds';
 import type { ArtistData, ProductWithDetails, TransformedProduct } from '@yord/db-types';
 
@@ -30,7 +30,8 @@ const PAGE_SIZE = 16;
 export function ArtistProducts({ artist }: ArtistProductsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [sortBy, setSortBy] = useState<SortOption>('featured');
+  // `newest`: the old `featured` default fell through to `published_at DESC`.
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [gridSize, setGridSize] = useState<GridSize>('large');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -186,7 +187,7 @@ export function ArtistProducts({ artist }: ArtistProductsProps) {
             <SortDropdown
               sortBy={sortBy}
               onSortChange={setSortBy}
-              sortOptions={SORT_OPTIONS_WITH_FEATURED}
+              sortOptions={DEFAULT_SORT_OPTIONS}
               showDropdown={showSortDropdown}
               onToggleDropdown={() => setShowSortDropdown(!showSortDropdown)}
               accentColor={artist.accentColor}

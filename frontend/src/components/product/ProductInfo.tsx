@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Heart, Share2, Truck, Shield, RotateCcw, Check, Minus, Plus } from 'lucide-react';
-import { formatPrice, cn, sanitizeHtml, isPriceOnSale } from '@/lib/utils';
+import { formatPrice, cn } from '@yord/ui';
+import { isPriceOnSale } from '@/lib/product';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 import { Button } from '@/components/ui/Button';

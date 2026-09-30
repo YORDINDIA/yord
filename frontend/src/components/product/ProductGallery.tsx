@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
-import { cn, sortByPosition } from '@/lib/utils';
+import { cn } from '@yord/ui';
+import { sortByPosition } from '@/lib/product';
 
 interface ProductImage {
   id: number;

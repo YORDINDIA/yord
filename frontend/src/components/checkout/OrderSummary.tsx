@@ -3,10 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice, isPriceOnSale } from '@/lib/utils';
+import { formatPrice } from '@yord/ui';
+import { isPriceOnSale } from '@/lib/product';
 import { computeTotals } from '@/lib/pricing';
 import { ShoppingBag, Tag } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 interface OrderSummaryProps {
   isCompact?: boolean;

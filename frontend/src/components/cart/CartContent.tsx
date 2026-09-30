@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { ChevronRight, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Shield, Truck, RotateCcw } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { formatPrice, cn, isPriceOnSale } from '@/lib/utils';
+import { formatPrice, cn } from '@yord/ui';
+import { isPriceOnSale } from '@/lib/product';
 import { Button } from '@/components/ui/Button';
 import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
 

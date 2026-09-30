@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Package, ChevronRight, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { cn, formatDate, formatPrice } from '@/lib/utils';
+import { cn, formatDate, formatPrice } from '@yord/ui';
 
 interface Order {
   id: number;

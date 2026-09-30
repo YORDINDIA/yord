@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getArticles } from '@/lib/supabase/queries';
-import { formatDate } from '@/lib/utils';
+import { formatDate } from '@yord/ui';
 import type { ArticleWithBlog } from '@yord/db-types';
 
 export const metadata: Metadata = {

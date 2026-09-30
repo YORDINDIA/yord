@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ShoppingBag, User, Menu, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 import { useCartStore } from '@/lib/stores/cartStore';
 import type { ArtistData } from '@yord/db-types';
 import { SearchModal } from './SearchModal';

@@ -3,14 +3,18 @@
 import { motion } from 'framer-motion';
 import { Grid, LayoutGrid, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 import type { ProductWithDetails } from '@yord/db-types';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type SortOption = 'featured' | 'newest' | 'price-asc' | 'price-desc' | 'title';
+// Canonical sort vocabulary lives in `@/lib/product` (no `featured`: every
+// historical `featured` branch fell through to `published_at DESC`).
+// Re-exported so existing `ProductGrid` import sites keep working.
+import type { SortOption } from '@/lib/product';
+export type { SortOption };
 export type GridSize = 'small' | 'large';
 
 export interface SortOptionConfig {
@@ -25,10 +29,7 @@ export const DEFAULT_SORT_OPTIONS: SortOptionConfig[] = [
   { value: 'title', label: 'Alphabetically' },
 ];
 
-export const SORT_OPTIONS_WITH_FEATURED: SortOptionConfig[] = [
-  { value: 'featured', label: 'Featured' },
-  ...DEFAULT_SORT_OPTIONS,
-];
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SKELETON COMPONENTS

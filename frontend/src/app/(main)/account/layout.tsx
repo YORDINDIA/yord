@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User, Package, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn } from '@yord/ui';
 
 interface AccountLayoutProps {
   children: React.ReactNode;
