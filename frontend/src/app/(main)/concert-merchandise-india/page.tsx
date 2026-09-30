@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ShoppingBag, Music, Truck, Shield, ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 import { JsonLd, organizationSchema, breadcrumbSchema, faqSchema } from '@/lib/seo/jsonld';
 
 export const metadata: Metadata = {

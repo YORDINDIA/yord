@@ -7,8 +7,8 @@ import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { createClient } from '@/lib/supabase/client';
 import { escapeLike, getFirstByPosition, getProductBadge } from '@/lib/utils';
-import { vendorToHandle } from '@/types/database';
-import type { ProductWithDetails } from '@/types/database';
+import { vendorToHandle } from '@yord/db-types';
+import type { ProductWithDetails } from '@yord/db-types';
 
 interface RelatedProductsProps {
   currentProductId: number;

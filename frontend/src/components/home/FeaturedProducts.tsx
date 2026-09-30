@@ -1,6 +1,6 @@
 import { getFeaturedProductsCached } from '@/lib/supabase/cached-queries';
-import { ARTISTS } from '@/types/database';
-import type { TransformedProductWithSource } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
+import type { TransformedProductWithSource } from '@yord/db-types';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
 import { FeaturedProductsClient } from './FeaturedProductsClient';
 

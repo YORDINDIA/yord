@@ -8,8 +8,8 @@ import { Search, X, Loader2, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatPrice, getFirstByPosition } from '@/lib/utils';
 import { buildSearchOrFilter } from '@/lib/utils';
-import type { ProductWithDetails } from '@/types/database';
-import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@/types/database';
+import type { ProductWithDetails } from '@yord/db-types';
+import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 
 interface SearchModalProps {
   isOpen: boolean;

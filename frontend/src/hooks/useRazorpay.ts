@@ -7,7 +7,7 @@ import {
   RazorpayPaymentResponse,
   RazorpayCheckoutOptions,
 } from '@/lib/razorpay/client';
-import type { CartItem } from '@/types/database';
+import type { CartItem } from '@yord/db-types';
 
 interface ShippingAddress {
   firstName: string;

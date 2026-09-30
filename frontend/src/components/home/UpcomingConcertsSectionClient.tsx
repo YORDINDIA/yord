@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, MapPin, Calendar, Music } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
-import type { TransformedProductWithSource } from '@/types/database';
+import type { TransformedProductWithSource } from '@yord/db-types';
 
 export interface ConcertArtistData {
   artistHandle: string;

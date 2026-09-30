@@ -1,4 +1,4 @@
-import type { ProductWithDetails } from '@/types/database';
+import type { ProductWithDetails } from '@yord/db-types';
 import type { Concert } from '@/lib/data/concerts';
 
 const BASE_URL = 'https://yordindia.com';

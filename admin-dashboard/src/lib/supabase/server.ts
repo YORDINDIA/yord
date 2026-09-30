@@ -1,57 +1,25 @@
-import { createServerClient as createSSRClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import 'server-only';
 
-// NOTE: `import 'server-only'` is intentionally absent: the `server-only`
-// package is not installed and adding dependencies is out of scope. The
-// module-scope guard below fails closed instead: if this module is ever
-// bundled into a Client Component, the build/runtime throws loudly rather
-// than leaking the service-role key. Verified 2026-09-17: no file with
-// `'use client'` imports this module (grep `createServiceClient`).
-if (typeof window !== 'undefined') {
-  throw new Error('lib/supabase/server must only be imported on the server.');
-}
+import type { Database } from '@yord/db-types';
+import {
+  createServerClient as createPkgServerClient,
+  createServiceClient as createPkgServiceClient,
+} from '@yord/supabase-clients/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function createServerClient() {
-  const cookieStore = await cookies();
+/** Server-side clients only. `server-only` fails the build if bundled client-side. */
+export type ServerClient = SupabaseClient<Database>;
 
-  return createSSRClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Server Component - cookies are read-only
-          }
-        },
-      },
-    }
-  );
+/**
+ * Session-scoped client (anon key + SSR cookies). The caller's own session and
+ * RLS apply, which is what middleware.ts and (admin)/layout.tsx rely on to
+ * read their own `admin_users` row.
+ */
+export async function createServerClient(): Promise<ServerClient> {
+  return createPkgServerClient<Database>();
 }
 
 // Service role client for admin operations (server-side only)
-export function createServiceClient() {
-  return createSSRClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        setAll() {},
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
+export function createServiceClient(): ServerClient {
+  return createPkgServiceClient<Database>();
 }

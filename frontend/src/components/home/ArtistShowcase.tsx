@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 
 export function ArtistShowcase() {
   const containerRef = useRef<HTMLDivElement>(null);

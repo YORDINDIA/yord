@@ -19,7 +19,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
 import { transformProductForCard } from '@/lib/utils';
 import { fetchProductsByIds } from '@/lib/data/productsByIds';
-import type { ArtistData, ProductWithDetails, TransformedProduct } from '@/types/database';
+import type { ArtistData, ProductWithDetails, TransformedProduct } from '@yord/db-types';
 
 interface ArtistProductsProps {
   artist: ArtistData;

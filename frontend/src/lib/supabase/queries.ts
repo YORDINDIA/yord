@@ -1,6 +1,6 @@
 import { createServerClient, createStaticClient } from './server';
-import type { ProductWithDetails, Collection, ArtistData, Blog, Article, ArticleWithBlog } from '@/types/database';
-import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@/types/database';
+import type { ProductWithDetails, Collection, ArtistData, Blog, Article, ArticleWithBlog } from '@yord/db-types';
+import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice, buildSearchOrFilter, escapeLike, escapeFilterValue } from '@/lib/utils';
 import { fetchProductsByIds, PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { logDbError } from '@/lib/logger';

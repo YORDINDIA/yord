@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Instagram, Youtube, Twitter, Loader2, CheckCircle } from 'lucide-react';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 
 const FOOTER_LINKS = {
   shop: [

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, ShoppingBag, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice, getFirstByPosition, getImageUrl, isPriceOnSale, sortByPosition } from '@/lib/utils';
-import type { ProductWithDetails, ProductVariant } from '@/types/database';
+import type { ProductWithDetails, ProductVariant } from '@yord/db-types';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 

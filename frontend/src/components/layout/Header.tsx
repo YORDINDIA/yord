@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/lib/stores/cartStore';
-import type { ArtistData } from '@/types/database';
+import type { ArtistData } from '@yord/db-types';
 import { SearchModal } from './SearchModal';
 
 const NAV_LINKS = [

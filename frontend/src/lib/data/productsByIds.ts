@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/utils';
 import { logDbError } from '@/lib/logger';
-import type { ProductWithDetails } from '@/types/database';
+import type { ProductWithDetails } from '@yord/db-types';
 
 export type IdsSort = 'newest' | 'price-asc' | 'price-desc' | 'title' | 'featured';
 

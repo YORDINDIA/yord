@@ -5,7 +5,7 @@ import { ProductCard } from '@/components/ui/ProductCard';
 import { LoadingMoreIndicator } from './ProductGrid';
 import { createClient } from '@/lib/supabase/client';
 import { escapeLike, sortProductsByPrice, PRICE_SORT_FETCH_LIMIT } from '@/lib/utils';
-import type { ProductWithDetails } from '@/types/database';
+import type { ProductWithDetails } from '@yord/db-types';
 
 interface ProductsGridProps {
   initialProducts: ProductWithDetails[];

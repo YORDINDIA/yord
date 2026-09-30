@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem } from '@/types/database';
+import type { CartItem } from '@yord/db-types';
 
 interface CartState {
   items: CartItem[];
