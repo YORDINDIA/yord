@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
-import { CollectionHeader } from '@/components/collection/CollectionHeader';
-import { CollectionProducts } from '@/components/collection/CollectionProducts';
+import { CollectionHeader } from '@/features/collection/CollectionHeader';
+import { CollectionProducts } from '@/features/collection/CollectionProducts';
 import { getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 

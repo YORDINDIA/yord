@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ErrorState } from '@/features/ui/ErrorState';
 
 /** Catches failed reads anywhere under `(main)` — e.g. Supabase unreachable. */
 export default function MainError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Filter } from 'lucide-react';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductCard } from '@/features/ui/ProductCard';
 import {
   ProductGridSkeleton,
   ProductGridEmptyState,
@@ -14,7 +14,7 @@ import {
   getGridClasses,
   type SortOption,
   type GridSize,
-} from '@/components/product/ProductGrid';
+} from '@/features/product/ProductGrid';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
 import { transformProductForCard } from '@/lib/product';

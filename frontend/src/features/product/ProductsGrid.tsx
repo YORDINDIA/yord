@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductCard } from '@/features/ui/ProductCard';
 import { LoadingMoreIndicator } from './ProductGrid';
 import { createClient } from '@/lib/supabase/client';
 import { sortProductsByPrice, PRICE_SORT_FETCH_LIMIT } from '@/lib/product';

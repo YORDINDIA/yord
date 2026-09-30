@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductCard } from '@/features/ui/ProductCard';
 import { createClient } from '@/lib/supabase/client';
 import { getFirstByPosition, getProductBadge } from '@/lib/product';
 import { escapeLike } from '@/lib/search';

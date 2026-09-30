@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Star, Shield, Truck, Heart } from 'lucide-react';
-import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { AnimatedCounter } from '@/features/ui/AnimatedCounter';
 
 const BRAND_VALUES = [
   {

@@ -1,6 +1,6 @@
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
-import { CartDrawer } from '@/components/layout/CartDrawer';
+import { Header } from '@/features/layout/Header';
+import { Footer } from '@/features/layout/Footer';
+import { CartDrawer } from '@/features/layout/CartDrawer';
 import { getArtistsWithMetadata } from '@/lib/supabase/queries';
 import { degrade } from '@/lib/result';
 

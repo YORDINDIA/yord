@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductCard } from '@/features/ui/ProductCard';
 import type { TransformedProductWithSource } from '@yord/db-types';
 
 interface FeaturedProductsClientProps {

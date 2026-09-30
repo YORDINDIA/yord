@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ErrorState } from '@/features/ui/ErrorState';
 
 /** Catches failures under `(auth)` without leaking session details. */
 export default function AuthError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
