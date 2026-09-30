@@ -83,6 +83,11 @@ export function isPriceOnSale(
   price: number | string | null | undefined,
   compareAtPrice: number | string | null | undefined
 ): boolean {
+  // Absent prices are not prices: Number(null) is 0, which would fake a sale
+  // against any compare-at value. (Caught by product-helpers.test.ts.)
+  if (price == null || price === '' || compareAtPrice == null || compareAtPrice === '') {
+    return false;
+  }
   const p = Number(price);
   const c = Number(compareAtPrice);
   return Number.isFinite(p) && Number.isFinite(c) && c > p;
