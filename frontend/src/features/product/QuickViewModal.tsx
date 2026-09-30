@@ -147,6 +147,9 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Quick view of ${product.title}`}
             className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[900px] md:max-h-[80vh] bg-noir-900 border border-noir-800 z-[101] overflow-hidden"
           >
             {/* Close Button */}
@@ -199,12 +202,18 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
-                          className={cn(
-                            'w-2 h-2 rounded-full transition-colors',
-                            idx === currentImageIndex ? 'bg-gold-200' : 'bg-ivory-400/50'
-                          )}
                           aria-label={`View image ${idx + 1}`}
-                        />
+                          aria-current={idx === currentImageIndex}
+                          className="p-2 -m-1 flex items-center justify-center"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              'block w-2 h-2 rounded-full transition-colors',
+                              idx === currentImageIndex ? 'bg-gold-200' : 'bg-ivory-400/50'
+                            )}
+                          />
+                        </button>
                       ))}
                     </div>
                   </>

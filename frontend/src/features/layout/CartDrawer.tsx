@@ -28,17 +28,19 @@ export function CartDrawer() {
   const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
   const hasFreeFastShipping = subtotal >= FREE_FAST_SHIPPING_THRESHOLD;
 
-  // Lock body scroll when cart is open
+  // Lock body scroll + Escape to close while open.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCart();
+    };
+    document.addEventListener('keydown', handleEscape);
     return () => {
       document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, closeCart]);
 
   return (
     <AnimatePresence>
@@ -60,6 +62,9 @@ export function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Shopping bag"
             className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-noir-950 border-l border-noir-800 z-50 flex flex-col"
           >
             {/* Header */}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { getCollections } from '@/lib/supabase/queries';
+import { stripHtml } from '@yord/ui';
 import { Layers } from 'lucide-react';
 
 export const metadata = {
@@ -55,12 +56,9 @@ export default async function CollectionsPage() {
                       {collection.title}
                     </h2>
                     {collection.body_html && (
-                      <p
-                        className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 line-clamp-2"
-                        dangerouslySetInnerHTML={{
-                          __html: collection.body_html.replace(/<[^>]*>/g, '').slice(0, 100) + '...'
-                        }}
-                      />
+                      <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 line-clamp-2">
+                        {stripHtml(collection.body_html).slice(0, 100) + '...'}
+                      </p>
                     )}
                   </div>
                 </div>

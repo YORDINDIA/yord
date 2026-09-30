@@ -1,39 +1,11 @@
 import Link from 'next/link';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { ArtistData } from '@yord/db-types';
 import type { SortOption } from '@/lib/product';
+import { buildFilterUrl, type CatalogFilters } from './catalogUrl';
+import { SortMenu } from './SortMenu';
 
-export interface CatalogFilters {
-  artist?: string;
-  type?: string;
-  sort?: string;
-}
-
-export function buildFilterUrl(
-  baseFilters: { artist?: string; type?: string; sort?: string },
-  overrides: { artist?: string | null; type?: string | null; sort?: string | null }
-): string {
-  const params = new URLSearchParams();
-
-  // Merge base filters with overrides (null means remove the filter)
-  const artist = overrides.artist === null ? undefined : (overrides.artist ?? baseFilters.artist);
-  const type = overrides.type === null ? undefined : (overrides.type ?? baseFilters.type);
-  const sort = overrides.sort === null ? undefined : (overrides.sort ?? baseFilters.sort);
-
-  if (artist) params.set('artist', artist);
-  if (type) params.set('type', type);
-  if (sort && sort !== 'newest') params.set('sort', sort);
-
-  const queryString = params.toString();
-  return queryString ? `/products?${queryString}` : '/products';
-}
-
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'price-asc', label: 'Price: Low to High' },
-  { value: 'price-desc', label: 'Price: High to Low' },
-  { value: 'title', label: 'Alphabetical' },
-];
+export type { CatalogFilters };
 
 interface ProductToolbarProps {
   artists: ArtistData[];
@@ -141,31 +113,8 @@ export function ProductToolbar({
           </div>
         </div>
 
-        {/* Sort Dropdown */}
-        <div className="flex items-center gap-2">
-          <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400">
-            SORT:
-          </span>
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2 bg-noir-900 border border-noir-700 text-ivory-300 text-sm font-[family-name:var(--font-jakarta)] hover:border-gold-200 transition-colors min-w-[180px]">
-              {SORT_OPTIONS.find(o => o.value === sortBy)?.label || 'Newest'}
-              <ChevronDown size={16} className="ml-auto" />
-            </button>
-            <div className="absolute top-full right-0 mt-1 bg-noir-900 border border-noir-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 min-w-[180px]">
-              {SORT_OPTIONS.map((option) => (
-                <Link
-                  key={option.value}
-                  href={buildFilterUrl(baseFilters, { sort: option.value })}
-                  className={`block px-4 py-2 text-sm font-[family-name:var(--font-jakarta)] hover:bg-noir-800 transition-colors ${
-                    sortBy === option.value ? 'text-gold-200' : 'text-ivory-300'
-                  }`}
-                >
-                  {option.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* Sort Dropdown (click/keyboard operated) */}
+        <SortMenu sortBy={sortBy} baseFilters={baseFilters} />
       </div>
 
       {/* Category Filters */}

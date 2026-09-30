@@ -119,7 +119,7 @@ export function Footer() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="flex-1 bg-noir-900 border border-noir-700 text-ivory-50 px-4 py-3 text-sm placeholder:text-ivory-400 focus:border-gold-200 focus:outline-none transition-colors"
+                    className="flex-1 bg-noir-900 border border-noir-700 text-ivory-50 px-4 py-3 text-sm placeholder:text-ivory-400 focus:border-gold-200 transition-colors"
                     disabled={status === 'loading'}
                   />
                   <button
@@ -274,7 +274,7 @@ export function Footer() {
             </div>
 
             {/* Legal Links */}
-            <div className="flex items-center gap-6 text-xs text-ivory-400">
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-ivory-400">
               <Link href="/privacy" className="hover:text-gold-200 transition-colors">
                 Privacy Policy
               </Link>

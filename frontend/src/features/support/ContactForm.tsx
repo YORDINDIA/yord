@@ -207,7 +207,7 @@ export function ContactForm() {
                           required
                           value={formData.name}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:outline-none focus:border-gold-200 transition-colors"
+                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
                           placeholder="Enter your name"
                         />
                       </div>
@@ -221,7 +221,7 @@ export function ContactForm() {
                           required
                           value={formData.email}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:outline-none focus:border-gold-200 transition-colors"
+                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
                           placeholder="Enter your email"
                         />
                       </div>
@@ -236,7 +236,7 @@ export function ContactForm() {
                         required
                         value={formData.subject}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm focus:outline-none focus:border-gold-200 transition-colors"
+                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm focus:border-gold-200 transition-colors"
                       >
                         <option value="">Select a subject</option>
                         <option value="order">Order Inquiry</option>
@@ -258,7 +258,7 @@ export function ContactForm() {
                         rows={6}
                         value={formData.message}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:outline-none focus:border-gold-200 transition-colors resize-none"
+                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors resize-none"
                         placeholder="How can we help you?"
                       />
                     </div>

@@ -159,7 +159,7 @@ function ResetPasswordContent() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:border-gold-200"
               placeholder="Enter new password"
             />
           </div>
@@ -174,7 +174,7 @@ function ResetPasswordContent() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:border-gold-200"
               placeholder="Confirm new password"
             />
           </div>

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, User, Clock } from 'lucide-react';
 import { getArticleBySlug, getArticleBySlugStatic, getRelatedArticles, getArticlesStatic } from '@/lib/supabase/queries';
-import { formatDate } from '@yord/ui';
+import { formatDate, stripHtml } from '@yord/ui';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { estimateReadTime } from '@/lib/text';
 import { JsonLd, articleSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   }
 
   const description = article.summary_html
-    ? article.summary_html.replace(/<[^>]*>/g, '').slice(0, 160)
+    ? stripHtml(article.summary_html).slice(0, 160)
     : `Read ${article.title} on the YORD India blog.`;
 
   return {

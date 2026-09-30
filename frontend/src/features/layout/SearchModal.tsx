@@ -103,14 +103,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     });
   }, [isOpen]);
 
-  // Handle escape key
+  // Escape to close + body scroll lock, active only while open.
   useEffect(() => {
+    if (!isOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
 
   // Debounced search
   const searchProducts = useCallback(async (searchQuery: string) => {
@@ -172,7 +178,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Search products">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-noir-950/90 backdrop-blur-sm"
@@ -191,13 +197,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search products, artists, collections..."
-              className="flex-1 px-4 py-5 bg-transparent text-ivory-100 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none"
+              aria-label="Search products, artists, collections"
+              role="combobox"
+              aria-expanded={results.length > 0}
+              aria-controls="search-results-list"
+              className="flex-1 px-4 py-5 bg-transparent text-ivory-100 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500"
             />
             {isLoading && (
-              <Loader2 className="w-5 h-5 text-gold-200 animate-spin mr-4" />
+              <Loader2 className="w-5 h-5 text-gold-200 animate-spin mr-4" aria-label="Searching" />
             )}
             <button
               onClick={onClose}
+              aria-label="Close search"
               className="p-4 text-ivory-500 hover:text-ivory-100 transition-colors"
             >
               <X size={20} />
@@ -227,7 +238,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
             {results.length > 0 && (
               <>
-                <div className="divide-y divide-noir-800">
+                <div id="search-results-list" role="listbox" aria-label="Search results" className="divide-y divide-noir-800">
                   {results.map((product) => {
                     const image = getFirstByPosition(product.product_images);
                     const imageUrl = image?.supabase_url || image?.src;

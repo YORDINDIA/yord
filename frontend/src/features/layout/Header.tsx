@@ -117,9 +117,20 @@ export function Header({ artists = [] }: HeaderProps) {
                   className="relative"
                   onMouseEnter={() => link.hasDropdown && setIsArtistDropdownOpen(true)}
                   onMouseLeave={() => link.hasDropdown && setIsArtistDropdownOpen(false)}
+                  onFocus={() => link.hasDropdown && setIsArtistDropdownOpen(true)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setIsArtistDropdownOpen(false);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setIsArtistDropdownOpen(false);
+                  }}
                 >
                   <Link
                     href={link.href}
+                    aria-haspopup={link.hasDropdown ? 'true' : undefined}
+                    aria-expanded={link.hasDropdown ? isArtistDropdownOpen : undefined}
                     className={cn(
                       'font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-ivory-100',
                       'hover:text-gold-200 transition-colors duration-300',
