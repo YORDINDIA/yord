@@ -19,7 +19,13 @@ export async function UpcomingConcertsSection() {
         const artistData = ARTISTS[artistHandle];
         if (!artistData) return null;
 
-        const products = await getTopProductsByArtistHandle(artistHandle, 4, true);
+        // One failing artist must not blank the whole section: skip it.
+        let products;
+        try {
+          products = await getTopProductsByArtistHandle(artistHandle, 4, true);
+        } catch {
+          return null;
+        }
         if (products.length === 0) return null;
 
         const transformedProducts: TransformedProductWithSource[] = products.map((p) => {

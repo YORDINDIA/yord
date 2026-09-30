@@ -116,7 +116,7 @@ export function ProductsGrid({
         return;
       }
 
-      let fetchedProducts = (data || []) as ProductWithDetails[];
+      let fetchedProducts = (data || []) as unknown as ProductWithDetails[];
 
       // Global price sort, then slice the requested window. SQL min_price
       // ordering is authoritative only when every row is backfilled; fall

@@ -2,11 +2,18 @@ import { getFeaturedProductsCached } from '@/lib/supabase/cached-queries';
 import { ARTISTS } from '@yord/db-types';
 import type { TransformedProductWithSource } from '@yord/db-types';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
+import { degrade } from '@/lib/result';
+import { SectionRetry } from '@/components/ui/SectionRetry';
 import { FeaturedProductsClient } from './FeaturedProductsClient';
 
 export async function FeaturedProducts() {
-  // Cached catalog read: prerenderable under `revalidate`, one cache tag
-  const products = await getFeaturedProductsCached(8);
+  // Cached catalog read: prerenderable under `revalidate`, one cache tag.
+  // A failed section degrades to an inline error + retry, never a blank page.
+  const result = await degrade(getFeaturedProductsCached(8), [], 'home:featured', 'products');
+  if (!result.ok) {
+    return <SectionRetry title="Could not load featured products" />;
+  }
+  const products = result.value;
 
   // Transform Supabase data for the component
   const transformedProducts: TransformedProductWithSource[] = products.map((p) => {

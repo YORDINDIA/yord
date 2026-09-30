@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/utils';
+import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
 import { logDbError } from '@/lib/logger';
 import type { ProductWithDetails } from '@yord/db-types';
 
@@ -78,7 +79,7 @@ export async function fetchProductsByIds(
     const firstError = results.find((r) => r.error);
     if (firstError?.error) {
       logDbError('productsByIds:price-sort', firstError.error);
-      return { data: [], count: 0 };
+      throw new DatabaseError('products', 'Query failed', postgrestCodeOf(firstError.error));
     }
     const all = results.flatMap((r) => ((r.data || []) as ProductWithDetails[]));
     const count = results.reduce((sum, r) => sum + (r.count || 0), 0);
@@ -100,7 +101,7 @@ export async function fetchProductsByIds(
   const firstError = results.find((r) => r.error);
   if (firstError?.error) {
     logDbError('productsByIds', firstError.error);
-    return { data: [], count: 0 };
+    throw new DatabaseError('products', 'Query failed', postgrestCodeOf(firstError.error));
   }
   let merged = results.flatMap((r) => ((r.data || []) as ProductWithDetails[]));
   if (sort === 'title') merged = merged.sort((a, b) => a.title.localeCompare(b.title));

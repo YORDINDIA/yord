@@ -9,9 +9,9 @@ import { cn, formatDate, formatPrice } from '@/lib/utils';
 
 interface Order {
   id: number;
-  order_number: string;
+  order_number: number | null;
   created_at: string;
-  financial_status: string;
+  financial_status: string | null;
   fulfillment_status: string | null;
   total_price: number;
   currency: string;
@@ -121,7 +121,7 @@ export default function OrdersPage() {
                     </span>
                     <span className={cn(
                       'px-2 py-0.5 text-xs font-[family-name:var(--font-jakarta)] rounded',
-                      getStatusColor(order.financial_status)
+                      getStatusColor(order.financial_status ?? 'pending')
                     )}>
                       {order.financial_status}
                     </span>

@@ -8,10 +8,10 @@ import { formatDate, formatPrice, sanitizeOrPattern } from '@/lib/utils';
 
 interface OrderDetails {
   id: number;
-  name: string;
-  order_number: number;
-  email: string;
-  financial_status: string;
+  name: string | null;
+  order_number: number | null;
+  email: string | null;
+  financial_status: string | null;
   fulfillment_status: string | null;
   total_price: number;
   created_at: string;

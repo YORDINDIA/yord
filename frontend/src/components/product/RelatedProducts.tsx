@@ -62,7 +62,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
         return;
       }
 
-      const transformedProducts: SimpleProduct[] = (data as ProductWithDetails[]).map((p) => {
+      const transformedProducts: SimpleProduct[] = (data as unknown as ProductWithDetails[]).map((p) => {
         const variant = getFirstByPosition(p.product_variants);
         const image = getFirstByPosition(p.product_images);
 

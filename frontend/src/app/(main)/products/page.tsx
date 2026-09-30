@@ -1,4 +1,5 @@
 import { getProductsFiltered, getProductTypes, getArtistsWithMetadata, type SortOption } from '@/lib/supabase/queries';
+import { degrade } from '@/lib/result';
 import { ProductsGrid } from '@/components/product/ProductsGrid';
 import { ShoppingBag, X, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
@@ -47,7 +48,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const typeFilter = params.type || undefined;
   const sortBy = (params.sort as SortOption) || 'newest';
 
-  const [{ data: products, count }, productTypes, artists] = await Promise.all([
+  // The product list is load-bearing: a failed read throws and the error
+  // boundary renders. Filter metadata is optional: on failure the page still
+  // renders, just without the artist/type filter rows.
+  const [{ data: products, count }, typesResult, artistsResult] = await Promise.all([
     getProductsFiltered({
       artist: artistFilter,
       productType: typeFilter,
@@ -55,9 +59,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       pageSize,
       sortBy,
     }),
-    getProductTypes(),
-    getArtistsWithMetadata(),
+    degrade(getProductTypes(), [] as string[], 'products:types', 'products'),
+    degrade(getArtistsWithMetadata(), [], 'products:artists', 'collections'),
   ]);
+  const productTypes = typesResult.ok ? typesResult.value : [];
+  const artists = artistsResult.ok ? artistsResult.value : [];
 
   // Find the current artist for styling
   const currentArtist = artistFilter
