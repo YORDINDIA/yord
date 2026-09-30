@@ -1,12 +1,13 @@
 import { Metadata } from 'next';
 import { CollectionHeader } from '@/features/collection/CollectionHeader';
-import { CollectionProducts } from '@/features/collection/CollectionProducts';
-import { getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
+import { CatalogGrid } from '@/features/catalog/CatalogGrid';
+import { getCollectionsStatic, getCollectionByHandleStatic, getProductsByCollectionHandle } from '@/lib/supabase/queries';
+import { parseSortParam, parsePageParam } from '@/lib/product';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; page?: string }>;
 }
 
 export const revalidate = 3600;
@@ -43,7 +44,10 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
 
 export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
   const { handle } = await params;
-  const { sort = 'newest' } = await searchParams;
+  const { sort: rawSort, page: rawPage } = await searchParams;
+  const sort = parseSortParam(rawSort);
+  const page = parsePageParam(rawPage);
+  const pageSize = 12;
 
   // Fetch collection metadata from database
   // Static (cookie-free) client so `revalidate = 3600` actually applies.
@@ -54,6 +58,16 @@ export default async function CollectionPage({ params, searchParams }: Collectio
   const collectionDescription = collection?.body_html
     ? collection.body_html.replace(/<[^>]*>/g, '')
     : `Explore our ${collectionTitle} collection.`;
+
+  // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products. Unknown
+  // handle renders the header with an empty grid, as before.
+  const result = await getProductsByCollectionHandle(
+    handle,
+    { sort, page, pageSize },
+    { publishedOnly: true, useStatic: true },
+  );
+  const products = result?.data ?? [];
+  const count = result?.count ?? 0;
 
   return (
     <main className="min-h-screen bg-noir-950 pt-20">
@@ -76,14 +90,22 @@ export default async function CollectionPage({ params, searchParams }: Collectio
         title={collectionTitle}
         description={collectionDescription}
         handle={handle}
-        productCount={0} // Will be updated by client component
+        productCount={count}
       />
 
       {/* Collection Products */}
-      <CollectionProducts
-        handle={handle}
-        initialSort={sort as 'newest' | 'price-asc' | 'price-desc' | 'title'}
-      />
+      <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
+        <CatalogGrid
+          initialProducts={products}
+          totalCount={count}
+          initialPage={page}
+          query={{ mode: 'collection', handle, sort, pageSize }}
+          showSort
+          showGridToggle
+          emptyTitle="No products found"
+          emptyMessage="Check back soon for new arrivals in this collection."
+        />
+      </div>
     </main>
   );
 }

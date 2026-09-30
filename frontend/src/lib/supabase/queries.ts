@@ -363,6 +363,58 @@ export async function getTopProductsByArtistHandle(
   return data;
 }
 
+export interface CollectionPageOptions {
+  sort?: SortOption;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * Products for a collection/artist handle via the collects two-hop, paged.
+ * Unknown handle → `null` (page calls `notFound()`); linked-nothing → empty
+ * page; query failure → throws. Server twin of the old client-side
+ * CollectionProducts/ArtistProducts fetches — one implementation serves
+ * SSR page 1 and `GET /api/products` pages 2+.
+ */
+export async function getProductsByCollectionHandle(
+  handle: string,
+  options: CollectionPageOptions = {},
+  opts: { publishedOnly?: boolean; useStatic?: boolean } = {},
+): Promise<{ data: ProductWithDetails[]; count: number } | null> {
+  const { publishedOnly = true, useStatic = false } = opts;
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
+
+  let collectionQuery = supabase
+    .from('collections')
+    .select('id')
+    .eq('handle', handle);
+  if (publishedOnly) collectionQuery = collectionQuery.eq('published', true);
+  const collection = await queryOrThrow<{ id: number }>(
+    'collection:products-id',
+    'collections',
+    () => collectionQuery.maybeSingle(),
+  );
+
+  if (!collection) return null;
+
+  const collectsData = await queryOrThrow<{ product_id: number }[]>(
+    'collection:products-ids',
+    'collects',
+    () => supabase
+      .from('collects')
+      .select('product_id')
+      .eq('collection_id', collection.id),
+  );
+
+  if (!collectsData || collectsData.length === 0) return { data: [], count: 0 };
+
+  return fetchProductsByIds(supabase, collectsData.map((c) => c.product_id), {
+    sort: options.sort ?? 'newest',
+    page: options.page ?? 1,
+    pageSize: options.pageSize ?? 12,
+  });
+}
+
 /**
  * Products with combined filters (artist, type, sort, pagination).
  * The load-bearing catalog read: failure throws `DatabaseError` so
