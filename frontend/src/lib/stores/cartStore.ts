@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import type { CartItem } from '@yord/db-types';
 
 interface CartState {
@@ -163,7 +164,9 @@ export const useCartStore = create<CartStore>()(
 // Selector hooks for specific pieces of state
 export const useCartItems = () => useCartStore((state) => state.items);
 export const useCartOpen = () => useCartStore((state) => state.isOpen);
-export const useCartActions = () => useCartStore((state) => ({
+// useShallow: the actions object keeps a stable identity so consumers don't
+// re-render on every unrelated store change.
+export const useCartActions = () => useCartStore(useShallow((state) => ({
   addItem: state.addItem,
   removeItem: state.removeItem,
   updateQuantity: state.updateQuantity,
@@ -171,4 +174,32 @@ export const useCartActions = () => useCartStore((state) => ({
   openCart: state.openCart,
   closeCart: state.closeCart,
   toggleCart: state.toggleCart,
-}));
+})));
+
+/**
+ * Run `fn` against the rehydrated cart state. `claimCart`/`releaseCart` must
+ * see the persisted `ownerId`/`items` — calling them before rehydration runs
+ * against store defaults and the rehydrate merge then clobbers the claim.
+ */
+function whenCartHydrated(fn: () => void): void {
+  if (useCartStore.getState()._hasHydrated) {
+    fn();
+    return;
+  }
+  const unsubscribe = useCartStore.subscribe((state) => {
+    if (state._hasHydrated) {
+      unsubscribe();
+      fn();
+    }
+  });
+}
+
+/** Adopt the guest cart for `userId` once persisted state is loaded. */
+export function claimCartForUser(userId: string): void {
+  whenCartHydrated(() => useCartStore.getState().claimCart(userId));
+}
+
+/** Drop the cart on sign-out once persisted state is loaded. */
+export function releaseCartForUser(): void {
+  whenCartHydrated(() => useCartStore.getState().releaseCart());
+}

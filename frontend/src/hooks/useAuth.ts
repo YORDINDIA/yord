@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { useCartStore } from '@/lib/stores/cartStore';
+import { claimCartForUser, releaseCartForUser } from '@/lib/stores/cartStore';
 import { useRouter } from 'next/navigation';
 import posthog from 'posthog-js';
 
@@ -42,7 +42,9 @@ export function useAuth(): UseAuthReturn {
       // Identify user if a session exists
       if (session?.user) {
         posthog.identify(session.user.id, { email: session.user.email });
-        useCartStore.getState().claimCart(session.user.id);
+        // Deferred until cart rehydration: claiming against store defaults
+        // would be clobbered by the pending persist merge.
+        claimCartForUser(session.user.id);
       }
     };
 
@@ -59,10 +61,10 @@ export function useAuth(): UseAuthReturn {
 
         if (session?.user) {
           posthog.identify(session.user.id, { email: session.user.email });
-          useCartStore.getState().claimCart(session.user.id);
+          claimCartForUser(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           posthog.reset();
-          useCartStore.getState().releaseCart();
+          releaseCartForUser();
         }
       }
     );

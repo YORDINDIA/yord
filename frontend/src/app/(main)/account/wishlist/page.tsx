@@ -5,13 +5,29 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, ShoppingBag, X, ShoppingCart } from 'lucide-react';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
+import { useWishlistHydrated } from '@/hooks/useHydrated';
+import { ProductGridSkeleton } from '@/features/ui/Skeleton';
 import { formatPrice } from '@yord/ui';
 import { isPriceOnSale } from '@/lib/product';
 
 export default function WishlistPage() {
   const router = useRouter();
+  const hydrated = useWishlistHydrated();
   const items = useWishlistStore((state) => state.items);
   const removeItem = useWishlistStore((state) => state.removeItem);
+
+  // Pre-hydration `items` is the store default (`[]`), not the real
+  // wishlist — skeleton instead of a flashing "empty" state.
+  if (!hydrated) {
+    return (
+      <div className="space-y-6">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+          My Wishlist
+        </h2>
+        <ProductGridSkeleton count={4} />
+      </div>
+    );
+  }
 
   const handleViewProduct = (item: typeof items[0]) => {
     // Navigate to product page where user can select size/variant
