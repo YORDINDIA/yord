@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { ProductVariant, ProductImage, ProductWithDetails, BadgeType, TransformedProduct, TransformedProductWithSource } from '@/types/database';
-import { ARTISTS } from '@/types/database';
+import type { ProductVariant, ProductImage, ProductWithDetails, BadgeType, TransformedProduct, TransformedProductWithSource } from '@yord/db-types';
+import { ARTISTS } from '@yord/db-types';
 
 /**
  * Merge Tailwind classes with clsx and tailwind-merge

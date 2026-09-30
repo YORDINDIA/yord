@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { ProductCard } from '@/components/ui/ProductCard';
-import type { ProductWithDetails } from '@/types/database';
+import type { ProductWithDetails } from '@yord/db-types';
 
 function SearchContent() {
   const searchParams = useSearchParams();

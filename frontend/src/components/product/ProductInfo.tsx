@@ -7,7 +7,7 @@ import { formatPrice, cn, sanitizeHtml, isPriceOnSale } from '@/lib/utils';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 import { Button } from '@/components/ui/Button';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 
 interface ProductVariant {
   id: number;

@@ -61,7 +61,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .select('handle, updated_at')
     .eq('published', true) as { data: { handle: string | null; updated_at: string }[] | null };
 
-  const { ARTIST_COLLECTION_HANDLES } = await import('@/types/database');
+  const { ARTIST_COLLECTION_HANDLES } = await import('@yord/db-types');
   const artistHandleSet = new Set<string>(ARTIST_COLLECTION_HANDLES as unknown as string[]);
 
   const artistPages: MetadataRoute.Sitemap = (artistCollections || [])

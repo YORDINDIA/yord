@@ -20,8 +20,8 @@ import {
   isPriceOnSale,
 } from '@/lib/utils';
 import { SaleBadge, LimitedBadge, SoldOutBadge, ArtistBadge, Badge } from './Badge';
-import type { ProductVariant, ProductWithDetails, CartItem } from '@/types/database';
-import { ARTISTS, vendorToHandle } from '@/types/database';
+import type { ProductVariant, ProductWithDetails, CartItem } from '@yord/db-types';
+import { ARTISTS, vendorToHandle } from '@yord/db-types';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { useWishlistStore } from '@/lib/stores/wishlistStore';
 

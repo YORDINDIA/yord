@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getArticles } from '@/lib/supabase/queries';
 import { formatDate } from '@/lib/utils';
-import type { ArticleWithBlog } from '@/types/database';
+import type { ArticleWithBlog } from '@yord/db-types';
 
 export const metadata: Metadata = {
   title: 'Blog — Concert Fashion, Style Guides & Music Stories',

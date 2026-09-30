@@ -3,80 +3,252 @@
  * Generated from Supabase schema for type-safe queries
  */
 
+/**
+ * Relations every table declares for supabase-js' `.select('*, rel()')` parser.
+ * The generated-types convention is an empty tuple; `never[]` keeps the
+ * relationship inference working without naming each FK.
+ */
+type Relations = [];
+
 export interface Database {
   public: {
     Tables: {
       products: {
         Row: Product;
-        Insert: Omit<Product, 'created_at' | 'updated_at'>;
+        // Generated-types convention: any column the app does not set is
+        // optional, so `created_at`/`updated_at` defaults and the
+        // backfilled-once `min_price` column do not have to be repeated at
+        // every insert site.
+        Insert: Partial<Product> &
+          Pick<Product, 'id' | 'title' | 'status' | 'handle'>;
         Update: Partial<Product>;
+        Relationships: Relations;
       };
       product_variants: {
         Row: ProductVariant;
-        Insert: Omit<ProductVariant, 'created_at' | 'updated_at'>;
+        Insert: Partial<ProductVariant> & Pick<ProductVariant, 'id' | 'product_id'>;
         Update: Partial<ProductVariant>;
+        Relationships: Relations;
       };
       product_images: {
         Row: ProductImage;
-        Insert: Omit<ProductImage, 'created_at' | 'updated_at'>;
+        Insert: Partial<ProductImage> & Pick<ProductImage, 'id' | 'product_id'>;
         Update: Partial<ProductImage>;
+        Relationships: Relations;
       };
       product_options: {
         Row: ProductOption;
         Insert: ProductOption;
         Update: Partial<ProductOption>;
+        Relationships: Relations;
       };
       collections: {
         Row: Collection;
-        Insert: Collection;
+        Insert: Partial<Collection> & Pick<Collection, 'id' | 'title'>;
         Update: Partial<Collection>;
+        Relationships: Relations;
       };
       customers: {
         Row: Customer;
-        Insert: Omit<Customer, 'created_at' | 'updated_at'>;
+        Insert: Omit<Customer, 'created_at' | 'updated_at'> &
+          Partial<Pick<Customer, 'created_at' | 'updated_at'>>;
         Update: Partial<Customer>;
+        Relationships: Relations;
       };
       orders: {
         Row: Order;
-        Insert: Omit<Order, 'created_at'>;
+        Insert: Omit<Order, 'created_at'> & Partial<Pick<Order, 'created_at'>>;
         Update: Partial<Order>;
+        Relationships: Relations;
       };
       line_items: {
         Row: LineItem;
-        Insert: LineItem;
+        Insert: Partial<LineItem> & Pick<LineItem, 'id' | 'order_id'>;
         Update: Partial<LineItem>;
+        Relationships: Relations;
       };
       blogs: {
         Row: Blog;
-        Insert: Partial<Blog>;
+        Insert: Partial<Blog> & Pick<Blog, 'id' | 'title'>;
         Update: Partial<Blog>;
+        Relationships: Relations;
       };
       articles: {
         Row: Article;
-        Insert: Partial<Article>;
+        Insert: Partial<Article> & Pick<Article, 'id' | 'blog_id' | 'title'>;
         Update: Partial<Article>;
+        Relationships: Relations;
       };
       collects: {
         Row: Collect;
-        Insert: Collect;
+        Insert: Partial<Collect> & Pick<Collect, 'id' | 'collection_id' | 'product_id'>;
         Update: Partial<Collect>;
+        Relationships: Relations;
       };
       contact_submissions: {
         Row: ContactSubmission;
         Insert: Partial<ContactSubmission>;
         Update: Partial<ContactSubmission>;
+        Relationships: Relations;
       };
       newsletter_subscribers: {
         Row: NewsletterSubscriber;
         Insert: Partial<NewsletterSubscriber>;
         Update: Partial<NewsletterSubscriber>;
+        Relationships: Relations;
+      };
+      // ── Storefront tables not yet in `Database` above. Kept here rather than
+      // in admin-dashboard/src/types/database.ts (deleted) so one file owns the
+      // schema. Add the matching row interfaces below when the storefront or
+      // admin app needs to select them without a cast.
+      smart_collection_rules: {
+        Row: SmartCollectionRule;
+        Insert: Omit<SmartCollectionRule, 'id'> & Partial<Pick<SmartCollectionRule, 'id'>>;
+        Update: Partial<SmartCollectionRule>;
+      };
+      inventory_items: {
+        Row: InventoryItem;
+        Insert: Omit<InventoryItem, 'created_at' | 'updated_at'>;
+        Update: Partial<InventoryItem>;
+        Relationships: Relations;
+      };
+      inventory_levels: {
+        Row: InventoryLevel;
+        Insert: InventoryLevel;
+        Update: Partial<InventoryLevel>;
+        Relationships: Relations;
+      };
+      locations: {
+        Row: Location;
+        Insert: Omit<Location, 'created_at'> & Partial<Pick<Location, 'created_at'>>;
+        Update: Partial<Location>;
+        Relationships: Relations;
+      };
+      customer_addresses: {
+        Row: CustomerAddress;
+        Insert: Omit<CustomerAddress, 'created_at' | 'updated_at'>;
+        Update: Partial<CustomerAddress>;
+        Relationships: Relations;
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: Omit<Transaction, 'created_at'> & Partial<Pick<Transaction, 'created_at'>>;
+        Update: Partial<Transaction>;
+        Relationships: Relations;
+      };
+      fulfillments: {
+        Row: Fulfillment;
+        Insert: Omit<Fulfillment, 'created_at' | 'updated_at'>;
+        Update: Partial<Fulfillment>;
+        Relationships: Relations;
+      };
+      refunds: {
+        Row: Refund;
+        Insert: Omit<Refund, 'created_at' | 'processed_at'> &
+          Partial<Pick<Refund, 'created_at' | 'processed_at'>>;
+        Update: Partial<Refund>;
+        Relationships: Relations;
+      };
+      refund_transactions: {
+        Row: RefundTransaction;
+        Insert: RefundTransaction;
+        Update: Partial<RefundTransaction>;
+        Relationships: Relations;
+      };
+      price_rules: {
+        Row: PriceRule;
+        Insert: Omit<PriceRule, 'created_at' | 'updated_at'> &
+          Partial<Pick<PriceRule, 'created_at' | 'updated_at'>>;
+        Update: Partial<PriceRule>;
+        Relationships: Relations;
+      };
+      discount_codes: {
+        Row: DiscountCode;
+        Insert: Omit<DiscountCode, 'created_at'> & Partial<Pick<DiscountCode, 'created_at'>>;
+        Update: Partial<DiscountCode>;
+        Relationships: Relations;
+      };
+      // ── Admin support tables (admin-dashboard/sql/001_admin_tables.sql,
+      // 002_admin_next_id.sql). Default-deny under RLS: see sql/003_admin_rls.sql.
+      admin_users: {
+        Row: AdminUser;
+        Insert: Omit<AdminUser, 'created_at'> & Partial<Pick<AdminUser, 'created_at'>>;
+        Update: Partial<AdminUser>;
+        Relationships: Relations;
+      };
+      admin_audit_log: {
+        Row: AdminAuditLog;
+        Insert: Omit<AdminAuditLog, 'id' | 'created_at'> &
+          Partial<Pick<AdminAuditLog, 'id' | 'created_at'>>;
+        Update: Partial<AdminAuditLog>;
+        Relationships: Relations;
+      };
+      ai_jobs: {
+        Row: AiJob;
+        Insert: Omit<AiJob, 'id' | 'created_at'> & Partial<Pick<AiJob, 'id' | 'created_at'>>;
+        Update: Partial<AiJob>;
+        Relationships: Relations;
+      };
+      ai_suggestions: {
+        Row: AiSuggestion;
+        Insert: Omit<AiSuggestion, 'id' | 'created_at'> &
+          Partial<Pick<AiSuggestion, 'id' | 'created_at'>>;
+        Update: Partial<AiSuggestion>;
+        Relationships: Relations;
+      };
+      ai_assets: {
+        Row: AiAsset;
+        Insert: Omit<AiAsset, 'id' | 'created_at'> & Partial<Pick<AiAsset, 'id' | 'created_at'>>;
+        Update: Partial<AiAsset>;
+        Relationships: Relations;
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      /** BIGINT id allocator (admin-dashboard/sql/002_admin_next_id.sql). */
+      admin_next_id: {
+        Args: { p_table: string };
+        Returns: number;
+      };
+      /**
+       * Atomic refund reservation + cumulative-cap guard.
+       * (supabase/migrations/002_refund_idempotency.sql)
+       */
+      reserve_refund: {
+        Args: {
+          p_refund_id: number;
+          p_transaction_id: number;
+          p_amount?: number | null;
+        };
+        Returns: { effective: number; cumulative: number }[];
+      };
+    };
     Enums: Record<string, never>;
   };
 }
+
+// ── Table helpers ─────────────────────────────────────────────────────────────
+// Row/Insert/Update aliases so consumers never hand-write row shapes.
+
+export type TableRow<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row'];
+export type TableInsert<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Insert'];
+export type TableUpdate<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Update'];
+
+/** Any value Postgres `jsonb` columns accept. */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+// The table helpers above are erased at runtime; this module stays type-only
+// except for the artist/collection helpers further down, which the storefront
+// and admin both import.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CORE ENTITIES
@@ -1121,6 +1293,213 @@ export interface Collect {
   position: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SmartCollectionRule {
+  id: number;
+  collection_id: number;
+  column_name: string;
+  relation: string;
+  condition: string;
+}
+
+export interface InventoryItem {
+  id: number;
+  sku: string | null;
+  cost: number | null;
+  tracked: boolean | null;
+  requires_shipping: boolean | null;
+  country_code_of_origin: string | null;
+  province_code_of_origin: string | null;
+  harmonized_system_code: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface InventoryLevel {
+  inventory_item_id: number;
+  location_id: number;
+  available: number | null;
+  updated_at: string | null;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  active: boolean | null;
+  legacy: boolean | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  province_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  zip: string | null;
+  phone: string | null;
+  created_at: string | null;
+}
+
+export interface CustomerAddress {
+  id: number;
+  customer_id: number;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  province_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  zip: string | null;
+  phone: string | null;
+  is_default: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Transaction {
+  id: number;
+  order_id: number;
+  parent_id: number | null;
+  kind: string | null;
+  status: string | null;
+  amount: number | null;
+  currency: string | null;
+  gateway: string | null;
+  authorization: string | null;
+  authorization_expires_at: string | null;
+  message: string | null;
+  error_code: string | null;
+  source_name: string | null;
+  payment_id: string | null;
+  test: boolean | null;
+  receipt: unknown | null;
+  created_at: string | null;
+  processed_at: string | null;
+}
+
+export interface Fulfillment {
+  id: number;
+  order_id: number;
+  location_id: number | null;
+  status: string | null;
+  shipment_status: string | null;
+  service: string | null;
+  name: string | null;
+  tracking_company: string | null;
+  tracking_number: string | null;
+  tracking_numbers: unknown | null;
+  tracking_url: string | null;
+  tracking_urls: unknown | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Refund {
+  id: number;
+  order_id: number;
+  note: string | null;
+  /** Paise charged to the gateway; NULL on pre-migration refunds. */
+  amount: number | null;
+  restock: boolean | null;
+  user_id: number | null;
+  created_at: string | null;
+  processed_at: string | null;
+}
+
+export interface RefundTransaction {
+  refund_id: number;
+  transaction_id: number;
+  created_at: string | null;
+}
+
+export interface PriceRule {
+  id: number;
+  title: string;
+  value: number;
+  value_type: string;
+  customer_selection: string;
+  target_type: string;
+  target_selection: string;
+  allocation_method: string;
+  allocation_limit: number | null;
+  once_per_customer: boolean | null;
+  usage_limit: number | null;
+  starts_at: string;
+  ends_at: string | null;
+  entitled_product_ids: unknown | null;
+  entitled_variant_ids: unknown | null;
+  entitled_collection_ids: unknown | null;
+  prerequisite_product_ids: unknown | null;
+  prerequisite_variant_ids: unknown | null;
+  prerequisite_collection_ids: unknown | null;
+  prerequisite_customer_ids: unknown | null;
+  prerequisite_subtotal_range: unknown | null;
+  prerequisite_quantity_range: unknown | null;
+  prerequisite_shipping_price_range: unknown | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DiscountCode {
+  id: number;
+  price_rule_id: number;
+  code: string;
+  usage_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN SUPPORT TABLES (admin-dashboard/sql/001_admin_tables.sql)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface AdminUser {
+  user_id: string;
+  role: string;
+  is_active: boolean | null;
+  created_at: string | null;
+}
+
+export interface AdminAuditLog {
+  id: number;
+  actor_id: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  before: unknown | null;
+  after: unknown | null;
+  created_at: string | null;
+}
+
+export interface AiJob {
+  id: number;
+  type: string;
+  status: string;
+  input_ref: string | null;
+  created_by: string | null;
+  created_at: string | null;
+}
+
+export interface AiSuggestion {
+  id: number;
+  job_id: number | null;
+  entity_type: string;
+  entity_id: string;
+  payload_json: unknown;
+  created_at: string | null;
+}
+
+export interface AiAsset {
+  id: number;
+  job_id: number | null;
+  storage_path: string;
+  preview_url: string | null;
+  metadata: unknown | null;
+  created_at: string | null;
 }
 
 export interface ContactSubmission {

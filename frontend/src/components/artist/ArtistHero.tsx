@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ChevronDown, ArrowLeft, Disc3 } from 'lucide-react';
-import type { ArtistData } from '@/types/database';
+import type { ArtistData } from '@yord/db-types';
 
 interface ArtistHeroProps {
   artist: ArtistData;

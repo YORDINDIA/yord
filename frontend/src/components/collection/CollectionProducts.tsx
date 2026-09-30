@@ -18,7 +18,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { createClient } from '@/lib/supabase/client';
 import { getFirstByPosition, getProductBadge } from '@/lib/utils';
 import { fetchProductsByIds } from '@/lib/data/productsByIds';
-import type { ProductWithDetails, Collection } from '@/types/database';
+import type { ProductWithDetails, Collection } from '@yord/db-types';
 
 interface CollectionProductsProps {
   handle: string;

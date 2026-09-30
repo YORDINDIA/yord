@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { MapPin, Calendar, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { CONCERTS, getConcertBySlug, getConcertsByArtist } from '@/lib/data/concerts';
 import { getCitySlugByName } from '@/lib/data/cities';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 import { JsonLd, eventSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ConcertPageProps {

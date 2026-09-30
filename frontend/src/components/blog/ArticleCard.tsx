@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { cn, formatDate } from '@/lib/utils';
-import type { Article, ArticleWithBlog } from '@/types/database';
+import type { Article, ArticleWithBlog } from '@yord/db-types';
 
 interface ArticleCardProps {
   article: Article | ArticleWithBlog;

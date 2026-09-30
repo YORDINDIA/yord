@@ -1,64 +1,27 @@
-import { createServerClient as createSSRClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import type { Database } from '@/types/database';
+import type { Database } from '@yord/db-types';
+import {
+  createServerClient as createPkgServerClient,
+  createServiceClient as createPkgServiceClient,
+  createStaticClient as createPkgStaticClient,
+} from '@yord/supabase-clients/server';
+
+/**
+ * Server-side Supabase clients, typed with the shared `Database`.
+ * Factories live in `@yord/supabase-clients/server` (which starts with
+ * `import 'server-only'`); this module only binds the `Database` generic so
+ * existing `@/lib/supabase/server` import sites keep working.
+ */
 
 export async function createServerClient() {
-  const cookieStore = await cookies();
-
-  return createSSRClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Server Component - cookies are read-only
-          }
-        },
-      },
-    }
-  );
+  return createPkgServerClient<Database>();
 }
 
 // Service role client for admin operations (server-side only)
 export function createServiceClient() {
-  return createSSRClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() { return []; },
-        setAll() {},
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
+  return createPkgServiceClient<Database>();
 }
 
 // Anonymous client for static generation (no cookies required)
 export function createStaticClient() {
-  return createSSRClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return []; },
-        setAll() {},
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
+  return createPkgStaticClient<Database>();
 }

@@ -5,7 +5,7 @@ import { ProductInfo } from '@/components/product/ProductInfo';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
 import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ProductPageProps {
