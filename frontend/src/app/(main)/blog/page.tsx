@@ -107,7 +107,7 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
 
   return (
     <Link href={`/blog/${article.handle}`} className="group block">
-      <article className="bg-surface-card border border-border-default overflow-hidden transition-all duration-300 hover:border-border-default hover:-translate-y-1">
+      <article className="bg-surface-card border border-border-default overflow-hidden transition-all duration-300 hover:border-border-strong hover:-translate-y-1">
         {/* Image */}
         <div className="relative aspect-[16/9] overflow-hidden bg-surface-raised">
           {imageUrl ? (

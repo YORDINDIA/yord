@@ -22,6 +22,7 @@ from utils.supabase_helpers import get_supabase_client
 from utils.retry import retry_with_backoff
 from utils.cli import create_parser, resolve_execute, configure_logging
 from utils.config import BATCH_SIZE as CONFIG_BATCH_SIZE, RETRY_LIMIT, RETRY_WAIT
+from utils.config import resolve_supabase_url
 from utils.checkpoint import (
     load_checkpoint,
     mark_entity_done,
@@ -54,8 +55,9 @@ ACCESS_TOKEN = os.getenv('SHOPIFY_ADMIN_API_ACCESS_TOKEN')
 API_VERSION = os.getenv('SHOPIFY_API_VERSION', '2025-01')
 BASE_URL = f"https://{STORE_NAME}.myshopify.com/admin/api/{API_VERSION}"
 
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
+# see root .env.example)
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 # Request configuration (canonical defaults in utils.config)
@@ -875,7 +877,8 @@ def main():
         sys.exit(1)
 
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("Error: Missing Supabase credentials")
+        print("Error: Missing Supabase credentials "
+              "(SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)")
         sys.exit(1)
 
     global supabase

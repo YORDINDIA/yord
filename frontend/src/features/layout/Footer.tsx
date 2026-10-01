@@ -109,7 +109,7 @@ export function Footer() {
                 JOIN THE INNER CIRCLE
               </p>
               {status === 'success' ? (
-                <div className="flex items-center gap-2 py-3 text-emerald-400">
+                <div className="flex items-center gap-2 py-3 text-success">
                   <CheckCircle size={16} />
                   <span className="font-[family-name:var(--font-jakarta)] text-sm">
                     Thanks for subscribing!
@@ -122,7 +122,7 @@ export function Footer() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="flex-1 bg-surface-card border border-border-default text-text-primary px-4 py-3 text-sm placeholder:text-text-muted focus:border-accent transition-colors"
+                    className="flex-1 bg-surface-card border border-border-strong text-text-primary px-4 py-3 text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                     disabled={status === 'loading'}
                   />
                   <button

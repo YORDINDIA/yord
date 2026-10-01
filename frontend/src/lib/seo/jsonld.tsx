@@ -82,8 +82,9 @@ export function productSchema(product: ProductWithDetails) {
   const image = product.product_images?.[0];
   const price = variant?.price || 0;
   const inStock = (variant?.inventory_quantity || 0) > 0;
-  const description = product.meta_description
-    ?? (product.body_html
+  const description = product.meta_description?.trim()
+    ? product.meta_description
+    : (product.body_html
       ? stripHtml(product.body_html).slice(0, 500)
       : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise.`);
 

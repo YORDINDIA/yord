@@ -2,8 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { actionError, actionOk, type ActionState } from '@/lib/action-state';
+import { FINANCIAL_STATUSES, FULFILLMENT_STATUSES, isOneOf } from '@/lib/constants';
 import { getNextId } from '@/lib/utils/ids';
-import { customerSchema, fulfillmentSchema, orderStatusSchema } from '@/lib/validation';
+import {
+  asBigintId,
+  customerSchema,
+  fulfillmentSchema,
+  orderStatusSchema,
+} from '@/lib/validation';
 import { audit, parseForm, withAdmin } from './_shared';
 
 /** Order, fulfillment, and customer-note mutations. */
@@ -20,10 +26,25 @@ export async function updateOrderStatusAction(
     const { data: before, error: readError } = await context.service
       .from('orders')
       .select('financial_status, fulfillment_status')
-      .eq('id', input.order_id)
+      .eq('id', asBigintId(input.order_id))
       .maybeSingle();
     if (readError) return actionError('Could not load the order. Nothing was changed.');
     if (!before) return actionError('That order no longer exists.');
+
+    // The schema accepts free-form status strings so a preserved imported
+    // value round-trips; here each status must be either on the allowlist or
+    // byte-identical to what the order already carries (the round-trip case).
+    for (const [field, allowed, persisted] of [
+      ['financial_status', FINANCIAL_STATUSES, before.financial_status],
+      ['fulfillment_status', FULFILLMENT_STATUSES, before.fulfillment_status],
+    ] as const) {
+      const value = input[field];
+      if (!isOneOf(allowed, value) && value !== persisted) {
+        return actionError(
+          `Unsupported ${field.replace('_', ' ')} “${value}”. Pick a value from the list.`,
+        );
+      }
+    }
 
     const { error } = await context.service
       .from('orders')
@@ -31,7 +52,7 @@ export async function updateOrderStatusAction(
         financial_status: input.financial_status,
         fulfillment_status: input.fulfillment_status,
       })
-      .eq('id', input.order_id);
+      .eq('id', asBigintId(input.order_id));
     if (error) {
       console.error('[orders] status update failed', input.order_id, error);
       return actionError('Could not update the order status.');
@@ -63,7 +84,7 @@ export async function addFulfillmentAction(
     const { data: order } = await context.service
       .from('orders')
       .select('id')
-      .eq('id', input.order_id)
+      .eq('id', asBigintId(input.order_id))
       .maybeSingle();
     if (!order) return actionError('That order no longer exists.');
 
@@ -72,7 +93,7 @@ export async function addFulfillmentAction(
 
     const { error } = await context.service.from('fulfillments').insert({
       id,
-      order_id: input.order_id,
+      order_id: asBigintId(input.order_id),
       status: 'success',
       tracking_company: input.tracking_company || null,
       tracking_number: input.tracking_number,
@@ -90,7 +111,7 @@ export async function addFulfillmentAction(
     const { error: statusError } = await context.service
       .from('orders')
       .update({ fulfillment_status: 'fulfilled' })
-      .eq('id', input.order_id);
+      .eq('id', asBigintId(input.order_id));
     if (statusError) {
       console.error('[orders] fulfillment_status update failed', statusError);
       return actionError(

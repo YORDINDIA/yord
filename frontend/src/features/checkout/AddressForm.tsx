@@ -42,7 +42,7 @@ export function AddressForm({ type, data, onChange, errors = {} }: AddressFormPr
     'w-full px-4 py-3 bg-surface-card border text-text-secondary placeholder:text-text-muted',
     'font-[family-name:var(--font-jakarta)] text-sm',
     'focus:border-accent transition-colors',
-    errors[field] ? 'border-red-500' : 'border-border-default'
+    errors[field] ? 'border-red-500' : 'border-border-strong'
   );
 
   const labelClass = 'block text-text-muted font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider mb-2';

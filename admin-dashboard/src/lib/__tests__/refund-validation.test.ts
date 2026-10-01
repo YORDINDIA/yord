@@ -31,28 +31,30 @@ describe('refundSchema', () => {
     // The refund panel's hint says "leave empty for full". This used to throw,
     // because `z.coerce.number()` turned '' into 0 and the `> 0` check rejected
     // it before the transform could map it to undefined.
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: '' }).amount).toBeUndefined();
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2 }).amount).toBeUndefined();
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: null }).amount).toBeUndefined();
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2, amount: '' }).amount).toBeUndefined();
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2 }).amount).toBeUndefined();
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2, amount: null }).amount).toBeUndefined();
   });
 
   it('accepts a positive amount as a number or a numeric string', () => {
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: 499.99 }).amount).toBe(499.99);
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: '100' }).amount).toBe(100);
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2, amount: 499.99 }).amount).toBe(499.99);
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2, amount: '100' }).amount).toBe(100);
   });
 
   it('rejects zero, negative, and non-numeric amounts', () => {
     for (const amount of [0, -50, 'abc']) {
       expect(
-        refundSchema.safeParse({ orderId: 1, transactionId: 2, amount }).success,
+        refundSchema.safeParse({ orderId: '1', transactionId: 2, amount }).success,
         `amount ${String(amount)} should be rejected`,
       ).toBe(false);
     }
   });
 
-  it('requires positive order and transaction ids', () => {
-    expect(refundSchema.safeParse({ orderId: 0, transactionId: 2 }).success).toBe(false);
-    expect(refundSchema.safeParse({ orderId: 1, transactionId: -1 }).success).toBe(false);
+  it('requires a decimal-string order id and a positive transaction id', () => {
+    expect(refundSchema.safeParse({ orderId: '0', transactionId: 2 }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: 'abc', transactionId: 2 }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: '9007199254740993', transactionId: 2 }).success).toBe(true);
+    expect(refundSchema.safeParse({ orderId: '1', transactionId: -1 }).success).toBe(false);
   });
 });
 

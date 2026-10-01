@@ -17,6 +17,7 @@ from .config import (
     RETRY_WAIT,
     get_project_ref,
     get_shopify_store_name,
+    resolve_supabase_url,
     get_artist_keywords,
 )
 from .retry import retry_with_backoff
@@ -56,6 +57,7 @@ __all__ = [
     'RETRY_WAIT',
     'get_project_ref',
     'get_shopify_store_name',
+    'resolve_supabase_url',
     'get_artist_keywords',
     # Retry + CLI
     'retry_with_backoff',

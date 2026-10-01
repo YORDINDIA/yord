@@ -255,7 +255,7 @@ export default function ReturnsPage() {
               </Link>
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-secondary transition-colors"
               >
                 CONTACT SUPPORT
               </Link>

@@ -167,27 +167,17 @@ export async function bulkUpdateProductStatusAction(
     if (ids.length === 0) return actionError('Select at least one product first.');
     if (!isOneOf(PRODUCT_STATUSES, status)) return actionError('Choose a valid status.');
 
-    const now = new Date().toISOString();
-    const { error } = await context.service
-      .from('products')
-      .update({ status, updated_at: now })
-      .in('id', ids);
+    // One RPC statement, so a failure cannot leave products active with
+    // `published_at = NULL` (the old two-update version only logged the stamp
+    // failure and still reported success). The RPC backfills missing
+    // publication timestamps via coalesce, preserving existing ones.
+    const { error } = await context.service.rpc('bulk_set_product_status', {
+      p_ids: ids,
+      p_status: status,
+    });
     if (error) {
       console.error('[products] bulk update failed', error);
       return actionError(`Could not update ${ids.length} product(s). Nothing was changed.`);
-    }
-    if (status === 'active') {
-      // Bulk-publishing must stamp `published_at` like the single-product save
-      // does, or the storefront cannot order by publication time or show its
-      // NEW badge. Existing timestamps are preserved (`is null` only).
-      const { error: stampError } = await context.service
-        .from('products')
-        .update({ published_at: now })
-        .in('id', ids)
-        .is('published_at', null);
-      if (stampError) {
-        console.error('[products] bulk published_at backfill failed', stampError);
-      }
     }
 
     await audit(context, {
@@ -396,6 +386,10 @@ export async function updateVariantsAction(
         price: row.price ?? 0,
         compare_at_price: row.compare_at_price ?? null,
         inventory_quantity: row.inventory_quantity ?? 0,
+        // Only rows the admin actually changed stock on may write inventory;
+        // the RPC keeps the persisted value for the rest, so a price-only
+        // save cannot restore stock a concurrent checkout decremented.
+        include_inventory: row.include_inventory,
       })),
     });
     if (error) {

@@ -32,7 +32,7 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
       >
         <Link href={`/blog/${article.handle}`} className="block">
           {/* Image */}
-          <div className="relative aspect-[16/9] overflow-hidden bg-surface-card border border-border-default group-hover:border-border-default transition-colors">
+          <div className="relative aspect-[16/9] overflow-hidden bg-surface-card border border-border-default group-hover:border-accent/50 transition-colors">
             {imageUrl ? (
               <Image
                 src={imageUrl}

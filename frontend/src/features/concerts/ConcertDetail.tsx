@@ -97,7 +97,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
             {hasMerchLink && (
               <Link
                 href={`/artist/${concert.artistHandle}`}
-                className="inline-flex items-center gap-2 px-8 py-3 text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-3 text-text-on-brand font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors"
                 style={{ backgroundColor: accentColor }}
               >
                 <ShoppingBag size={16} />

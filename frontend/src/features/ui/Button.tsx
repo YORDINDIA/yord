@@ -23,7 +23,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const variants = {
       primary: `
         bg-accent text-text-on-accent
-        hover:bg-accent-hover hover:shadow-gold
+        hover:bg-accent-hover hover:shadow-[var(--shadow-gold)]
         active:scale-[0.98]
       `,
       secondary: `
@@ -38,7 +38,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       `,
       gold: `
         bg-gradient-to-r from-accent to-accent-hover text-text-on-accent
-        hover:glow-gold-strong
+        hover:shadow-[var(--shadow-gold)]
         active:scale-[0.98]
       `,
     };

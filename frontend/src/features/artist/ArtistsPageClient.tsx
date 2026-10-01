@@ -56,7 +56,7 @@ export function ArtistsPageClient({ artists }: ArtistsPageClientProps) {
               >
                 <Link
                   href={`/artist/${artist.handle}`}
-                  className="group block relative overflow-hidden bg-surface-card border border-border-default hover:border-border-default transition-all duration-500"
+                  className="group block relative overflow-hidden bg-surface-card border border-border-default hover:border-accent transition-all duration-500"
                 >
                   {/* Artist Image */}
                   <div className="relative aspect-[4/5] overflow-hidden bg-surface-raised">

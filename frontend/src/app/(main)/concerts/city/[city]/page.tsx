@@ -114,7 +114,7 @@ export default async function CityPage({ params }: CityPageProps) {
                         ? 'bg-surface-raised text-text-muted'
                         : concert.status === 'upcoming'
                           ? 'bg-accent-tint-strong text-accent'
-                          : 'bg-emerald-900/30 text-emerald-400'
+                          : 'bg-accent-tint text-accent'
                     }`}
                   >
                     {concert.status.toUpperCase()}

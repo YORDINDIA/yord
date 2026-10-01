@@ -14,6 +14,7 @@ import {
   isOneOf,
 } from '@/lib/constants';
 import { clampPage, pageRange, sanitizeSearch } from '@/lib/pagination';
+import { asBigintId } from '@/lib/validation';
 import { one, reader, rows, runPage, type Paged } from './client';
 
 const ENTITY = 'orders';
@@ -102,26 +103,32 @@ export interface OrderDetail {
  * sequential queries, so wall-clock latency was the sum of every round trip.
  * `null` when the order does not exist (page calls `notFound()`).
  */
-export const getOrder = cache(async (id: number): Promise<OrderDetail | null> => {
+export const getOrder = cache(async (id: string): Promise<OrderDetail | null> => {
   const supabase = await reader();
   const order = await one<Order>(
     ENTITY,
-    supabase.from('orders').select('*').eq('id', id).limit(1).maybeSingle(),
+    supabase.from('orders').select('*').eq('id', asBigintId(id)).limit(1).maybeSingle(),
   );
   if (!order) return null;
+  // `id` arrives from PostgREST as a JSON number, and JavaScript rounds
+  // BIGINTs above Number.MAX_SAFE_INTEGER while parsing. The lookup used the
+  // exact decimal string from the route, so the row IS that order — re-stamp
+  // the id with the lossless string so mutation forms never submit a rounded
+  // id at a neighboring order.
+  order.id = id as unknown as number;
 
   const [lineItems, transactions, fulfillments] = await Promise.all([
-    rows<LineItem>('line_items', supabase.from('line_items').select('*').eq('order_id', id)),
+    rows<LineItem>('line_items', supabase.from('line_items').select('*').eq('order_id', asBigintId(id))),
     rows<Transaction>(
       'transactions',
-      supabase.from('transactions').select('*').eq('order_id', id),
+      supabase.from('transactions').select('*').eq('order_id', asBigintId(id)),
     ),
     rows<Fulfillment>(
       'fulfillments',
       supabase
         .from('fulfillments')
         .select('*')
-        .eq('order_id', id)
+        .eq('order_id', asBigintId(id))
         .order('created_at', { ascending: false }),
     ),
   ]);

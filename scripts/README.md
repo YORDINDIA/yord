@@ -13,12 +13,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Required environment variables (create `.env` in project root):
+Required environment variables (copy the root `.env.example` to root `.env`):
 ```
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_KEY=xxx
-SHOPIFY_STORE=your-store.myshopify.com
-SHOPIFY_ACCESS_TOKEN=xxx
+SUPABASE_URL=https://xxx.supabase.co          # or NEXT_PUBLIC_SUPABASE_URL (fallback)
+SUPABASE_SERVICE_ROLE_KEY=xxx
+SHOPIFY_STORE_NAME=your-store-subdomain
+SHOPIFY_ADMIN_API_ACCESS_TOKEN=xxx
 ```
 
 ## Directory Structure
@@ -279,7 +279,10 @@ For a fresh migration, run in this order:
 1. Apply schema: `schema.sql`, then `supabase/migrations/` 001-005 in order
    (005 adds blogs/articles tables + product SEO columns)
 0b. For archive-recovered data: run the Archive Recovery Pipeline above first,
-   then ingest from `data/clean/*.enriched.json` instead of raw captures
+    then rehearse with `ingest_clean.py --execute` (validation only — it
+    writes `ingest_rehearsal.json`, it does not upload). No command ingests
+    `*.enriched.json` into Supabase yet; `migrate_via_rest.py` always
+    fetches from Shopify.
 2. Migrate core data: `migrate_via_rest.py --execute`
 3. Migrate media: `migrate_media.py --execute`
 4. Migrate blogs: `migrate_blogs.py --execute`

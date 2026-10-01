@@ -264,6 +264,14 @@ export interface Database {
         };
         Returns: { effective: number; cumulative: number }[];
       };
+      /**
+       * Bulk product status change in one statement; a publish backfills a
+       * missing `published_at` atomically (admin-dashboard/sql/004_atomic_writes.sql).
+       */
+      bulk_set_product_status: {
+        Args: { p_ids: number[]; p_status: string };
+        Returns: number;
+      };
       /** Atomic `collects` replace for a collection (sql/004_atomic_writes.sql). */
       set_collection_products: {
         Args: { p_collection_id: number; p_product_ids: number[] };

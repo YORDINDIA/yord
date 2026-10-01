@@ -65,6 +65,10 @@ def main() -> int:
     referenced: set[str] = set()
     missing: list[dict] = []
     alts: dict[str, list[str]] = {}
+    # One placement per product-image relationship. Several products can
+    # reuse the same source file, so manifest entries must never be mutated
+    # in place -- each product gets its own copy and its own record.
+    placements: list[dict] = []
     planned = 0
 
     for p in products:
@@ -88,16 +92,19 @@ def main() -> int:
                 continue
             referenced.add(entry["local_path"])
             planned += 1
+            dest_rel = str((MEDIA_DIR / handle /
+                            f"{n:02d}{Path(entry['local_path']).suffix.lower()}"
+                            ).relative_to(DATA_DIR))
             if execute:
                 dest_dir = MEDIA_DIR / handle
                 dest_dir.mkdir(exist_ok=True)
-                dest = dest_dir / f"{n:02d}{src.suffix.lower()}"
+                dest = DATA_DIR / dest_rel
                 if not dest.exists():
                     shutil.copy2(src, dest)
-                entry["handle"] = handle
-                entry["position"] = n
-                entry["new_path"] = str(dest.relative_to(DATA_DIR))
-                entry["alt"] = alt
+            placements.append({"url": entry["url"], "handle": handle,
+                               "position": n,
+                               "local_path": entry["local_path"],
+                               "new_path": dest_rel, "alt": alt})
 
     orphans = sorted(str(Path(e["local_path"]).name)
                      for e in manifest if e["local_path"] not in referenced)
@@ -105,20 +112,19 @@ def main() -> int:
     # Second pass: query-string dupes collapsed by clean_data still deserve a
     # pointer, so manifest consumers resolve every URL. They alias the kept
     # file (same downloaded bytes, already copied); nothing is copied twice.
-    kept_by_url = {canon_url(e["url"]): e for e in manifest
-                   if e.get("new_path")}
+    kept_by_url = {canon_url(p["url"]): p for p in placements}
     aliases = 0
     for e in manifest:
-        if e.get("new_path"):
+        if any(p["local_path"] == e["local_path"] for p in placements):
             continue
         kept = kept_by_url.get(canon_url(e["url"]))
         if kept is None:
             continue
-        e["handle"] = kept["handle"]
-        e["position"] = kept["position"]
-        e["new_path"] = kept["new_path"]
-        e["alt"] = kept["alt"]
-        e["alias_of"] = kept["url"]
+        placements.append({"url": e["url"], "handle": kept["handle"],
+                           "position": kept["position"],
+                           "local_path": e["local_path"],
+                           "new_path": kept["new_path"],
+                           "alt": kept["alt"], "alias_of": kept["url"]})
         aliases += 1
 
     print(f"products: {len(products)}, files to copy: {planned}, "
@@ -130,7 +136,7 @@ def main() -> int:
 
     with open(DATA_DIR / "clean" / "image_manifest.clean.json", "w",
               encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=1)
+        json.dump(placements, f, ensure_ascii=False, indent=1)
     with open(DATA_DIR / "clean" / "missing_files.json", "w",
               encoding="utf-8") as f:
         json.dump(missing, f, ensure_ascii=False, indent=1)

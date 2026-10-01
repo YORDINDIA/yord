@@ -37,10 +37,9 @@ python migrate_via_rest.py --dry-run
 
 ## Environment
 
-- Never commit `.env` / `.env.local`.
-- Root `.env.example` — Shopify + Supabase credentials for migration scripts.
-- `admin-dashboard/.env.example` — Supabase + OpenAI + Razorpay keys for the admin panel.
-- `frontend/` has no example file: create `frontend/.env.local` with the Supabase, Razorpay, app, and PostHog vars listed in `frontend/README.md`.
+- Never commit `.env`.
+- One file serves the whole monorepo: `cp .env.example .env` at the repo root, then fill in values. Sections inside are labelled by consumer (frontend / admin / scripts).
+- Both Next apps load the root `.env` automatically via dotenv-cli; scripts load it via python-dotenv. On Netlify, set the same vars in each site's dashboard instead of using a file.
 
 ## Local dev (Node 20 — see `.nvmrc`)
 

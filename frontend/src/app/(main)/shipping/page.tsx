@@ -118,7 +118,7 @@ export default function ShippingPage() {
                 <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
                   Orders above ₹1,999
                 </span>
-                <span className="font-[family-name:var(--font-bebas)] text-green-400 tracking-wider">
+                <span className="font-[family-name:var(--font-bebas)] text-success tracking-wider">
                   FREE Fast Shipping
                 </span>
               </div>
@@ -126,7 +126,7 @@ export default function ShippingPage() {
                 <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
                   Orders ₹999 - ₹1,999
                 </span>
-                <span className="font-[family-name:var(--font-bebas)] text-green-400 tracking-wider">
+                <span className="font-[family-name:var(--font-bebas)] text-success tracking-wider">
                   FREE Standard
                 </span>
               </div>

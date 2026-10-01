@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) {
     return { title: 'Order · YORD Admin' };
   }
-  const detail = await getOrder(id as unknown as number).catch(() => null);
+  const detail = await getOrder(id).catch(() => null);
   return { title: detail ? `${detail.order.name ?? `Order ${id}`} · YORD Admin` : 'Order · YORD Admin' };
 }
 
@@ -41,7 +41,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
   // PostgREST verbatim; anything else is notFound().
   if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) notFound();
 
-  const detail = await getOrder(id as unknown as number);
+  const detail = await getOrder(id);
   if (!detail) notFound();
 
   const { order, lineItems, transactions, fulfillments } = detail;
@@ -178,7 +178,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
           </div>
         </div>
         <OrderStatusForm
-          orderId={order.id}
+          orderId={id}
           financialStatus={order.financial_status}
           fulfillmentStatus={order.fulfillment_status}
         />
@@ -191,7 +191,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
             <div className="helper">Tracking number required. History newest first.</div>
           </div>
         </div>
-        <FulfillmentForm orderId={order.id} fulfillments={fulfillments} />
+        <FulfillmentForm orderId={id} fulfillments={fulfillments} />
       </div>
 
       <div className="card">
@@ -218,7 +218,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
             <div className="helper">Button disables when nothing is refundable.</div>
           </div>
         </div>
-        <RefundPanel orderId={order.id} transactions={transactions} />
+        <RefundPanel orderId={id} transactions={transactions} />
       </div>
     </div>
   );

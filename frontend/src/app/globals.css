@@ -41,6 +41,9 @@
   --color-border-strong: var(--border-strong);
   --color-focus-ring: var(--focus-ring);
 
+  /* Status */
+  --color-success: var(--success);
+
   /* On-media (always dark — sits on top of photos/video) */
   --color-scrim: var(--scrim);
   --color-text-on-media: var(--text-on-media);
@@ -540,7 +543,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .shadow-depth-hover:hover {
-  box-shadow: var(--shadow-depth);
+  box-shadow: var(--shadow-depth-hover);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

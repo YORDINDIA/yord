@@ -159,11 +159,20 @@ describe('collectionSchema', () => {
 });
 
 describe('orderStatusSchema', () => {
-  it('rejects a status outside the Shopify-style vocabulary', () => {
+  it('accepts the vocabulary plus an unchanged imported status; leaves unknown statuses to the action', () => {
     const base = { order_id: '5', financial_status: 'paid', fulfillment_status: 'fulfilled' };
     expect(orderStatusSchema.safeParse(base).success).toBe(true);
-    expect(orderStatusSchema.safeParse({ ...base, financial_status: 'refundeddd' }).success).toBe(false);
-    expect(orderStatusSchema.safeParse({ ...base, fulfillment_status: 'shipped' }).success).toBe(false);
+    // Imported statuses ride through the schema so the form can round-trip an
+    // unchanged persisted value; the write action enforces the allowlist
+    // unless the submitted status equals the order's current one.
+    expect(
+      orderStatusSchema.safeParse({ ...base, financial_status: 'authorized' }).success,
+    ).toBe(true);
+    // The schema is deliberately permissive for status strings so an
+    // unchanged imported value round-trips; the write action rejects a status
+    // that is neither on the allowlist nor equal to the persisted value.
+    expect(orderStatusSchema.safeParse({ ...base, fulfillment_status: 'shipped' }).success).toBe(true);
+    expect(orderStatusSchema.safeParse({ ...base, order_id: '0' }).success).toBe(false);
   });
 });
 
@@ -260,19 +269,21 @@ describe('parseVariantRows', () => {
 
 describe('refundSchema', () => {
   it('treats an empty amount as a full refund', () => {
-    const result = refundSchema.parse({ orderId: 1, transactionId: 2, amount: '' });
+    const result = refundSchema.parse({ orderId: '1', transactionId: 2, amount: '' });
     expect(result.amount).toBeUndefined();
   });
 
   it('accepts a positive amount and rejects zero or negative', () => {
-    expect(refundSchema.parse({ orderId: 1, transactionId: 2, amount: '100' }).amount).toBe(100);
-    expect(refundSchema.safeParse({ orderId: 1, transactionId: 2, amount: '0' }).success).toBe(false);
-    expect(refundSchema.safeParse({ orderId: 1, transactionId: 2, amount: '-5' }).success).toBe(false);
+    expect(refundSchema.parse({ orderId: '1', transactionId: 2, amount: '100' }).amount).toBe(100);
+    expect(refundSchema.safeParse({ orderId: '1', transactionId: 2, amount: '0' }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: '1', transactionId: 2, amount: '-5' }).success).toBe(false);
   });
 
-  it('requires positive order and transaction ids', () => {
-    expect(refundSchema.safeParse({ orderId: 0, transactionId: 2 }).success).toBe(false);
-    expect(refundSchema.safeParse({ orderId: 1, transactionId: 0 }).success).toBe(false);
+  it('requires a decimal-string order id and a positive transaction id', () => {
+    expect(refundSchema.safeParse({ orderId: '0', transactionId: 2 }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: '1.5', transactionId: 2 }).success).toBe(false);
+    expect(refundSchema.safeParse({ orderId: '9007199254740993', transactionId: 2 }).success).toBe(true);
+    expect(refundSchema.safeParse({ orderId: '1', transactionId: 0 }).success).toBe(false);
   });
 });
 

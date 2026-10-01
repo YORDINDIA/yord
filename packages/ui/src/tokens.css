@@ -81,6 +81,8 @@
 
   --focus-ring: #6B5019;      /* 6.84:1 on page, 7.54:1 on raised */
 
+  --success: #1A7F37;         /* 4.94:1 on page, 4.72:1 on card */
+
   /* ── On-media (theme-invariant: always dark) ─────────────────────────────
      Text and scrims that sit ON TOP of a photo, video, or artwork. These never
      flip: a light value here would make hero and carousel text unreadable
@@ -152,6 +154,9 @@
   --shadow-depth: 0 1px 2px rgba(20, 22, 26, 0.05),
                   0 4px 8px rgba(20, 22, 26, 0.05),
                   0 10px 20px rgba(20, 22, 26, 0.05);
+  --shadow-depth-hover: 0 2px 4px rgba(20, 22, 26, 0.07),
+                        0 8px 16px rgba(20, 22, 26, 0.08),
+                        0 20px 40px rgba(20, 22, 26, 0.09);
 
   /* ── Layout / motion (theme-invariant) ────────────────────────────────── */
   --header-height: 80px;
@@ -196,6 +201,8 @@
 
   --focus-ring: #FFD966;
 
+  --success: #4ADE80;         /* 10.9:1 on page */
+
   --glass-bg: rgba(17, 17, 17, 0.8);
   --glass-border: rgba(255, 255, 255, 0.05);
   --selection-bg: #FFE7A3;
@@ -214,6 +221,9 @@
   --shadow-depth: 0 2px 4px rgba(0, 0, 0, 0.1),
                   0 4px 8px rgba(0, 0, 0, 0.1),
                   0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-depth-hover: 0 4px 8px rgba(0, 0, 0, 0.25),
+                        0 12px 24px rgba(0, 0, 0, 0.3),
+                        0 24px 48px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 768px) {
