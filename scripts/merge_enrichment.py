@@ -25,6 +25,7 @@ from __future__ import annotations
 import glob
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -74,6 +75,8 @@ def check_blog(entry: dict, clean: dict, handles: set[str]) -> list[str]:
     summary = entry.get("summary") or ""
     if not summary or len(summary) > 160:
         problems.append(f"summary len {len(summary)}")
+    elif re.search(r"<[^>]*>|&[a-z]+;|&#", summary, re.IGNORECASE):
+        problems.append("summary is not plain text")
     for h in entry.get("related_handles") or []:
         if h not in handles:
             problems.append(f"unknown related_handle: {h!r}")
@@ -105,6 +108,7 @@ def main() -> int:
         with open(path, encoding="utf-8") as f:
             entries = json.load(f)
         violations = []
+        staged: dict[str, dict] = {}
         for i, entry in enumerate(entries):
             match = next((p for p in products
                           if p["handle"] == entry.get("handle")), None)
@@ -116,11 +120,14 @@ def main() -> int:
                 violations.append({"handle": entry.get("handle"),
                                    "problems": problems})
             else:
-                enriched_products[entry["handle"]] = {
+                staged[entry["handle"]] = {
                     "meta_title": entry["meta_title"],
                     "meta_description": entry["meta_description"],
                     "search_keywords": entry["search_keywords"],
                 }
+        # A rejected batch is rejected wholesale: nothing from it merges.
+        if not violations:
+            enriched_products.update(staged)
         report["products"][batch] = {"entries": len(entries),
                                      "violations": violations}
         (report["rejected_batches"] if violations
@@ -131,6 +138,7 @@ def main() -> int:
         with open(path, encoding="utf-8") as f:
             entries = json.load(f)
         violations = []
+        staged: dict[str, dict] = {}
         for entry in entries:
             match = next((b for b in blogs
                           if b["handle"] == entry.get("handle")), None)
@@ -143,11 +151,14 @@ def main() -> int:
                 violations.append({"handle": entry.get("handle"),
                                    "problems": problems})
             else:
-                enriched_blogs[entry["handle"]] = {
+                staged[entry["handle"]] = {
                     "summary": entry["summary"],
                     "search_keywords": entry.get("search_keywords", ""),
                     "related_handles": entry.get("related_handles", []),
                 }
+        # A rejected batch is rejected wholesale: nothing from it merges.
+        if not violations:
+            enriched_blogs.update(staged)
         report["blogs"][batch] = {"entries": len(entries),
                                   "violations": violations}
         (report["rejected_batches"] if violations
@@ -177,10 +188,10 @@ def main() -> int:
         ("review_queue.json", {
             "note": "Deterministic spot-check: every 25th enriched product "
                     "plus the first 10 enriched blogs.",
-            "products": [p["handle"] for i, p in enumerate(products)
-                         if i % 25 == 0 and p.get("meta_title")],
-            "blogs": [b["handle"] for b in blogs[:10]
-                      if b.get("summary")],
+            "products": [p["handle"] for i, p in enumerate(
+                             p for p in products if p.get("meta_title"))
+                         if i % 25 == 0],
+            "blogs": [b["handle"] for b in blogs if b.get("summary")][:10],
         }),
     ):
         with open(CLEAN_DIR / name, "w", encoding="utf-8") as f:

@@ -9,7 +9,7 @@ npm install
 npm run dev    # localhost:3000
 ```
 
-1. Create `.env.local` from `.env.example` and fill in Supabase + OpenAI + Razorpay keys.
+1. Copy the root `.env.example` to root `.env` and fill in Supabase + OpenAI + Razorpay keys (`dev`/`build`/`start` load it automatically via dotenv-cli).
 2. Run SQL migrations in order (Supabase SQL editor). Refunds first: the
    `refund_transactions` table and `reserve_refund()` live in the root
    migration `supabase/migrations/002_refund_idempotency.sql` — apply it

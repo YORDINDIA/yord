@@ -66,7 +66,7 @@ export function ProductToolbar({
           )}
           <Link
             href="/products"
-            className="px-3 py-1.5 text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:text-text-muted transition-colors"
+            className="px-3 py-1.5 text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:text-text-secondary transition-colors"
           >
             Clear all
           </Link>

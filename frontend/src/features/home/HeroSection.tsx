@@ -228,7 +228,7 @@ export function HeroSection() {
                   variant="secondary"
                   size="lg"
                   data-cursor="pointer"
-                  className="text-text-on-media border-text-on-media hover:bg-text-on-media hover:text-text-on-accent"
+                  className="text-text-on-media border-text-on-media hover:bg-text-on-media hover:text-scrim"
                 >
                   EXPLORE ARTISTS
                 </Button>

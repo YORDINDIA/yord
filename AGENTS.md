@@ -86,8 +86,8 @@ python yord.py migrate --dry-run       # whole pipeline plan + env check; --exec
 
 ## Environment
 
-- Never commit `.env` / `.env.local`. Templates: root `.env.example` (migration), `admin-dashboard/.env.example`.
+- One env file for the repo: copy root `.env.example` to root `.env` (gitignored, never commit). No per-app `.env*` files; both Next apps preload it via `dotenv -e ../.env --no-expand` in their `dev`/`build`/`start` scripts (a missing file is ignored, so CI/Netlify env vars keep working and always win over file values).
 - Frontend needs `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, server-only `SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_ID/SECRET` + `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `NEXT_PUBLIC_APP_URL/NAME`, `NEXT_PUBLIC_POSTHOG_KEY/HOST`.
-- Admin needs Supabase keys + `OPENAI_API_KEY` (+ `OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`) + Razorpay keys.
-- Scripts need `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SHOPIFY_STORE_NAME`, `SHOPIFY_ADMIN_API_ACCESS_TOKEN`, `SUPABASE_STORAGE_BUCKET=products`.
+- Admin needs the same Supabase/Razorpay/PostHog keys + `SUPABASE_STORAGE_BUCKET` + `OPENAI_API_KEY` (+ `OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`).
+- Scripts read `SUPABASE_URL`, falling back to `NEXT_PUBLIC_SUPABASE_URL` (same project) via `utils/config.py::resolve_supabase_url`, plus `SUPABASE_SERVICE_ROLE_KEY`, `SHOPIFY_STORE_NAME`, `SHOPIFY_ADMIN_API_ACCESS_TOKEN`, `SUPABASE_STORAGE_BUCKET=products`. Direct-DB work (`psql`) uses `DATABASE_URL` or the `SUPABASE_DB_*` vars.
 - DB migrations live in `supabase/migrations/` (apply in numeric order; each file documents its pre-flight checks). Admin SQL stays in `admin-dashboard/sql/`.

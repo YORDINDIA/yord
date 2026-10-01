@@ -16,7 +16,10 @@ export async function FeaturedProducts() {
   const products = result.value;
 
   // Transform Supabase data for the component
-  const transformedProducts: TransformedProductWithSource[] = products.map((p) => {
+  const transformedProducts: TransformedProductWithSource[] = products
+    // A null handle would render a ProductCard linking to /product/.
+    .filter((p) => p.handle)
+    .map((p) => {
     const variant = getFirstByPosition(p.product_variants);
     const image = getFirstByPosition(p.product_images);
 

@@ -2,8 +2,6 @@ import { z } from 'zod';
 import {
   COLLECTION_TYPES,
   DISCOUNT_VALUE_TYPES,
-  FINANCIAL_STATUSES,
-  FULFILLMENT_STATUSES,
   PRODUCT_STATUSES,
   SMART_RULE_COLUMNS,
   SMART_RULE_RELATIONS,
@@ -129,6 +127,10 @@ const variantRowSchema = z.object({
   price: z.coerce.number().min(0).nullable().default(null),
   compare_at_price: z.coerce.number().min(0).nullable().default(null),
   inventory_quantity: z.coerce.number().int().min(0).nullable().default(null),
+  // Field-aware inventory: the client sets this only when the admin actually
+  // changed the stock field. Without it, a price-only edit resubmitted the
+  // page-load inventory and silently restored stock a checkout had decremented.
+  include_inventory: z.boolean().default(false),
 });
 
 export type VariantRowInput = z.infer<typeof variantRowSchema>;
@@ -229,15 +231,38 @@ export const customerSchema = z.object({
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
+// Order ids are Postgres BIGINT. `z.coerce.number()` rounds anything above
+// Number.MAX_SAFE_INTEGER, and a rounded id can pass `.eq('id', …)` onto a
+// neighboring order — so ids cross the boundary as decimal strings and are
+// compared verbatim by PostgREST.
+export const bigintOrderIdSchema = z
+  .string()
+  .regex(/^[1-9][0-9]*$/, 'Invalid order id.');
+
+/**
+ * Carry a BIGINT id through the typed client. The value stays a decimal
+ * string at runtime — PostgREST casts string values to the column type — but
+ * the generated database types expect `number`, and actually calling
+ * `Number()` would round ids above Number.MAX_SAFE_INTEGER.
+ */
+export function asBigintId(value: string): number {
+  return value as unknown as number;
+}
+
 export const orderStatusSchema = z.object({
-  order_id: z.coerce.number().int().positive(),
-  financial_status: z.enum(FINANCIAL_STATUSES),
-  fulfillment_status: z.enum(FULFILLMENT_STATUSES),
+  order_id: bigintOrderIdSchema,
+  // Imported orders can carry statuses outside the allowlist (e.g.
+  // `authorized`, `partially_paid`). The status form round-trips such a value
+  // as a preserved <option>, so the schema cannot reject it outright — the
+  // write action re-checks each status against the allowlist unless it equals
+  // the order's persisted value.
+  financial_status: z.string().trim().min(1).max(64),
+  fulfillment_status: z.string().trim().min(1).max(64),
 });
 
 export const fulfillmentSchema = z
   .object({
-    order_id: z.coerce.number().int().positive(),
+    order_id: bigintOrderIdSchema,
     tracking_company: z.string().trim().max(255),
     tracking_number: z.string().trim().min(1, 'Tracking number is required.').max(255),
   })
@@ -339,7 +364,7 @@ export const aiListingApplySchema = z.object({
  * full", so the documented full-refund path was unreachable.
  */
 export const refundSchema = z.object({
-  orderId: z.coerce.number().int().positive(),
+  orderId: bigintOrderIdSchema,
   transactionId: z.coerce.number().int().positive(),
   amount: z.preprocess(
     (value) => (value === '' || value === null || value === undefined ? undefined : value),

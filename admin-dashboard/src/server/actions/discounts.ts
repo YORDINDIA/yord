@@ -47,8 +47,13 @@ export async function createDiscountAction(
       .limit(1)
       .maybeSingle();
     if (lookupError) {
+      // A failed read is not "no duplicate": proceeding would create a
+      // duplicate code on a transient error (the unique index that would catch
+      // it is not installed yet). Fail the action; the admin retries.
       console.error('[discounts] duplicate lookup failed', lookupError);
-    } else if (existing) {
+      return actionError('Could not verify code uniqueness. Nothing was saved. Try again.');
+    }
+    if (existing) {
       return actionError('That discount code already exists.');
     }
 

@@ -40,12 +40,13 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.supabase_helpers import get_supabase_client
+from utils.config import resolve_supabase_url
 
 # Load environment variables
 load_dotenv()
 
-# Configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example)
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
 
@@ -628,8 +629,10 @@ Examples:
     args = parser.parse_args()
 
     # Validate environment
-    required_vars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
+    if not SUPABASE_URL:
+        missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')
 
     if missing:
         print(f"\nError: Missing required environment variables: {', '.join(missing)}")

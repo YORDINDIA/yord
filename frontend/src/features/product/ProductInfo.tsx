@@ -223,7 +223,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
                     'min-w-[48px] h-12 px-4 flex items-center justify-center border-2 transition-all duration-200',
                     'font-[family-name:var(--font-bebas)] text-sm tracking-wider',
                     isSelected
-                      ? 'border-current text-text-on-accent'
+                      ? 'border-current text-text-on-brand'
                       : isAvailable
                       ? 'border-border-default text-text-secondary hover:border-text-muted'
                       : 'border-border-default text-text-muted cursor-not-allowed line-through'

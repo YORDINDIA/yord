@@ -51,6 +51,22 @@ def get_shopify_store_name(explicit: str | None = None) -> str:
     )
 
 
+def resolve_supabase_url(explicit: str | None = None) -> str:
+    """Resolve the Supabase project URL for migration scripts.
+
+    Reads ``SUPABASE_URL`` first (back-compat with existing checkouts),
+    falling back to ``NEXT_PUBLIC_SUPABASE_URL`` shared with the Next.js
+    apps, so one root ``.env`` serves everything (see root ``.env.example``).
+    Pass ``explicit`` to override both.
+
+    Returns ``""`` when neither is set so scripts keep their friendly
+    missing-env messages instead of raising at import time.
+    """
+    if explicit:
+        return explicit
+    return os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or ""
+
+
 def get_project_ref() -> str:
     """Get Supabase project reference from the environment.
 

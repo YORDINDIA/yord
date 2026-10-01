@@ -923,8 +923,10 @@ Examples:
     args = parser.parse_args()
 
     # Validate environment
-    required_vars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
+    if not (os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')):
+        missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')
 
     if missing:
         print(f"\nError: Missing required environment variables: {', '.join(missing)}")

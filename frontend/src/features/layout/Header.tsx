@@ -287,7 +287,10 @@ export function Header({ artists = [] }: HeaderProps) {
               transition={{ type: 'tween', duration: 0.3 }}
               className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-surface-page border-l border-border-default"
             >
-              <div className="pt-24 px-8">
+              {/* Scrollable region: the three-option theme control can push
+                  Account/Search past short phone viewports, and the body
+                  scroll is locked while the menu is open. */}
+              <div className="h-full overflow-y-auto pt-24 px-8 pb-8">
                 {/* Main Links */}
                 <div className="space-y-6">
                   {NAV_LINKS.map((link, index) => (

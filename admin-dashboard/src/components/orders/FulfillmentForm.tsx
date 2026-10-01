@@ -18,7 +18,7 @@ export default function FulfillmentForm({
   orderId,
   fulfillments,
 }: {
-  orderId: number;
+  orderId: string;
   fulfillments: Fulfillment[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);

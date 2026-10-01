@@ -56,6 +56,19 @@ create index if not exists articles_image_migration_idx
     and image_src like '%cdn.shopify.com%'
     and (supabase_image_url is null or supabase_image_url = '');
 
+-- 2b. RLS on articles: without it anyone holding the public anon key can read
+-- unpublished article bodies — the storefront's `.eq('published', true)` is
+-- only a filter, not a rule. Anon/authenticated get SELECT on published rows
+-- only; no write policies, so all writes stay service-role only (the
+-- migration scripts use the service key, which bypasses RLS). Re-runnable.
+alter table public.articles enable row level security;
+
+drop policy if exists articles_published_select on public.articles;
+create policy articles_published_select on public.articles
+  for select
+  to anon, authenticated
+  using (published = true);
+
 -- 3. Product-level SEO: enriched by the subagent pass (Phase 4), read by
 -- generateMetadata with fallback to the current title/body slicing.
 alter table public.products

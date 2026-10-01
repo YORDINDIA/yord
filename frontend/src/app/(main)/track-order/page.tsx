@@ -118,7 +118,7 @@ export default function TrackOrderPage() {
                 onChange={(e) => setOrderNumber(e.target.value)}
                 required
                 placeholder="e.g., YORD-1234567890"
-                className="w-full h-12 px-4 bg-surface-raised border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
+                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               />
             </div>
 
@@ -132,7 +132,7 @@ export default function TrackOrderPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="The email used for your order"
-                className="w-full h-12 px-4 bg-surface-raised border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
+                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               />
             </div>
 

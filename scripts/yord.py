@@ -67,7 +67,17 @@ SHOPIFY_ENV = [
 
 
 def missing_env(keys: list[str]) -> list[str]:
-    return [key for key in keys if not os.getenv(key)]
+    """Keys missing from the environment — except SUPABASE_URL, which scripts
+    resolve from SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL (see
+    utils/config.py::resolve_supabase_url)."""
+    missing = []
+    for key in keys:
+        if key == "SUPABASE_URL":
+            if not (os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")):
+                missing.append("SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)")
+        elif not os.getenv(key):
+            missing.append(key)
+    return missing
 
 
 def run_step(script: str, args: list[str], log_path: Path) -> int:

@@ -131,7 +131,7 @@ export default function SettingsPage() {
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
+                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
             </div>
             <div>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
+                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function SettingsPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password"
-              className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
+              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
             />
           </div>
           <div>
@@ -223,7 +223,7 @@ export default function SettingsPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
-              className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
+              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
             />
           </div>
 
@@ -231,7 +231,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isChangingPassword || !newPassword || !confirmPassword}
-              className="px-6 py-2 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-2 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {isChangingPassword ? (
                 <>

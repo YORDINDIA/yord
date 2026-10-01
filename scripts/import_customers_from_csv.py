@@ -10,10 +10,12 @@ import csv
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
+from utils.config import resolve_supabase_url
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)

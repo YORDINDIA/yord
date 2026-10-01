@@ -7,12 +7,34 @@ import { requireAdmin } from '@/lib/utils/admin';
 import { clampText, failJson, okJson } from '@/lib/utils/prompt';
 
 const MAX_IMAGE_BYTES = 10_000_000;
+const MAX_IMPORT_REDIRECTS = 5;
 
-/** Reject URLs that smuggle credentials; the import fetch stays conservative. */
+// Imports are limited to the Shopify CDN hosts the migration itself pulls
+// media from. fetch() follows redirects, so the host check is re-applied to
+// every hop — otherwise an approved URL could 302 the server-side fetch at an
+// internal service (cloud metadata, localhost admin ports, RFC1918 targets).
+const ALLOWED_IMPORT_HOSTS = [
+  'cdn.shopify.com',
+  'shopifycdn.com',
+  'cdn.shopifycdn.net',
+];
+
+function isAllowedImportHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return ALLOWED_IMPORT_HOSTS.some(
+    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
+  );
+}
+
+/** Reject URLs that are not approved public CDN images or smuggle credentials. */
 function isBlockedImportUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return Boolean(url.username || url.password);
+    return (
+      url.protocol !== 'https:' ||
+      Boolean(url.username || url.password) ||
+      !isAllowedImportHost(url.hostname)
+    );
   } catch {
     return true;
   }
@@ -32,36 +54,61 @@ export async function POST(req: Request) {
     }
 
     const { imageUrl, prompt } = await req.json();
-    // Accept the cover URL as stored: migrated products carry only the
-    // original/CDN `src` until an admin uploads to storage, and rejecting those
-    // here made image generation fail for every unmigrated product. The fetch
-    // below stays guarded (https-only, image content-type, 10 MB cap) and the
-    // route requires an admin session, so this is a controlled import, not an
-    // open fetch.
-    if (
-      !imageUrl ||
-      typeof imageUrl !== 'string' ||
-      !/^https:\/\//i.test(imageUrl) ||
-      isBlockedImportUrl(imageUrl)
-    ) {
-      return failJson('BAD_REQUEST', 'imageUrl must be an https image URL', 400);
+    // Accept the cover URL as stored: migrated products carry the Shopify CDN
+    // `src`, and rejecting those made image generation fail for every
+    // product. The fetch below is still guarded — approved CDN hosts only,
+    // re-validated on every redirect hop, https-only, image content-type, and
+    // a 10 MB cap enforced while streaming (never buffering the full body).
+    if (!imageUrl || typeof imageUrl !== 'string' || isBlockedImportUrl(imageUrl)) {
+      return failJson('BAD_REQUEST', 'imageUrl must be an approved https image URL', 400);
     }
     // Admin-typed prompt is still untrusted model input: truncate to 4k chars.
     const safePrompt = clampText(prompt) || 'Enhance the product image for premium ecommerce.';
 
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
+    // Manual redirect handling: every hop must pass the same host check, so a
+    // CDN URL cannot redirect the server-side fetch at an internal service.
+    let target = imageUrl;
+    let imageResponse: Response | null = null;
+    for (let hop = 0; hop <= MAX_IMPORT_REDIRECTS; hop += 1) {
+      if (isBlockedImportUrl(target)) {
+        return failJson('BAD_REQUEST', 'Redirect target is not an approved image host', 400);
+      }
+      imageResponse = await fetch(target, { redirect: 'manual' });
+      if (imageResponse.status >= 300 && imageResponse.status < 400) {
+        const location = imageResponse.headers.get('location');
+        if (location) {
+          target = new URL(location, target).toString();
+          continue;
+        }
+      }
+      break;
+    }
+    if (!imageResponse || !imageResponse.ok) {
       return failJson('BAD_REQUEST', 'Unable to fetch source image', 400);
     }
     const contentType = imageResponse.headers.get('content-type') || 'image/png';
     if (!contentType.startsWith('image/')) {
       return failJson('BAD_REQUEST', 'Source URL is not an image', 400);
     }
-    const arrayBuffer = await imageResponse.arrayBuffer();
-    if (arrayBuffer.byteLength > MAX_IMAGE_BYTES) {
-      return failJson('BAD_REQUEST', 'Source image too large', 413);
+    // Enforce the size cap while streaming: `arrayBuffer()` would buffer the
+    // whole body before the check and let a huge response exhaust the server.
+    const reader = imageResponse.body?.getReader();
+    if (!reader) {
+      return failJson('BAD_REQUEST', 'Source URL is not readable', 400);
     }
-    const blob = new Blob([arrayBuffer], { type: contentType });
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_IMAGE_BYTES) {
+        await reader.cancel();
+        return failJson('BAD_REQUEST', 'Source image too large', 413);
+      }
+      chunks.push(value);
+    }
+    const blob = new Blob(chunks as BlobPart[], { type: contentType });
 
     const form = new FormData();
     form.append('model', imageModel);

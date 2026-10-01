@@ -138,7 +138,7 @@ concatenated onto a token.
 
 ## Environment Variables
 
-Copy `.env.local.example` to `.env.local` and configure:
+Copy the root `.env.example` to root `.env` and configure (loaded automatically via dotenv-cli):
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase server-only (never expose to client)
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `NEXT_PUBLIC_RAZORPAY_KEY_ID` - Payments

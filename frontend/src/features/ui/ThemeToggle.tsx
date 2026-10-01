@@ -84,9 +84,33 @@ export function ThemeToggle({
     };
   }, [open]);
 
-  const moveFocus = (from: number, delta: number) => {
-    const next = (from + delta + OPTIONS.length) % OPTIONS.length;
+  const moveFocus = (from: number, delta: number) => {    const next = (from + delta + OPTIONS.length) % OPTIONS.length;
     itemRefs.current[next]?.focus();
+  };
+
+  // WAI-ARIA radio group pattern: roving tabIndex (one tab stop) with the
+  // arrow keys cycling among options, Home/End jumping to the ends.
+  const onRadioKeyDown = (index: number, event: React.KeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        event.preventDefault();
+        moveFocus(index, 1);
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        event.preventDefault();
+        moveFocus(index, -1);
+        break;
+      case 'Home':
+        event.preventDefault();
+        itemRefs.current[0]?.focus();
+        break;
+      case 'End':
+        event.preventDefault();
+        itemRefs.current[OPTIONS.length - 1]?.focus();
+        break;
+    }
   };
 
   const onItemKeyDown = (index: number, event: React.KeyboardEvent) => {
@@ -122,6 +146,18 @@ export function ThemeToggle({
   // `current` is the user's selection; `resolved` is what is actually painted.
   const current = mounted ? (theme ?? 'light') : 'light';
   const resolved = mounted ? (resolvedTheme ?? 'light') : 'light';
+
+  // On open, move focus into the menu (to the selected item, else the first).
+  // Opening via Enter/Space leaves focus on the trigger, where ArrowDown is
+  // otherwise unhandled — the menu must own focus immediately.
+  useEffect(() => {
+    if (!open) return;
+    const selected = OPTIONS.findIndex((o) => o.value === current);
+    itemRefs.current[selected >= 0 ? selected : 0]?.focus();
+    // `current` is read only on the open transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const activeLabel = LABELS[current] ?? 'Light';
   // The trigger shows what the page is actually rendering: with `system`
   // selected on a light OS the trigger shows the Sun. Showing the raw selection
@@ -150,15 +186,20 @@ export function ThemeToggle({
           aria-label="Colour theme"
           className="flex flex-col gap-1"
         >
-          {OPTIONS.map(({ value, label, Icon }) => {
+          {OPTIONS.map(({ value, label, Icon }, index) => {
             const isActive = current === value;
             return (
               <button
                 key={value}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
                 type="button"
                 role="radio"
                 aria-checked={isActive}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setTheme(value)}
+                onKeyDown={(event) => onRadioKeyDown(index, event)}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
                   isActive
@@ -183,6 +224,14 @@ export function ThemeToggle({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={(event) => {
+          // ArrowDown/ArrowUp open the menu; the open-effect moves focus to
+          // the selected item so keyboard users land inside it.
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Theme: ${activeLabel}. Change theme`}

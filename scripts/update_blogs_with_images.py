@@ -12,10 +12,12 @@ from PIL import Image
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from typing import Optional, Tuple
+from utils.config import resolve_supabase_url
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 BLOG_ID = 89876988081
 STORAGE_BUCKET = 'products'
@@ -862,7 +864,7 @@ ENHANCED_CONTENT = {
 
 def main():
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        print("ERROR: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env")
+        print("ERROR: Missing Supabase URL (SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY in root .env")
         return
 
     print(f"Supabase URL: {SUPABASE_URL}")

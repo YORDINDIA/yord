@@ -33,7 +33,7 @@ export default function RefundPanel({
   orderId,
   transactions,
 }: {
-  orderId: number;
+  orderId: string;
   transactions: RefundTransaction[];
 }) {
   const refundable = useMemo(

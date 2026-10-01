@@ -63,7 +63,10 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
         return;
       }
 
-      const transformedProducts: SimpleProduct[] = (data as unknown as ProductWithDetails[]).map((p) => {
+      const transformedProducts: SimpleProduct[] = (data as unknown as ProductWithDetails[])
+        // A null handle becomes an empty string and a broken /product/ link.
+        .filter((p) => p.handle)
+        .map((p) => {
         const variant = getFirstByPosition(p.product_variants);
         const image = getFirstByPosition(p.product_images);
 

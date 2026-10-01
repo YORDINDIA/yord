@@ -16,6 +16,7 @@ from supabase import Client
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.supabase_helpers import get_supabase_client, get_supabase_count
+from utils.config import resolve_supabase_url
 from utils.cli import create_parser, configure_logging
 
 # Load environment variables
@@ -31,8 +32,9 @@ SHOPIFY_HEADERS = {
     'Content-Type': 'application/json'
 }
 
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
+# see root .env.example)
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 
@@ -433,8 +435,10 @@ def main():
 
     # Validate environment
     required_vars = ['SHOPIFY_STORE_NAME', 'SHOPIFY_ADMIN_API_ACCESS_TOKEN',
-                     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
+                     'SUPABASE_SERVICE_ROLE_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
+    if not SUPABASE_URL:
+        missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')
 
     if missing:
         print(f"\nError: Missing required environment variables: {', '.join(missing)}")

@@ -51,6 +51,14 @@ export default function VariantEditor({
   const inventoryTouched = changedRows.some(
     (row) => baselineById.get(row.id)?.inventory_quantity !== row.inventory_quantity,
   );
+  // Field-aware payload: a touched row carries `include_inventory` only when
+  // its stock field actually changed, so the bulk writer leaves inventory (and
+  // any checkout decrement since page load) alone on price-only edits.
+  const payloadRows = changedRows.map((row) => ({
+    ...row,
+    include_inventory:
+      baselineById.get(row.id)?.inventory_quantity !== row.inventory_quantity,
+  }));
 
   const { state, pending, formAction } = useActionForm(updateVariantsAction, {
     onResult: (result) => {
@@ -75,7 +83,7 @@ export default function VariantEditor({
       <input type="hidden" name="product_id" value={productId} />
       {/* Sparse payload: untouched variants are omitted so the bulk writer
           leaves their prices and stock exactly as checkout left them. */}
-      <input type="hidden" name="payload" value={JSON.stringify(changedRows)} />
+      <input type="hidden" name="payload" value={JSON.stringify(payloadRows)} />
 
       {state.status === 'error' && state.formError && (
         <div className="form-alert form-alert-error" role="alert" style={{ marginBottom: 12 }}>

@@ -49,6 +49,11 @@ async function collectProductIds(collectionId: number): Promise<number[]> {
         .select('product_id')
         .eq('collection_id', collectionId)
         .order('position', { ascending: true })
+        // `position` is frequently tied (the keyword population script sets
+        // every match to 1), so `product_id` breaks the tie: without it the
+        // `.range()` windows are nondeterministic and a >1000-member
+        // collection can omit or duplicate ids across pages.
+        .order('product_id', { ascending: true })
         .range(from, from + COLLECTS_WINDOW - 1),
     );
     for (const row of page) ids.push(row.product_id);

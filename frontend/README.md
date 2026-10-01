@@ -13,7 +13,7 @@ npm install
 npm run dev    # localhost:3000
 ```
 
-Create `.env.local` with:
+Copy the root `.env.example` to root `.env` and fill it in — `dev`/`build`/`start` load it automatically via dotenv-cli. This app reads:
 
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only, never expose to the client)

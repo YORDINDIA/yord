@@ -7,9 +7,9 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "dotenv -e ../.env --no-expand -v NODE_OPTIONS=--max-old-space-size=4096 -- next dev",
+    "build": "dotenv -e ../.env --no-expand -- next build",
+    "start": "dotenv -e ../.env --no-expand -- next start",
     "lint": "eslint",
     "clean": "rm -rf .next",
     "typecheck": "tsc --noEmit",
@@ -45,6 +45,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",

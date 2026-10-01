@@ -17,7 +17,7 @@ export default function OrderStatusForm({
   financialStatus,
   fulfillmentStatus,
 }: {
-  orderId: number;
+  orderId: string;
   financialStatus: string | null;
   fulfillmentStatus: string | null;
 }) {

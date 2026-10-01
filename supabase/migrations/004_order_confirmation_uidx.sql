@@ -16,6 +16,18 @@
 -- Apply via Supabase SQL editor, after 001-003. Confirm before running on
 -- production. Re-runnable: the dedup keeps the earliest row per confirmation
 -- number and the index uses IF NOT EXISTS.
+--
+-- Concurrency: the dedupe scan and the index build must not be interleaved
+-- with checkout writes, or an order inserted between them re-creates a
+-- duplicate and the migration dies with 23505. The whole file runs in one
+-- transaction that takes SHARE ROW EXCLUSIVE on orders up front (blocks
+-- INSERT/UPDATE/DELETE, allows reads); CREATE UNIQUE INDEX (non-concurrent)
+-- already takes a strong lock, but only from its own statement onward — the
+-- lock must be held across the dedupe too.
+
+begin;
+
+lock table public.orders in share row exclusive mode;
 
 -- 1. Reconcile duplicate non-NULL confirmation numbers. Keeps the earliest
 -- order (lowest id) per confirmation number as canonical; clears the number
@@ -55,3 +67,5 @@ $$;
 create unique index if not exists orders_confirmation_number_uidx
   on public.orders (confirmation_number)
   where confirmation_number is not null;
+
+commit;

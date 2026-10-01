@@ -39,7 +39,7 @@ export default async function CheckoutSuccessPage({
             </Link>
             <Link
               href="/account/orders"
-              className="px-8 py-3 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
+              className="px-8 py-3 border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
             >
               VIEW ORDER STATUS
             </Link>
@@ -125,7 +125,7 @@ export default async function CheckoutSuccessPage({
           </Link>
           <Link
             href="/account/orders"
-            className="px-8 py-3 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
+            className="px-8 py-3 border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
           >
             VIEW ORDER STATUS
           </Link>
