@@ -87,10 +87,10 @@ export function ProductInfo({ product }: ProductInfoProps) {
   if (!selectedVariant) {
     return (
       <div className="space-y-8">
-        <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50">
+        <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary">
           {product.title}
         </h1>
-        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
           This product is currently unavailable.
         </p>
       </div>
@@ -113,7 +113,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
   // Get artist data
   const artistHandle = product.vendor?.toLowerCase().replace(/\s+/g, '-');
   const artistData = artistHandle ? ARTISTS[artistHandle] : null;
-  const accentColor = product.accentColor || artistData?.accentColor || '#FFD966';
+  const accentColor = product.accentColor || artistData?.accentColor || 'var(--accent)';
 
   const isOnSale = isPriceOnSale(selectedVariant.price, selectedVariant.compareAtPrice);
   const discount = isOnSale
@@ -147,7 +147,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] transition-colors"
-          style={{ color: accentColor }}
+          style={{ color: 'var(--accent)' }}
         >
           <span
             className="w-2 h-2 rounded-full"
@@ -162,7 +162,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-ivory-50"
+        className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-text-primary"
       >
         {product.title}
       </motion.h1>
@@ -174,12 +174,12 @@ export function ProductInfo({ product }: ProductInfoProps) {
         transition={{ delay: 0.2 }}
         className="flex items-center gap-4"
       >
-        <span className="font-[family-name:var(--font-cormorant)] text-3xl text-ivory-50">
+        <span className="font-[family-name:var(--font-cormorant)] text-3xl text-text-primary">
           {formatPrice(selectedVariant.price)}
         </span>
         {isOnSale && (
           <>
-            <span className="font-[family-name:var(--font-jakarta)] text-lg text-ivory-400 line-through">
+            <span className="font-[family-name:var(--font-jakarta)] text-lg text-text-muted line-through">
               {formatPrice(selectedVariant.compareAtPrice!)}
             </span>
             <span className="px-2 py-1 bg-red-500/20 text-red-400 text-sm font-[family-name:var(--font-bebas)] tracking-wider">
@@ -197,10 +197,10 @@ export function ProductInfo({ product }: ProductInfoProps) {
           transition={{ delay: 0.3 }}
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-ivory-400">
+            <span className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted">
               {product.options[0].name.toUpperCase()}
             </span>
-            <a href="/size-guide" className="text-sm text-ivory-400 hover:text-gold-200 underline">
+            <a href="/size-guide" className="text-sm text-text-muted hover:text-accent underline">
               Size Guide
             </a>
           </div>
@@ -223,10 +223,10 @@ export function ProductInfo({ product }: ProductInfoProps) {
                     'min-w-[48px] h-12 px-4 flex items-center justify-center border-2 transition-all duration-200',
                     'font-[family-name:var(--font-bebas)] text-sm tracking-wider',
                     isSelected
-                      ? 'border-current text-noir-950'
+                      ? 'border-current text-text-on-accent'
                       : isAvailable
-                      ? 'border-noir-700 text-ivory-100 hover:border-ivory-400'
-                      : 'border-noir-800 text-noir-600 cursor-not-allowed line-through'
+                      ? 'border-border-default text-text-secondary hover:border-text-muted'
+                      : 'border-border-default text-text-muted cursor-not-allowed line-through'
                   )}
                   style={{
                     backgroundColor: isSelected ? accentColor : 'transparent',
@@ -263,15 +263,15 @@ export function ProductInfo({ product }: ProductInfoProps) {
         className="flex flex-col sm:flex-row gap-4"
       >
         {/* Quantity Selector */}
-        <div className="flex items-center border border-noir-700">
+        <div className="flex items-center border border-border-default">
           <button
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            className="w-12 h-12 flex items-center justify-center text-ivory-400 hover:text-ivory-50 hover:bg-noir-800 transition-colors"
+            className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors"
             aria-label="Decrease quantity"
           >
             <Minus size={16} />
           </button>
-          <span className="w-12 h-12 flex items-center justify-center text-ivory-50 font-[family-name:var(--font-jakarta)]">
+          <span className="w-12 h-12 flex items-center justify-center text-text-primary font-[family-name:var(--font-jakarta)]">
             {quantity}
           </span>
           <button
@@ -280,8 +280,8 @@ export function ProductInfo({ product }: ProductInfoProps) {
             className={cn(
               'w-12 h-12 flex items-center justify-center transition-colors',
               quantity >= selectedVariant.inventoryQuantity
-                ? 'text-noir-600 cursor-not-allowed'
-                : 'text-ivory-400 hover:text-ivory-50 hover:bg-noir-800'
+                ? 'text-text-muted cursor-not-allowed'
+                : 'text-text-muted hover:text-text-primary hover:bg-surface-raised'
             )}
             aria-label="Increase quantity"
           >
@@ -308,7 +308,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
             'w-12 h-12 flex items-center justify-center border transition-colors',
             isWishlisted
               ? 'border-red-500 bg-red-500/10 text-red-500'
-              : 'border-noir-700 text-ivory-400 hover:text-red-500 hover:border-red-500'
+              : 'border-border-default text-text-muted hover:text-red-500 hover:border-red-500'
           )}
           aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
@@ -321,28 +321,28 @@ export function ProductInfo({ product }: ProductInfoProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="grid grid-cols-3 gap-4 py-6 border-t border-b border-noir-800"
+        className="grid grid-cols-3 gap-4 py-6 border-t border-b border-border-default"
       >
         <div className="text-center">
-          <Truck size={20} className="mx-auto mb-2 text-gold-200" />
-          <span className="block text-xs text-ivory-400 font-[family-name:var(--font-jakarta)]">
+          <Truck size={20} className="mx-auto mb-2 text-accent" />
+          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
             Free Shipping
           </span>
-          <span className="block text-[10px] text-ivory-500">Over ₹1,999</span>
+          <span className="block text-[10px] text-text-muted">Over ₹1,999</span>
         </div>
         <div className="text-center">
-          <Shield size={20} className="mx-auto mb-2 text-gold-200" />
-          <span className="block text-xs text-ivory-400 font-[family-name:var(--font-jakarta)]">
+          <Shield size={20} className="mx-auto mb-2 text-accent" />
+          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
             Premium Quality
           </span>
-          <span className="block text-[10px] text-ivory-500">Fan Made</span>
+          <span className="block text-[10px] text-text-muted">Fan Made</span>
         </div>
         <div className="text-center">
-          <RotateCcw size={20} className="mx-auto mb-2 text-gold-200" />
-          <span className="block text-xs text-ivory-400 font-[family-name:var(--font-jakarta)]">
+          <RotateCcw size={20} className="mx-auto mb-2 text-accent" />
+          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
             Easy Returns
           </span>
-          <span className="block text-[10px] text-ivory-500">14 Days</span>
+          <span className="block text-[10px] text-text-muted">14 Days</span>
         </div>
       </motion.div>
 
@@ -353,11 +353,11 @@ export function ProductInfo({ product }: ProductInfoProps) {
         transition={{ delay: 0.6 }}
         className="prose prose-invert prose-gold max-w-none"
       >
-        <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-ivory-400 mb-4">
+        <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted mb-4">
           DESCRIPTION
         </h3>
         <div
-          className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-300 space-y-4 [&_h4]:font-[family-name:var(--font-bebas)] [&_h4]:text-xs [&_h4]:tracking-[0.1em] [&_h4]:text-ivory-400 [&_h4]:mt-6 [&_h4]:mb-2 [&_ul]:list-none [&_ul]:pl-0 [&_li]:flex [&_li]:items-center [&_li]:gap-2 [&_li]:before:content-[''] [&_li]:before:w-1.5 [&_li]:before:h-1.5 [&_li]:before:rounded-full"
+          className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 [&_h4]:font-[family-name:var(--font-bebas)] [&_h4]:text-xs [&_h4]:tracking-[0.1em] [&_h4]:text-text-muted [&_h4]:mt-6 [&_h4]:mb-2 [&_ul]:list-none [&_ul]:pl-0 [&_li]:flex [&_li]:items-center [&_li]:gap-2 [&_li]:before:content-[''] [&_li]:before:w-1.5 [&_li]:before:h-1.5 [&_li]:before:rounded-full"
           style={{
             '--tw-prose-bullets': accentColor,
           } as React.CSSProperties}
@@ -372,14 +372,14 @@ export function ProductInfo({ product }: ProductInfoProps) {
         transition={{ delay: 0.7 }}
         className="flex items-center gap-4"
       >
-        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400">
+        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted">
           SHARE
         </span>
         <button
           onClick={handleShare}
           aria-label={shareState === 'copied' ? 'Product link copied' : 'Share this product'}
           title={shareState === 'copied' ? 'Link copied!' : undefined}
-          className="w-8 h-8 flex items-center justify-center text-ivory-400 hover:text-gold-200 transition-colors"
+          className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-accent transition-colors"
         >
           {shareState === 'copied' ? <Check size={16} /> : <Share2 size={16} />}
         </button>

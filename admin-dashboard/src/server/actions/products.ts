@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { actionError, actionOk, type ActionState } from '@/lib/action-state';
 import { PRODUCT_STATUSES, isOneOf } from '@/lib/constants';
 import { getNextId } from '@/lib/utils/ids';
-import { sanitizeHtml } from '@/lib/utils/sanitize';
+import { sanitizeHtml, slugify } from '@/lib/utils/sanitize';
 import {
   aiListingApplySchema,
   firstIssue,
@@ -46,11 +46,16 @@ export async function updateProductAction(
     }
     if (!before) return actionError('That product no longer exists.');
 
+    // An empty handle is create-only (auto-generated): persisting '' on an
+    // update would make the record unreachable by handle, so regenerate from
+    // the title and fall back to the previous handle.
+    const handle = input.handle || slugify(input.title, before.handle ?? `product-${input.id}`);
+
     const { error } = await context.service
       .from('products')
       .update({
         title: input.title,
-        handle: input.handle,
+        handle,
         status: input.status,
         tags: input.tags || null,
         // Admin-authored HTML is sanitized before storage: this column is later
@@ -73,7 +78,7 @@ export async function updateProductAction(
       entity: ENTITY,
       entityId: input.id,
       before,
-      after: { title: input.title, handle: input.handle, status: input.status, tags: input.tags },
+      after: { title: input.title, handle, status: input.status, tags: input.tags },
     });
 
     revalidatePath(`/products/${input.id}`);
@@ -162,13 +167,27 @@ export async function bulkUpdateProductStatusAction(
     if (ids.length === 0) return actionError('Select at least one product first.');
     if (!isOneOf(PRODUCT_STATUSES, status)) return actionError('Choose a valid status.');
 
+    const now = new Date().toISOString();
     const { error } = await context.service
       .from('products')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status, updated_at: now })
       .in('id', ids);
     if (error) {
       console.error('[products] bulk update failed', error);
       return actionError(`Could not update ${ids.length} product(s). Nothing was changed.`);
+    }
+    if (status === 'active') {
+      // Bulk-publishing must stamp `published_at` like the single-product save
+      // does, or the storefront cannot order by publication time or show its
+      // NEW badge. Existing timestamps are preserved (`is null` only).
+      const { error: stampError } = await context.service
+        .from('products')
+        .update({ published_at: now })
+        .in('id', ids)
+        .is('published_at', null);
+      if (stampError) {
+        console.error('[products] bulk published_at backfill failed', stampError);
+      }
     }
 
     await audit(context, {

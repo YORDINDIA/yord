@@ -86,7 +86,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     addItem({
       variantId: selectedVariant.id,
       productId: product.id,
-      productHandle: product.handle,
+      productHandle: product.handle ?? '',
       title: product.title,
       variantTitle: selectedVariant.title,
       price: selectedVariant.price,
@@ -102,7 +102,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const handleToggleWishlist = () => {
     toggleWishlist({
       productId: product.id,
-      productHandle: product.handle,
+      productHandle: product.handle ?? '',
       title: product.title,
       price: selectedVariant?.price || 0,
       compareAtPrice: selectedVariant?.compare_at_price || null,
@@ -137,7 +137,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-noir-950/90 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-surface-page/90 backdrop-blur-sm z-[100]"
             onClick={onClose}
           />
 
@@ -150,12 +150,12 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
             role="dialog"
             aria-modal="true"
             aria-label={`Quick view of ${product.title}`}
-            className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[900px] md:max-h-[80vh] bg-noir-900 border border-noir-800 z-[101] overflow-hidden"
+            className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[900px] md:max-h-[80vh] bg-surface-card border border-border-default z-[101] overflow-hidden"
           >
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center bg-noir-800/80 hover:bg-noir-700 text-ivory-100 transition-colors"
+              className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center bg-surface-raised/80 hover:bg-surface-inset text-text-secondary transition-colors"
               aria-label="Close quick view"
             >
               <X size={20} />
@@ -163,7 +163,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
             <div className="flex flex-col md:flex-row h-full overflow-y-auto md:overflow-hidden">
               {/* Image Section */}
-              <div className="relative w-full md:w-1/2 aspect-square md:aspect-auto md:h-full bg-noir-800">
+              <div className="relative w-full md:w-1/2 aspect-square md:aspect-auto md:h-full bg-surface-raised">
                 {imageUrl ? (
                   <Image
                     src={imageUrl}
@@ -174,7 +174,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-ivory-400">No Image</span>
+                    <span className="text-text-muted">No Image</span>
                   </div>
                 )}
 
@@ -183,14 +183,14 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                   <>
                     <button
                       onClick={handlePrevImage}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-noir-900/80 hover:bg-noir-800 text-ivory-100 transition-colors"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-card/80 hover:bg-surface-raised text-text-secondary transition-colors"
                       aria-label="Previous image"
                     >
                       <ChevronLeft size={20} />
                     </button>
                     <button
                       onClick={handleNextImage}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-noir-900/80 hover:bg-noir-800 text-ivory-100 transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-card/80 hover:bg-surface-raised text-text-secondary transition-colors"
                       aria-label="Next image"
                     >
                       <ChevronRight size={20} />
@@ -210,7 +210,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                             aria-hidden="true"
                             className={cn(
                               'block w-2 h-2 rounded-full transition-colors',
-                              idx === currentImageIndex ? 'bg-gold-200' : 'bg-ivory-400/50'
+                              idx === currentImageIndex ? 'bg-accent' : 'bg-text-muted/50'
                             )}
                           />
                         </button>
@@ -224,23 +224,23 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col md:overflow-y-auto">
                 {/* Artist */}
                 {product.vendor && (
-                  <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-gold-200 mb-2">
+                  <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-accent mb-2">
                     {product.vendor.toUpperCase()}
                   </p>
                 )}
 
                 {/* Title */}
-                <h2 className="font-[family-name:var(--font-playfair)] text-2xl md:text-3xl text-ivory-50 mb-4">
+                <h2 className="font-[family-name:var(--font-playfair)] text-2xl md:text-3xl text-text-primary mb-4">
                   {product.title}
                 </h2>
 
                 {/* Price */}
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
+                  <span className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
                     {formatPrice(selectedVariant?.price || 0)}
                   </span>
                   {onSale && selectedVariant?.compare_at_price && (
-                    <span className="font-[family-name:var(--font-jakarta)] text-lg text-ivory-400 line-through">
+                    <span className="font-[family-name:var(--font-jakarta)] text-lg text-text-muted line-through">
                       {formatPrice(selectedVariant.compare_at_price)}
                     </span>
                   )}
@@ -249,8 +249,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                 {/* Variant Selector */}
                 {product.product_variants && product.product_variants.length > 1 && (
                   <div className="mb-6">
-                    <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-3">
-                      {optionName.toUpperCase()}: <span className="text-ivory-100">{selectedVariant?.option1}</span>
+                    <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-3">
+                      {optionName.toUpperCase()}: <span className="text-text-secondary">{selectedVariant?.option1}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {product.product_variants
@@ -266,10 +266,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                               className={cn(
                                 'px-4 py-2 border text-sm font-[family-name:var(--font-jakarta)] transition-colors',
                                 isSelected
-                                  ? 'border-gold-200 bg-gold-200/10 text-gold-200'
+                                  ? 'border-accent bg-accent-tint text-accent'
                                   : isAvailable
-                                  ? 'border-noir-700 text-ivory-300 hover:border-ivory-400'
-                                  : 'border-noir-800 text-ivory-600 cursor-not-allowed line-through'
+                                  ? 'border-border-default text-text-muted hover:border-text-muted'
+                                  : 'border-border-default text-text-muted cursor-not-allowed line-through'
                               )}
                             >
                               {variant.option1 || variant.title}
@@ -282,23 +282,23 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
                 {/* Quantity */}
                 <div className="mb-6">
-                  <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-3">
+                  <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-3">
                     QUANTITY
                   </p>
-                  <div className="flex items-center border border-noir-700 w-fit">
+                  <div className="flex items-center border border-border-default w-fit">
                     <button
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-10 h-10 flex items-center justify-center text-ivory-300 hover:text-ivory-100 transition-colors"
+                      className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
                       aria-label="Decrease quantity"
                     >
                       <Minus size={16} />
                     </button>
-                    <span className="w-12 text-center font-[family-name:var(--font-jakarta)] text-ivory-100">
+                    <span className="w-12 text-center font-[family-name:var(--font-jakarta)] text-text-secondary">
                       {quantity}
                     </span>
                     <button
                       onClick={() => setQuantity((q) => Math.min(selectedVariant?.inventory_quantity || 10, q + 1))}
-                      className="w-10 h-10 flex items-center justify-center text-ivory-300 hover:text-ivory-100 transition-colors"
+                      className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
                       aria-label="Increase quantity"
                     >
                       <Plus size={16} />
@@ -316,8 +316,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                       'font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em]',
                       'transition-colors',
                       inStock
-                        ? 'bg-gold-200 text-noir-950 hover:bg-gold-300'
-                        : 'bg-noir-700 text-ivory-400 cursor-not-allowed'
+                        ? 'bg-accent text-text-on-accent hover:bg-accent-hover'
+                        : 'bg-surface-inset text-text-muted cursor-not-allowed'
                     )}
                   >
                     <ShoppingBag size={18} />
@@ -328,8 +328,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     className={cn(
                       'w-14 h-14 flex items-center justify-center border transition-colors',
                       isWishlisted
-                        ? 'border-gold-200 bg-gold-200/10 text-gold-200'
-                        : 'border-noir-700 text-ivory-300 hover:border-ivory-400'
+                        ? 'border-accent bg-accent-tint text-accent'
+                        : 'border-border-default text-text-muted hover:border-text-muted'
                     )}
                     aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                   >
@@ -341,7 +341,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                 <Link
                   href={`/product/${product.handle}`}
                   onClick={onClose}
-                  className="mt-4 text-center font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 hover:text-gold-200 transition-colors"
+                  className="mt-4 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted hover:text-accent transition-colors"
                 >
                   View Full Details
                 </Link>

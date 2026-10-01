@@ -26,15 +26,27 @@ export async function POST(req: Request) {
   }
 
   const body = payload as { productId?: unknown; suggestion?: unknown };
-  const suggestion = body.suggestion as { title?: unknown; body_html?: unknown; tags?: unknown } | undefined;
+  // `req.json()` accepts any valid JSON, including `null` and arrays. Reading
+  // fields off those throws inside the framework handler (a 500); reject them
+  // as client errors instead.
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return failJson('BAD_REQUEST', 'Request body must be a JSON object', 400);
+  }
+  const suggestion =
+    typeof body.suggestion === 'object' && body.suggestion !== null && !Array.isArray(body.suggestion)
+      ? (body.suggestion as { title?: unknown; body_html?: unknown; tags?: unknown })
+      : undefined;
 
   const result = await applyListingSuggestionAction({
     productId: Number(body.productId),
+    // Pass values through untouched so malformed input fails schema validation.
+    // The old `String(...)` coercion turned an object title into
+    // `"[object Object]"`, which passed the schema and overwrote the listing.
     suggestion: {
-      title: String(suggestion?.title ?? ''),
-      body_html: String(suggestion?.body_html ?? ''),
-      tags: typeof suggestion?.tags === 'string' ? suggestion.tags : undefined,
-    },
+      title: suggestion?.title,
+      body_html: suggestion?.body_html,
+      tags: suggestion?.tags,
+    } as { title: string; body_html: string; tags?: string },
   });
 
   if (result.status === 'error') {

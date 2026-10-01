@@ -14,7 +14,13 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const detail = await getOrder(Number(id)).catch(() => null);
+  // Lossless ID handling: `Number()` rounds BIGINTs above 2^53, so the raw
+  // decimal string is validated and passed straight through to the lookup
+  // (PostgREST binds it as bigint). Anything non-numeric is a 404.
+  if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) {
+    return { title: 'Order · YORD Admin' };
+  }
+  const detail = await getOrder(id as unknown as number).catch(() => null);
   return { title: detail ? `${detail.order.name ?? `Order ${id}`} · YORD Admin` : 'Order · YORD Admin' };
 }
 
@@ -29,10 +35,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
  */
 export default async function OrderDetailPage({ params }: { params: Params }) {
   const { id } = await params;
-  const numericId = Number(id);
-  if (!Number.isInteger(numericId) || numericId <= 0) notFound();
+  // Same lossless rule as generateMetadata: never round the route param
+  // through `Number()` (`Number.isInteger` still accepts the rounded value,
+  // so a huge BIGINT could load a different order). Decimal strings go to
+  // PostgREST verbatim; anything else is notFound().
+  if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) notFound();
 
-  const detail = await getOrder(numericId);
+  const detail = await getOrder(id as unknown as number);
   if (!detail) notFound();
 
   const { order, lineItems, transactions, fulfillments } = detail;

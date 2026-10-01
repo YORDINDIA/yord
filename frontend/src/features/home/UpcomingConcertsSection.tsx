@@ -34,14 +34,14 @@ export async function UpcomingConcertsSection() {
 
           return {
             id: p.id.toString(),
-            handle: p.handle,
+            handle: p.handle ?? '',
             title: p.title,
             artist: p.vendor || artistData.name,
             price: variant?.price || 0,
             compareAtPrice: variant?.compare_at_price || null,
             image: image?.supabase_url || image?.src || null,
             badge: getProductBadge(p, variant),
-            accentColor: artistData.accentColor || '#FFD966',
+            accentColor: artistData.accentColor || 'var(--accent)',
             originalProduct: p,
           };
         });
@@ -50,7 +50,7 @@ export async function UpcomingConcertsSection() {
           artistHandle,
           artistName: artistData.name,
           artistImage: artistData.heroImage,
-          accentColor: artistData.accentColor || '#FFD966',
+          accentColor: artistData.accentColor || 'var(--accent)',
           secondaryColor: artistData.secondaryColor || '#1C1C1C',
           tourName,
           nextShowDate: nextShow.date,

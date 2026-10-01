@@ -9,20 +9,20 @@ export function NotFoundView({
   message?: string;
 }) {
   return (
-    <main className="min-h-[60vh] flex items-center justify-center bg-noir-950 px-6">
+    <main className="min-h-[60vh] flex items-center justify-center bg-surface-page px-6">
       <div className="text-center">
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200 mb-3">
+        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
           404
         </p>
-        <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50 mb-4">
+        <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary mb-4">
           {title}
         </h1>
-        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 max-w-md mx-auto mb-8">
+        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted max-w-md mx-auto mb-8">
           {message}
         </p>
         <Link
           href="/"
-          className="inline-block px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-gold-300 transition-colors"
+          className="inline-block px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors"
         >
           BACK TO HOME
         </Link>

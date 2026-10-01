@@ -33,6 +33,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 STATE_DIR = SCRIPT_DIR / ".yord" / "runs"
 
+# The documented setup keeps credentials in a root .env (see .env.example);
+# load it before any missing_env preflight, or `migrate --execute` refuses to
+# launch its children even on a correctly configured checkout. Real env vars
+# still win: load_dotenv never overrides an already-exported value.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(SCRIPT_DIR.parent / ".env")
+except Exception:
+    pass
+
 # (step name, script, extra args, accepts --execute). Order matches AGENTS.md
 # fresh-migration order. The flag is appended only for steps that define it.
 PIPELINE = [

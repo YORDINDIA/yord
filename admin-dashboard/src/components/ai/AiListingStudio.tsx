@@ -40,6 +40,14 @@ export default function AiListingStudio({
   // Monotonic id for the in-flight cover-image lookup, so a late response for a
   // previous selection is discarded.
   const coverRequestId = useRef(0);
+  // Bumped on every product switch. generate()/generateImage() capture it with
+  // the requested id and discard the response when it no longer matches, so a
+  // slow response for product A can never be applied to product B.
+  const sessionRef = useRef(0);
+  // Which product/cover the currently displayed suggestion/preview was made
+  // for. apply()/applyImage() refuse to submit when the selection moved on.
+  const [suggestionFor, setSuggestionFor] = useState<string | null>(null);
+  const [imageForCoverId, setImageForCoverId] = useState<number | null>(null);
 
   // Resetting on selection keeps a stale generated image from being paired with
   // a newly chosen product. This is a click handler, not an effect: the state
@@ -47,8 +55,11 @@ export default function AiListingStudio({
   function selectProduct(nextId: string) {
     setProductId(nextId);
     setSuggestion(null);
+    setSuggestionFor(null);
     setAiImageUrl(null);
+    setImageForCoverId(null);
     setCover(null);
+    sessionRef.current += 1;
     if (!nextId) return;
 
     // A slow lookup for a product the admin has already navigated away from
@@ -68,39 +79,52 @@ export default function AiListingStudio({
 
   async function generate() {
     if (!productId) return;
+    const requestedId = productId;
+    const session = sessionRef.current;
     setLoading(true);
     const result = await postJson<{ suggestion?: ListingSuggestion | null }>(
       '/api/ai/listing',
-      { productId: Number(productId) },
+      { productId: Number(requestedId) },
       'Failed to generate.',
     );
     setLoading(false);
+    if (session !== sessionRef.current) return;
     if (!result.ok) {
       toast(result.message, 'error');
       return;
     }
     setSuggestion(result.data.suggestion ?? null);
+    setSuggestionFor(requestedId);
     toast('Suggestions generated. Review before applying.', 'success');
   }
 
   async function generateImage() {
     if (!cover?.url) return;
+    const requestedCoverId = cover.id;
+    const requestedUrl = cover.url;
+    const session = sessionRef.current;
     setImageLoading(true);
     const result = await postJson<{ previewUrl?: string | null }>(
       '/api/ai/image',
-      { imageUrl: cover.url, prompt: 'Enhance this product image for premium ecommerce.' },
+      { imageUrl: requestedUrl, prompt: 'Enhance this product image for premium ecommerce.' },
       'Image generation failed.',
     );
     setImageLoading(false);
+    if (session !== sessionRef.current) return;
     if (!result.ok) {
       toast(result.message, 'error');
       return;
     }
     setAiImageUrl(result.data.previewUrl ?? null);
+    setImageForCoverId(requestedCoverId);
   }
 
   async function applyImage() {
     if (!aiImageUrl || !cover?.id) return;
+    if (imageForCoverId !== cover.id) {
+      toast('That preview belongs to a different product. Generate the image again.', 'error');
+      return;
+    }
     setApplying(true);
     try {
       const result = await applyAiImageAction({ status: 'idle' }, { imageId: cover.id, url: aiImageUrl });
@@ -118,6 +142,10 @@ export default function AiListingStudio({
 
   async function apply() {
     if (!suggestion || !productId) return;
+    if (suggestionFor !== productId) {
+      toast('That suggestion belongs to a different product. Generate it again.', 'error');
+      return;
+    }
     setApplying(true);
     const result = await postJson(
       '/api/ai/listing/apply',

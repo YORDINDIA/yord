@@ -23,14 +23,14 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
 
   if (items.length === 0) {
     return (
-      <div className="bg-noir-900 border border-noir-800 p-6 text-center">
-        <ShoppingBag className="w-12 h-12 text-ivory-500 mx-auto mb-4" />
-        <p className="font-[family-name:var(--font-playfair)] text-lg text-ivory-300 mb-2">
+      <div className="bg-surface-card border border-border-default p-6 text-center">
+        <ShoppingBag className="w-12 h-12 text-text-muted mx-auto mb-4" />
+        <p className="font-[family-name:var(--font-playfair)] text-lg text-text-muted mb-2">
           Your cart is empty
         </p>
         <Link
           href="/"
-          className="text-gold-200 font-[family-name:var(--font-jakarta)] text-sm hover:underline"
+          className="text-accent font-[family-name:var(--font-jakarta)] text-sm hover:underline"
         >
           Continue shopping
         </Link>
@@ -39,26 +39,26 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
   }
 
   return (
-    <div className="bg-noir-900 border border-noir-800">
+    <div className="bg-surface-card border border-border-default">
       {/* Header */}
-      <div className="p-6 border-b border-noir-800">
-        <h3 className="font-[family-name:var(--font-playfair)] text-xl text-ivory-50">
+      <div className="p-6 border-b border-border-default">
+        <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-primary">
           Order Summary
         </h3>
-        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mt-1">
+        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-1">
           {items.length} {items.length === 1 ? 'item' : 'items'}
         </p>
       </div>
 
       {/* Items */}
       <div className={cn(
-        'divide-y divide-noir-800',
+        'divide-y divide-border-default',
         isCompact ? 'max-h-64 overflow-y-auto' : ''
       )}>
         {items.map((item) => (
           <div key={item.variantId} className="p-4 flex gap-4">
             {/* Image */}
-            <div className="relative w-16 h-20 flex-shrink-0 bg-noir-800">
+            <div className="relative w-16 h-20 flex-shrink-0 bg-surface-raised">
               {item.image ? (
                 <Image
                   src={item.image}
@@ -69,11 +69,11 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingBag className="w-6 h-6 text-ivory-500" />
+                  <ShoppingBag className="w-6 h-6 text-text-muted" />
                 </div>
               )}
               {/* Quantity Badge */}
-              <span className="absolute -top-2 -right-2 w-5 h-5 bg-gold-200 text-noir-950 text-xs font-bold flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 w-5 h-5 bg-accent text-text-on-accent text-xs font-bold flex items-center justify-center">
                 {item.quantity}
               </span>
             </div>
@@ -81,18 +81,18 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
             {/* Details */}
             <div className="flex-1 min-w-0">
               {item.artist && (
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-gold-200 uppercase tracking-wider">
+                <p className="font-[family-name:var(--font-jakarta)] text-xs text-accent uppercase tracking-wider">
                   {item.artist}
                 </p>
               )}
               <Link
                 href={`/product/${item.productHandle}`}
-                className="font-[family-name:var(--font-cormorant)] text-sm text-ivory-100 hover:text-gold-200 line-clamp-2 transition-colors"
+                className="font-[family-name:var(--font-cormorant)] text-sm text-text-secondary hover:text-accent line-clamp-2 transition-colors"
               >
                 {item.title}
               </Link>
               {item.variantTitle && item.variantTitle !== 'Default Title' && (
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-400 mt-1">
+                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-1">
                   {item.variantTitle}
                 </p>
               )}
@@ -100,11 +100,11 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
 
             {/* Price */}
             <div className="text-right">
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
                 {formatPrice(item.price * item.quantity)}
               </p>
               {isPriceOnSale(item.price, item.compareAtPrice) && (
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 line-through">
+                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted line-through">
                   {formatPrice((item.compareAtPrice ?? 0) * item.quantity)}
                 </p>
               )}
@@ -114,10 +114,10 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
       </div>
 
       {/* Totals */}
-      <div className="p-6 border-t border-noir-800 space-y-3">
+      <div className="p-6 border-t border-border-default space-y-3">
         <div className="flex justify-between font-[family-name:var(--font-jakarta)] text-sm">
-          <span className="text-ivory-400">Subtotal</span>
-          <span className="text-ivory-100">{formatPrice(subtotal())}</span>
+          <span className="text-text-muted">Subtotal</span>
+          <span className="text-text-secondary">{formatPrice(subtotal())}</span>
         </div>
 
         {totalSavings() > 0 && (
@@ -131,21 +131,21 @@ export function OrderSummary({ isCompact = false }: OrderSummaryProps) {
         )}
 
         <div className="flex justify-between font-[family-name:var(--font-jakarta)] text-sm">
-          <span className="text-ivory-400">Shipping</span>
+          <span className="text-text-muted">Shipping</span>
           <span className="text-green-400">FREE</span>
         </div>
 
         <div className="flex justify-between font-[family-name:var(--font-jakarta)] text-sm">
-          <span className="text-ivory-400">Tax (18% GST)</span>
-          <span className="text-ivory-100">{formatPrice(tax)}</span>
+          <span className="text-text-muted">Tax (18% GST)</span>
+          <span className="text-text-secondary">{formatPrice(tax)}</span>
         </div>
 
-        <div className="pt-3 border-t border-noir-700">
+        <div className="pt-3 border-t border-border-default">
           <div className="flex justify-between">
-            <span className="font-[family-name:var(--font-playfair)] text-lg text-ivory-50">
+            <span className="font-[family-name:var(--font-playfair)] text-lg text-text-primary">
               Total
             </span>
-            <span className="font-[family-name:var(--font-playfair)] text-lg text-gold-200">
+            <span className="font-[family-name:var(--font-playfair)] text-lg text-accent">
               {formatPrice(total)}
             </span>
           </div>

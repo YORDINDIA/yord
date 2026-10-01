@@ -90,7 +90,7 @@ export default async function MediaPage({
         )}
         <Pagination
           basePath="/media"
-          params={{}}
+          params={articlePage > 1 ? { article_page: String(articlePage) } : {}}
           page={productImages.page}
           pageSize={productImages.pageSize}
           total={productImages.count}
@@ -141,7 +141,7 @@ export default async function MediaPage({
         )}
         <Pagination
           basePath="/media"
-          params={{}}
+          params={productPage > 1 ? { product_page: String(productPage) } : {}}
           page={articleImages.page}
           pageSize={articleImages.pageSize}
           total={articleImages.count}

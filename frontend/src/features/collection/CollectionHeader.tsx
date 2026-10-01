@@ -35,7 +35,7 @@ export function CollectionHeader({ title, description, handle, productCount }: C
   return (
     <section ref={ref} className="relative overflow-hidden">
       {/* Background gradient */}
-      <div className="absolute inset-0 bg-noir-900">
+      <div className="absolute inset-0 bg-surface-card">
         <div
           className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-10 blur-[120px]"
           style={{ backgroundColor: accentColor }}
@@ -56,18 +56,18 @@ export function CollectionHeader({ title, description, handle, productCount }: C
         >
           <ol className="flex items-center gap-2 text-sm font-[family-name:var(--font-jakarta)]">
             <li>
-              <Link href="/" className="text-ivory-400 hover:text-gold-200 transition-colors">
+              <Link href="/" className="text-text-muted hover:text-accent transition-colors">
                 Home
               </Link>
             </li>
-            <ChevronRight size={14} className="text-ivory-600" />
+            <ChevronRight size={14} className="text-text-muted" />
             <li>
-              <Link href="/collections" className="text-ivory-400 hover:text-gold-200 transition-colors">
+              <Link href="/collections" className="text-text-muted hover:text-accent transition-colors">
                 Collections
               </Link>
             </li>
-            <ChevronRight size={14} className="text-ivory-600" />
-            <li className="text-ivory-100">{title}</li>
+            <ChevronRight size={14} className="text-text-muted" />
+            <li className="text-text-secondary">{title}</li>
           </ol>
         </motion.nav>
 
@@ -83,7 +83,7 @@ export function CollectionHeader({ title, description, handle, productCount }: C
               className="w-1 h-12 rounded-full"
               style={{ backgroundColor: accentColor }}
             />
-            <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50">
+            <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary">
               {title}
             </h1>
           </motion.div>
@@ -92,7 +92,7 @@ export function CollectionHeader({ title, description, handle, productCount }: C
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="font-[family-name:var(--font-jakarta)] text-lg text-ivory-300 leading-relaxed"
+            className="font-[family-name:var(--font-jakarta)] text-lg text-text-muted leading-relaxed"
           >
             {description}
           </motion.p>
@@ -102,7 +102,7 @@ export function CollectionHeader({ title, description, handle, productCount }: C
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="mt-6 font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-ivory-400"
+              className="mt-6 font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-muted"
             >
               {productCount} {productCount === 1 ? 'PRODUCT' : 'PRODUCTS'}
             </motion.p>
@@ -114,7 +114,7 @@ export function CollectionHeader({ title, description, handle, productCount }: C
           initial={{ scaleX: 0 }}
           animate={isInView ? { scaleX: 1 } : {}}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-noir-700 to-transparent"
+          className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-default to-transparent"
           style={{ originX: 0 }}
         />
       </div>

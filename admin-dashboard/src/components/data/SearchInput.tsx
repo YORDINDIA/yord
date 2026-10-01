@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 /**
@@ -33,10 +33,20 @@ export default function SearchInput({
   name = 'q',
   placeholder,
   delayMs = 350,
+  pageParam = 'page',
 }: {
   name?: string;
   placeholder: string;
   delayMs?: number;
+  /**
+   * Pagination key(s) reset when the query changes. A filtered result set has
+   * no page 3, so the old page must go — `/blogs` paginates under `blog_page`,
+   * not `page`, and leaving it in place returns an empty filtered page 2.
+   * Defaults to every pagination key in the URL (`page` plus `*_page`), so
+   * multi-table pages reset without wiring; pass an explicit key (or keys) to
+   * reset only one table.
+   */
+  pageParam?: string | string[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -51,6 +61,26 @@ export default function SearchInput({
     setValue(current);
   }
 
+  const pageKeys = useMemo(() => {
+    if (pageParam !== undefined) return Array.isArray(pageParam) ? pageParam : [pageParam];
+    // No explicit key: reset every pagination key present in the URL.
+    const keys = new Set<string>(['page']);
+    for (const key of params.keys()) {
+      if (key.endsWith('_page')) keys.add(key);
+    }
+    return [...keys];
+  }, [pageParam, params]);
+
+  const pushQuery = useCallback(
+    (next: URLSearchParams) => {
+      // A filtered result set has no page 3; drop pagination on a new query.
+      for (const key of pageKeys) next.delete(key);
+      const query = next.toString();
+      router.replace(query ? `?${query}` : '?', { scroll: false });
+    },
+    [pageKeys, router],
+  );
+
   useEffect(() => {
     if (delayMs === 0) return;
     // `current` is read at debounce time, so this does not re-fire on every
@@ -61,22 +91,17 @@ export default function SearchInput({
       const next = new URLSearchParams(params.toString());
       if (value) next.set(name, value);
       else next.delete(name);
-      // A filtered result set has no page 3; drop pagination on a new query.
-      next.delete('page');
-      const query = next.toString();
-      router.replace(query ? `?${query}` : '?', { scroll: false });
+      pushQuery(next);
     }, delayMs);
     return () => clearTimeout(timer);
-  }, [value, current, delayMs, name, params, router]);
+  }, [value, current, delayMs, name, params, pushQuery]);
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     const next = new URLSearchParams(params.toString());
     if (value.trim()) next.set(name, value.trim());
     else next.delete(name);
-    next.delete('page');
-    const query = next.toString();
-    router.replace(query ? `?${query}` : '?', { scroll: false });
+    pushQuery(next);
   }
 
   return (

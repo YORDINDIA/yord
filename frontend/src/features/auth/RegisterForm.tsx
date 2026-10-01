@@ -105,22 +105,22 @@ export function RegisterForm() {
 
   if (success) {
     return (
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
         <div className="w-full max-w-[440px] mx-auto px-6">
-          <div className="bg-noir-900 border border-noir-800 p-8 text-center">
+          <div className="bg-surface-card border border-border-default p-8 text-center">
             <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <Mail className="w-8 h-8 text-green-400" />
             </div>
-            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-4">
+            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-4">
               Check Your Email
             </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-6">
-              We&apos;ve sent a confirmation link to <span className="text-ivory-100">{email}</span>.
+            <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-6">
+              We&apos;ve sent a confirmation link to <span className="text-text-secondary">{email}</span>.
               Click the link in your email to verify your account.
             </p>
             <Link
               href="/auth/login"
-              className="inline-block px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+              className="inline-block px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
             >
               BACK TO LOGIN
             </Link>
@@ -131,23 +131,23 @@ export function RegisterForm() {
   }
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
       <div className="w-full max-w-[440px] mx-auto px-6">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
-            <h1 className="font-[family-name:var(--font-bebas)] text-3xl tracking-[0.2em] text-ivory-50">
+            <h1 className="font-[family-name:var(--font-bebas)] text-3xl tracking-[0.2em] text-text-primary">
               YORD
             </h1>
           </Link>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mt-2">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted mt-2">
             Join the community
           </p>
         </div>
 
         {/* Register Form */}
-        <div className="bg-noir-900 border border-noir-800 p-8">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-6 text-center">
+        <div className="bg-surface-card border border-border-default p-8">
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6 text-center">
             Create Account
           </h2>
 
@@ -161,96 +161,103 @@ export function RegisterForm() {
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                <label htmlFor="register-first-name" className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                   First Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-500" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                   <input
+                    id="register-first-name"
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="John"
                     required
-                    className="w-full pl-11 pr-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                    className="w-full pl-11 pr-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                <label htmlFor="register-last-name" className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                   Last Name
                 </label>
                 <input
+                  id="register-last-name"
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Doe"
                   required
-                  className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                  className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                 />
               </div>
             </div>
 
             {/* Email */}
             <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+              <label htmlFor="register-email" className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                 <input
+                  id="register-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                  className="w-full pl-11 pr-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+              <label htmlFor="register-password" className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                 <input
+                  id="register-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Create a strong password"
                   required
-                  className="w-full pl-11 pr-12 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                  className="w-full pl-11 pr-12 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ivory-500 hover:text-ivory-300"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-muted"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-              <p className="mt-1 font-[family-name:var(--font-jakarta)] text-xs text-ivory-500">
+              <p className="mt-1 font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
                 Min 8 characters with uppercase, lowercase, and number
               </p>
             </div>
 
             {/* Confirm Password */}
             <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+              <label htmlFor="register-confirm-password" className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                 Confirm Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
                 <input
+                  id="register-confirm-password"
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                  className="w-full pl-11 pr-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                 />
               </div>
             </div>
@@ -259,7 +266,7 @@ export function RegisterForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -274,18 +281,18 @@ export function RegisterForm() {
 
           {/* Divider */}
           <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-noir-700" />
-            <span className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 uppercase">
+            <div className="flex-1 h-px bg-surface-inset" />
+            <span className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted uppercase">
               or
             </span>
-            <div className="flex-1 h-px bg-noir-700" />
+            <div className="flex-1 h-px bg-surface-inset" />
           </div>
 
           {/* Social Signup */}
           <button
             onClick={handleGoogleSignUp}
             disabled={isLoading}
-            className="w-full py-3 border border-noir-600 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm hover:border-ivory-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            className="w-full py-3 border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm hover:border-text-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -309,24 +316,24 @@ export function RegisterForm() {
           </button>
 
           {/* Login Link */}
-          <p className="mt-6 text-center font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+          <p className="mt-6 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
             Already have an account?{' '}
             <Link
               href={`/auth/login${redirectTo !== '/account' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`}
-              className="text-gold-200 hover:underline"
+              className="text-accent hover:underline"
             >
               Sign in
             </Link>
           </p>
 
           {/* Terms */}
-          <p className="mt-4 text-center font-[family-name:var(--font-jakarta)] text-xs text-ivory-500">
+          <p className="mt-4 text-center font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
             By creating an account, you agree to our{' '}
-            <Link href="/terms" className="text-gold-200 hover:underline">
+            <Link href="/terms" className="text-accent hover:underline">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="text-gold-200 hover:underline">
+            <Link href="/privacy" className="text-accent hover:underline">
               Privacy Policy
             </Link>
           </p>
@@ -338,10 +345,10 @@ export function RegisterForm() {
 
 export function RegisterFallback() {
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
       <div className="w-full max-w-[440px] mx-auto px-6">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-gold-200 animate-spin mx-auto" />
+          <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto" />
         </div>
       </div>
     </main>

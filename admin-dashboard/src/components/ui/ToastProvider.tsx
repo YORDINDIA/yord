@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 /**
  * Real toast provider + context.
@@ -37,18 +37,37 @@ let nextId = 0;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  // Toast currently holding keyboard focus (or containing the focused element).
+  // The auto-dismiss timer reschedules while this is set so focus is never
+  // stranded by a toast vanishing mid-interaction.
+  const focusedRef = useRef<number | null>(null);
 
   const dismiss = useCallback((id: number) => {
     setItems((previous) => previous.filter((item) => item.id !== id));
   }, []);
 
+  const scheduleDismiss = useCallback(
+    (id: number) => {
+      const tick = (): void => {
+        if (focusedRef.current === id) {
+          // Still focused: try again later instead of pulling focus away.
+          window.setTimeout(tick, TOAST_DURATION_MS);
+        } else {
+          dismiss(id);
+        }
+      };
+      window.setTimeout(tick, TOAST_DURATION_MS);
+    },
+    [dismiss],
+  );
+
   const toast = useCallback(
     (message: string, tone: ToastTone = 'info') => {
       const id = ++nextId;
       setItems((previous) => [...previous.slice(-(MAX_VISIBLE - 1)), { id, message, tone }]);
-      setTimeout(() => dismiss(id), TOAST_DURATION_MS);
+      scheduleDismiss(id);
     },
-    [dismiss],
+    [scheduleDismiss],
   );
 
   const api = useMemo<ToastApi>(() => ({ toast }), [toast]);
@@ -63,6 +82,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             type="button"
             className={`toast toast-${item.tone}`}
             onClick={() => dismiss(item.id)}
+            onFocus={() => {
+              focusedRef.current = item.id;
+            }}
+            onBlur={() => {
+              if (focusedRef.current === item.id) focusedRef.current = null;
+            }}
             aria-label={`Dismiss: ${item.message}`}
           >
             {item.message}

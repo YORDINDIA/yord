@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatDate } from '@/lib/utils/format';
-import type { Article } from '@yord/db-types';
+import type { ArticleListItem } from '@/lib/data/blogs';
 
 /**
  * Article list for one blog.
@@ -9,7 +9,7 @@ import type { Article } from '@yord/db-types';
  * Was a `<ul>` of raw titles; the published/draft state is now a badge so an
  * admin can see at a glance what is live.
  */
-export default function ArticleList({ articles }: { articles: Article[] }) {
+export default function ArticleList({ articles }: { articles: ArticleListItem[] }) {
   if (articles.length === 0) {
     return <p className="helper">No articles in this blog yet.</p>;
   }

@@ -80,11 +80,15 @@ export async function middleware(request: NextRequest) {
     Boolean(admin) && (admin as { is_active: boolean | null }).is_active === true;
 
   if (isPublicRoute(pathname)) {
-    // Bounce authenticated users off /login and /access-denied. Non-admins go to
-    // /access-denied, not /dashboard, which would bounce straight back here.
-    return NextResponse.redirect(
-      new URL(isActiveAdmin ? '/dashboard' : '/access-denied', request.url),
-    );
+    // Bounce authenticated admins off /login and /access-denied to the
+    // dashboard. Non-admin sessions may RENDER both pages: redirecting them to
+    // /access-denied trapped them — the only link on /access-denied goes to
+    // /login, which bounced straight back, so they could neither sign out nor
+    // switch accounts. Rendering /login lets them sign in as someone else.
+    if (isActiveAdmin) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return response;
   }
 
   if (isAdminRoute(pathname) && !isActiveAdmin) {

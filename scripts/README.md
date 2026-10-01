@@ -86,6 +86,25 @@ Configuration in `utils/config.py`:
 - `ARTIST_COLLECTIONS` - List of artist collection handles
 - `TARGET_ARTISTS` - Homepage featured artists
 
+## Archive Recovery Pipeline (data/clean/)
+
+Wayback-captured data (`data/*.json`) is normalized offline before ingest.
+Raw files are never modified; every step writes `data/clean/` and is
+dry-run by default.
+
+```bash
+python clean_data.py --execute        # dedupe images, strip blog bylines -> data/clean/
+python reorg_media.py --execute       # copy local_media into per-handle folders + alt text
+python merge_enrichment.py --execute  # merge subagent SEO with guardrail checks
+python blog_media.py --execute        # map blogs to substitute OG or placeholder plan
+python ingest_clean.py --execute      # offline ingest rehearsal, writes ingest_rehearsal.json
+```
+
+Enrichment is fanned out to worker subagents (6 product batches + 3 blog
+batches, one file each under `data/clean/enriched/`); the merge gate
+rejects any batch whose handles/titles differ or whose SEO lengths fail,
+and emits `review_queue.json` for human spot-check.
+
 ## Verification & Audit
 
 Runbook: [`MIGRATION_AUDIT_REPORT.md`](./MIGRATION_AUDIT_REPORT.md) — full
@@ -257,7 +276,10 @@ Error details are written to JSON files:
 
 For a fresh migration, run in this order:
 
-1. Apply schema: `schema.sql`
+1. Apply schema: `schema.sql`, then `supabase/migrations/` 001-005 in order
+   (005 adds blogs/articles tables + product SEO columns)
+0b. For archive-recovered data: run the Archive Recovery Pipeline above first,
+   then ingest from `data/clean/*.enriched.json` instead of raw captures
 2. Migrate core data: `migrate_via_rest.py --execute`
 3. Migrate media: `migrate_media.py --execute`
 4. Migrate blogs: `migrate_blogs.py --execute`

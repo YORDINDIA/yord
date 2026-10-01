@@ -13,6 +13,7 @@ No new pip deps: stdlib + ``requests`` only.
 """
 
 import logging
+import math
 import random
 import time
 
@@ -24,14 +25,26 @@ MAX_WAIT_SECONDS = 60
 
 
 def _parse_retry_after(response: requests.Response | None, fallback: float) -> float:
-    """Extract Retry-After seconds, falling back to the backoff value."""
+    """Extract Retry-After seconds, falling back to the backoff value.
+
+    Non-numeric values fall back with a warning. Non-finite numerics
+    (``inf``/``nan`` — ``float()`` accepts both) are rejected the same way:
+    passing ``inf`` through would raise ``OverflowError`` in ``time.sleep``.
+    Finite values are capped at ``MAX_WAIT_SECONDS`` so a huge-but-finite
+    header cannot stall a migration run.
+    """
     if response is not None:
         raw = response.headers.get("Retry-After")
         if raw is not None:
             try:
-                return max(0.0, float(raw))
+                value = float(raw)
             except (TypeError, ValueError):
                 logger.warning(f"Ignoring malformed Retry-After header: {raw!r}")
+            else:
+                if not math.isfinite(value):
+                    logger.warning(f"Ignoring non-finite Retry-After header: {raw!r}")
+                else:
+                    return min(MAX_WAIT_SECONDS, max(0.0, value))
     return fallback
 
 

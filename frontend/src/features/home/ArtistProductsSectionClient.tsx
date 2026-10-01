@@ -28,7 +28,7 @@ export function ArtistProductsSectionClient({
   }
 
   return (
-    <section className="py-16 bg-noir-900 overflow-hidden">
+    <section className="py-16 bg-surface-card overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
@@ -41,7 +41,7 @@ export function ArtistProductsSectionClient({
           <div className="flex items-center gap-6">
             {/* Artist Avatar */}
             {artistImage && (
-              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-noir-800 shrink-0">
+              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-border-default shrink-0">
                 <div
                   className="absolute inset-0 opacity-20"
                   style={{ backgroundColor: accentColor }}
@@ -59,11 +59,11 @@ export function ArtistProductsSectionClient({
                 className="h-0.5 w-12 mb-4"
                 style={{ backgroundColor: accentColor }}
               />
-              <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-1">
+              <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-1">
                 {artistName}
               </h2>
               {artistTagline && (
-                <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-ivory-400">
+                <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-text-muted">
                   {artistTagline.toUpperCase()}
                 </p>
               )}
@@ -84,8 +84,8 @@ export function ArtistProductsSectionClient({
       {/* Products - Horizontal Scroll */}
       <div className="relative">
         {/* Gradient Edges */}
-        <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-noir-900 to-transparent z-10 pointer-events-none" />
-        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-noir-900 to-transparent z-10 pointer-events-none" />
+        <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-surface-card to-transparent z-10 pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-surface-card to-transparent z-10 pointer-events-none" />
 
         {/* Scrollable Container */}
         <div className="overflow-x-auto scrollbar-hide">

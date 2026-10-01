@@ -55,8 +55,11 @@ export async function toggleAdminAction(
     if (!parsed.ok) return parsed.state;
     const { user_id: userId, is_active: isActive } = parsed.data;
 
-    // Self-deactivation would lock the acting admin out mid-session.
-    if (userId === context.user.id) {
+    // Self-deactivation would lock the acting admin out mid-session. UUIDs are
+    // case-insensitive (the schema accepts uppercase, Postgres matches it), so
+    // compare normalized: an exact `===` is bypassed by submitting your own id
+    // in uppercase.
+    if (userId.toLowerCase() === context.user.id.toLowerCase()) {
       return actionError('You cannot deactivate your own account.');
     }
 

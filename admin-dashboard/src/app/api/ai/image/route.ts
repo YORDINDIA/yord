@@ -4,10 +4,19 @@ import { imageModel } from '@/lib/ai/openai';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/utils/admin';
-import { isAllowedImageUrl } from '@/lib/utils/sanitize';
 import { clampText, failJson, okJson } from '@/lib/utils/prompt';
 
 const MAX_IMAGE_BYTES = 10_000_000;
+
+/** Reject URLs that smuggle credentials; the import fetch stays conservative. */
+function isBlockedImportUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return Boolean(url.username || url.password);
+  } catch {
+    return true;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,8 +32,19 @@ export async function POST(req: Request) {
     }
 
     const { imageUrl, prompt } = await req.json();
-    if (!imageUrl || typeof imageUrl !== 'string' || !isAllowedImageUrl(imageUrl)) {
-      return failJson('BAD_REQUEST', 'imageUrl must be an https Supabase storage URL', 400);
+    // Accept the cover URL as stored: migrated products carry only the
+    // original/CDN `src` until an admin uploads to storage, and rejecting those
+    // here made image generation fail for every unmigrated product. The fetch
+    // below stays guarded (https-only, image content-type, 10 MB cap) and the
+    // route requires an admin session, so this is a controlled import, not an
+    // open fetch.
+    if (
+      !imageUrl ||
+      typeof imageUrl !== 'string' ||
+      !/^https:\/\//i.test(imageUrl) ||
+      isBlockedImportUrl(imageUrl)
+    ) {
+      return failJson('BAD_REQUEST', 'imageUrl must be an https image URL', 400);
     }
     // Admin-typed prompt is still untrusted model input: truncate to 4k chars.
     const safePrompt = clampText(prompt) || 'Enhance the product image for premium ecommerce.';

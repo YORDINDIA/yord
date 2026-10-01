@@ -8,6 +8,54 @@ import { one, reader, rows, runPage, type Paged } from './client';
 
 const ENTITY = 'collections';
 
+/**
+ * Supabase caps a single response at 1,000 rows. Any `collects` read that can
+ * exceed that — a popular collection's membership, or the enrichment fan-out
+ * for a page of collections — pages through `.range()` windows instead of
+ * trusting one response. A truncated id set is dangerous here: the detail form
+ * submits the loaded ids as the replacement set, so saving after a truncated
+ * read would silently delete the collection's remaining products.
+ */
+const COLLECTS_WINDOW = 1000;
+
+async function collectsForCollections(ids: number[]): Promise<Pick<Collect, 'collection_id'>[]> {
+  const supabase = await reader();
+  const all: Pick<Collect, 'collection_id'>[] = [];
+  // Stable order across windows so no row is skipped or repeated.
+  for (let from = 0; ; from += COLLECTS_WINDOW) {
+    const page = await rows<Pick<Collect, 'collection_id'>>(
+      'collects',
+      supabase
+        .from('collects')
+        .select('collection_id')
+        .in('collection_id', ids)
+        .order('collection_id', { ascending: true })
+        .order('product_id', { ascending: true })
+        .range(from, from + COLLECTS_WINDOW - 1),
+    );
+    all.push(...page);
+    if (page.length < COLLECTS_WINDOW) return all;
+  }
+}
+
+async function collectProductIds(collectionId: number): Promise<number[]> {
+  const supabase = await reader();
+  const ids: number[] = [];
+  for (let from = 0; ; from += COLLECTS_WINDOW) {
+    const page = await rows<Pick<Collect, 'product_id'>>(
+      'collects',
+      supabase
+        .from('collects')
+        .select('product_id')
+        .eq('collection_id', collectionId)
+        .order('position', { ascending: true })
+        .range(from, from + COLLECTS_WINDOW - 1),
+    );
+    for (const row of page) ids.push(row.product_id);
+    if (page.length < COLLECTS_WINDOW) return ids;
+  }
+}
+
 export interface CollectionListFilters {
   q?: string;
   page?: number;
@@ -55,12 +103,7 @@ export async function listCollections(
   }>(ENTITY, request);
 
   const ids = pageResult.rows.map((row) => row.id);
-  const collects = ids.length
-    ? await rows<Pick<Collect, 'collection_id'>>(
-        'collects',
-        supabase.from('collects').select('collection_id').in('collection_id', ids),
-      )
-    : [];
+  const collects = ids.length ? await collectsForCollections(ids) : [];
 
   const counts = new Map<number, number>();
   for (const row of collects) {
@@ -96,15 +139,8 @@ export const getCollection = cache(async (id: number): Promise<CollectionDetail 
   );
   if (!collection) return null;
 
-  const [collects, rules] = await Promise.all([
-    rows<Pick<Collect, 'product_id'>>(
-      'collects',
-      supabase
-        .from('collects')
-        .select('product_id')
-        .eq('collection_id', id)
-        .order('position', { ascending: true }),
-    ),
+  const [productIds, rules] = await Promise.all([
+    collectProductIds(id),
     rows<SmartCollectionRule>(
       'smart_collection_rules',
       supabase
@@ -117,7 +153,7 @@ export const getCollection = cache(async (id: number): Promise<CollectionDetail 
 
   return {
     collection,
-    productIds: collects.map((row) => row.product_id),
+    productIds,
     rules,
   };
 });

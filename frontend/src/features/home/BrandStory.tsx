@@ -52,7 +52,7 @@ function AnimatedCorner({ position, isInView }: { position: 'tl' | 'tr' | 'bl' |
     >
       <motion.path
         d={paths[position]}
-        stroke="var(--gold-200)"
+        stroke="var(--accent)"
         strokeWidth="2"
         strokeLinecap="square"
         initial={{ pathLength: 0 }}
@@ -80,17 +80,17 @@ export function BrandStory() {
     <section ref={containerRef} className="relative py-32 overflow-hidden">
       {/* Background with Parallax */}
       <motion.div
-        className="absolute inset-0 bg-noir-950"
+        className="absolute inset-0 bg-surface-page"
         style={{ y }}
       >
         {/* Gradient Orbs */}
-        <div className="absolute top-1/4 -left-32 w-[400px] h-[400px] rounded-full bg-gold-200/5 blur-[100px] animate-liquid-morph" />
+        <div className="absolute top-1/4 -left-32 w-[400px] h-[400px] rounded-full bg-accent-tint blur-[100px] animate-liquid-morph" />
         <div className="absolute bottom-1/4 -right-32 w-[500px] h-[500px] rounded-full bg-purple-500/5 blur-[120px] animate-liquid-morph" style={{ animationDelay: '4s' }} />
       </motion.div>
 
       {/* Gold Accent Lines */}
-      <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-gold-200/30 to-transparent" />
-      <div className="absolute left-0 right-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gold-200/30 to-transparent" />
+      <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+      <div className="absolute left-0 right-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
 
       <div className="relative max-w-[1440px] mx-auto px-6 lg:px-12">
         <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
@@ -101,15 +101,15 @@ export function BrandStory() {
             transition={{ duration: 0.8 }}
             style={{ y: yLeft }}
           >
-            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200 mb-4">
+            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-4">
               THE YORD STORY
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6 leading-tight">
+            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6 leading-tight">
               More Than
               <br />
               <span className="gold-text animate-shimmer-sweep">Merchandise</span>
             </h2>
-            <div className="space-y-6 text-lg text-ivory-200 font-[family-name:var(--font-cormorant)]">
+            <div className="space-y-6 text-lg text-text-secondary font-[family-name:var(--font-cormorant)]">
               <p>
                 YORD India was born from a simple belief: concert merchandise should be as
                 memorable as the music itself. We craft premium apparel that captures the
@@ -130,7 +130,7 @@ export function BrandStory() {
             >
               <Link
                 href="/about"
-                className="inline-flex items-center gap-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-gold-200 hover:text-gold-300 transition-colors group"
+                className="inline-flex items-center gap-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-accent hover:text-accent-hover transition-colors group"
                 data-cursor="pointer"
               >
                 DISCOVER OUR STORY
@@ -148,7 +148,7 @@ export function BrandStory() {
             style={{ y: yRight }}
           >
             {/* Decorative Frame with Animated Corners */}
-            <div className="relative aspect-[4/5] border border-noir-700 p-8 lg:p-12">
+            <div className="relative aspect-[4/5] border border-border-default p-8 lg:p-12">
               {/* Animated Corner Accents */}
               <AnimatedCorner position="tl" isInView={isInView} />
               <AnimatedCorner position="tr" isInView={isInView} />
@@ -172,7 +172,7 @@ export function BrandStory() {
                   initial={{ opacity: 0 }}
                   animate={isInView ? { opacity: 1 } : {}}
                   transition={{ delay: 0.8 }}
-                  className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.4em] text-ivory-400 mb-4"
+                  className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.4em] text-text-muted mb-4"
                 >
                   ESTABLISHED 2024
                 </motion.p>
@@ -181,7 +181,7 @@ export function BrandStory() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={isInView ? { opacity: 1, y: 0 } : {}}
                   transition={{ delay: 0.9 }}
-                  className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50 mb-6 italic"
+                  className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary mb-6 italic"
                 >
                   &quot;Where Every Thread Tells a Story&quot;
                 </motion.h3>
@@ -190,24 +190,24 @@ export function BrandStory() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={isInView ? { opacity: 1, y: 0 } : {}}
                   transition={{ delay: 1 }}
-                  className="flex items-center gap-6 text-ivory-400"
+                  className="flex items-center gap-6 text-text-muted"
                 >
                   <div className="text-center">
-                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-gold-200">
+                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-accent">
                       <AnimatedCounter value={50000} formatAbbreviated suffix="+" />
                     </p>
                     <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em]">FANS SERVED</p>
                   </div>
-                  <div className="w-px h-12 bg-noir-700" />
+                  <div className="w-px h-12 bg-surface-inset" />
                   <div className="text-center">
-                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-gold-200">
+                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-accent">
                       <AnimatedCounter value={15} suffix="+" />
                     </p>
                     <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em]">ARTISTS</p>
                   </div>
-                  <div className="w-px h-12 bg-noir-700" />
+                  <div className="w-px h-12 bg-surface-inset" />
                   <div className="text-center">
-                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-gold-200">
+                    <p className="font-[family-name:var(--font-playfair)] text-3xl text-accent">
                       <AnimatedCounter value={500} suffix="+" />
                     </p>
                     <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em]">PRODUCTS</p>
@@ -235,22 +235,22 @@ export function BrandStory() {
               whileHover={{ scale: 1.02 }}
             >
               <motion.div
-                className="inline-flex items-center justify-center w-16 h-16 mb-6 border border-noir-700 transition-all duration-300 group-hover:border-gold-200/50"
+                className="inline-flex items-center justify-center w-16 h-16 mb-6 border border-border-default transition-all duration-300 group-hover:border-accent/50"
                 whileHover={{
-                  boxShadow: '0 0 30px rgba(255, 217, 102, 0.3)',
+                  boxShadow: `0 0 30px color-mix(in srgb, var(--accent) 30%, transparent)`,
                 }}
               >
                 <motion.div
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 3, repeat: Infinity, repeatDelay: 1 }}
                 >
-                  <value.icon size={24} className="text-gold-200" />
+                  <value.icon size={24} className="text-accent" />
                 </motion.div>
               </motion.div>
-              <h4 className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-ivory-50 mb-2">
+              <h4 className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-text-primary mb-2">
                 {value.title}
               </h4>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 {value.description}
               </p>
             </motion.div>

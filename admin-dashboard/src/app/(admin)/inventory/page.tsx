@@ -67,7 +67,14 @@ export default async function InventoryPage({
       key: 'status',
       header: 'Status',
       render: (row) => {
-        const qty = row.variant.inventory_quantity ?? 0;
+        // NULL is "unknown stock", not zero: collapsing it to 0 mislabels an
+        // untracked variant as sellable-out and invites saving 0 over it. The
+        // low-stock KPI counts NULL alongside low quantities, so the badge
+        // flags it for attention instead.
+        const qty = row.variant.inventory_quantity;
+        if (qty === null || qty === undefined) {
+          return <StatusBadge value="low" label="Unknown stock" />;
+        }
         const tone = stockTone(qty);
         return (
           <StatusBadge
@@ -113,24 +120,22 @@ export default async function InventoryPage({
 
   return (
     <div className="grid gap-4">
-      <div className="toolbar" role="tablist" aria-label="Inventory views">
+      <nav className="toolbar" aria-label="Inventory views">
         <Link
           className={`button${tab === 'stock' ? ' primary' : ''}`}
           href="/inventory?tab=stock"
-          role="tab"
-          aria-selected={tab === 'stock'}
+          aria-current={tab === 'stock' ? 'page' : undefined}
         >
           Stock
         </Link>
         <Link
           className={`button${tab === 'locations' ? ' primary' : ''}`}
           href="/inventory?tab=locations"
-          role="tab"
-          aria-selected={tab === 'locations'}
+          aria-current={tab === 'locations' ? 'page' : undefined}
         >
           Locations
         </Link>
-      </div>
+      </nav>
 
       {inventory ? (
         <div className="card">

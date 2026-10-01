@@ -23,11 +23,11 @@ export function ErrorState({
 }) {
   return (
     <div className="py-16 text-center">
-      <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200 mb-3">
+      <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
         SOMETHING WENT WRONG
       </p>
-      <p className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-3">{title}</p>
-      <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 max-w-md mx-auto mb-8">
+      <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-3">{title}</p>
+      <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted max-w-md mx-auto mb-8">
         {message}
       </p>
       <div className="flex items-center justify-center gap-4">
@@ -35,7 +35,7 @@ export function ErrorState({
           <button
             type="button"
             onClick={onRetry}
-            className="px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-gold-300 transition-colors"
+            className="px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors"
           >
             {retryLabel.toUpperCase()}
           </button>
@@ -43,7 +43,7 @@ export function ErrorState({
         {showHomeLink ? (
           <Link
             href="/"
-            className="px-8 py-3 border border-noir-600 text-ivory-200 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:border-gold-200 hover:text-gold-200 transition-colors"
+            className="px-8 py-3 border border-border-strong text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:border-accent hover:text-accent transition-colors"
           >
             BACK TO HOME
           </Link>

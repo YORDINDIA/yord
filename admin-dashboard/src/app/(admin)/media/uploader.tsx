@@ -42,12 +42,33 @@ export default function MediaUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // The server rejects batches over MAX_MEDIA_FILES outright, so the batch is
+  // capped here — before submit — instead of sending files that are guaranteed
+  // to fail. Both the picker and the drop path go through this. Returns true
+  // when the input already holds the capped list.
+  function capToLimit(files: FileList): boolean {
+    const input = inputRef.current;
+    if (!input || files.length <= MAX_MEDIA_FILES) return false;
+    const capped = new DataTransfer();
+    Array.from(files)
+      .slice(0, MAX_MEDIA_FILES)
+      .forEach((file) => capped.items.add(file));
+    input.files = capped.files;
+    toast(
+      `Uploading the first ${MAX_MEDIA_FILES} images (${files.length} selected).`,
+      'info',
+    );
+    return true;
+  }
+
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragOver(false);
     const input = inputRef.current;
     if (!input || event.dataTransfer.files.length === 0) return;
-    input.files = event.dataTransfer.files;
+    if (!capToLimit(event.dataTransfer.files)) {
+      input.files = event.dataTransfer.files;
+    }
     formRef.current?.requestSubmit();
   }
 
@@ -96,9 +117,7 @@ export default function MediaUploader() {
           multiple
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
-              if (e.target.files.length > MAX_MEDIA_FILES) {
-                toast(`Uploading the first ${MAX_MEDIA_FILES} images.`, 'info');
-              }
+              capToLimit(e.target.files);
               formRef.current?.requestSubmit();
             }
             // Reset so re-picking the same file fires onChange again.

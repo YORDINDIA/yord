@@ -52,7 +52,7 @@ export default async function ConcertPage({ params }: ConcertPageProps) {
     <ConcertDetail
       concert={concert}
       slug={slug}
-      accentColor={artistData?.accentColor || '#D4AF37'}
+      accentColor={artistData?.accentColor || 'var(--accent)'}
       hasMerchLink={!!artistData}
       relatedConcerts={relatedConcerts}
     />

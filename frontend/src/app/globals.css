@@ -2,50 +2,67 @@
 @import "@yord/ui/tokens.css";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   YORD INDIA - NOIR LUXE Design System
-   Ultra-premium dark theme for luxury concert fashion
+   YORD INDIA Design System
+   "Alabaster & Bronze" (light, default) / "Noir Luxe" (dark)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Core variables (palette, semantic tokens, spacing, transitions, shadows) are
-   defined in packages/ui/src/tokens.css, imported above. */
+/* Semantic tokens (palette, spacing, transitions, shadows, glass, scrims) are
+   defined in packages/ui/src/tokens.css, imported above. Only semantic tokens
+   are mapped into Tailwind here: the raw noir, gold and ivory ramps stay private
+   to that file, so a component that reaches for `bg-noir-950` fails to compile
+   instead of silently rendering a colour that ignores the theme. */
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TAILWIND THEME EXTENSION
-   ───────────────────────────────────────────────────────────────────────────── */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme inline {
-  /* Colors */
+  /* Surfaces */
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-input: var(--surface-input);
+  --color-surface-inset: var(--surface-inset);
+
+  /* Text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-on-accent: var(--text-on-accent);
+
+  /* Accent */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-tint-strong: var(--accent-tint-strong);
+  --color-accent-on-surface: var(--accent-on-surface);
+
+  /* Borders */
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-focus-ring: var(--focus-ring);
+
+  /* On-media (always dark — sits on top of photos/video) */
+  --color-scrim: var(--scrim);
+  --color-text-on-media: var(--text-on-media);
+  --color-text-on-media-muted: var(--text-on-media-muted);
+  --color-accent-on-media: var(--accent-on-media);
+
+  /* Artist brand marks (theme-invariant) */
+  --color-text-on-brand: var(--text-on-brand);
+  --color-brand-veil: var(--brand-veil);
+
+  /* Legacy aliases (globals.css base styles) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-hover: var(--card-hover);
   --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
   --color-muted: var(--muted);
 
-  /* Noir Palette */
-  --color-noir-950: var(--noir-950);
-  --color-noir-900: var(--noir-900);
-  --color-noir-800: var(--noir-800);
-  --color-noir-700: var(--noir-700);
-  --color-noir-600: var(--noir-600);
-  --color-noir-500: var(--noir-500);
-  --color-noir-400: var(--noir-400);
-
-  /* Gold */
-  --color-gold-50: var(--gold-50);
-  --color-gold-100: var(--gold-100);
-  --color-gold-200: var(--gold-200);
-  --color-gold-300: var(--gold-300);
-  --color-gold-400: var(--gold-400);
-  --color-gold-500: var(--gold-500);
-
-  /* Ivory */
-  --color-ivory-50: var(--ivory-50);
-  --color-ivory-100: var(--ivory-100);
-  --color-ivory-200: var(--ivory-200);
-  --color-ivory-300: var(--ivory-300);
-  --color-ivory-400: var(--ivory-400);
+  /* The raw noir/gold/ivory ramps are deliberately NOT mapped here. Dropping
+     them is what makes `bg-noir-950` fail to compile instead of silently
+     rendering a dark surface in light mode; theme.test.ts fails the build if a
+     component tries. The ramps stay private to @yord/ui/tokens.css. */
 
   /* Fonts */
   --font-playfair: "Playfair Display";
@@ -72,8 +89,8 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--surface-page);
+  color: var(--text-primary);
   font-family: var(--font-body), system-ui, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
@@ -87,27 +104,27 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--noir-900);
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--noir-600);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--noir-500);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Selection */
 ::selection {
-  background: var(--gold-200);
-  color: var(--noir-950);
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 
 /* Focus States */
 :focus-visible {
-  outline: 2px solid var(--gold-200);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -141,26 +158,26 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Glass Effect */
 .glass {
-  background: rgba(17, 17, 17, 0.8);
+  background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
 }
 
 .glass-light {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-border);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
 }
 
-/* Gold Gradient */
+/* Accent Gradient */
 .gold-gradient {
-  background: linear-gradient(135deg, var(--gold-200) 0%, var(--gold-400) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
 }
 
 .gold-text {
-  background: linear-gradient(135deg, var(--gold-100) 0%, var(--gold-300) 50%, var(--gold-100) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -182,7 +199,7 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 217, 102, 0.1) 50%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 50%,
     transparent 100%
   );
   animation: shimmer 3s infinite;
@@ -195,13 +212,13 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Glow Effects */
 .glow-gold {
-  box-shadow: 0 0 20px rgba(255, 217, 102, 0.3),
-              0 0 40px rgba(255, 217, 102, 0.1);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 30%, transparent),
+              0 0 40px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .glow-gold-strong {
-  box-shadow: 0 0 30px rgba(255, 217, 102, 0.5),
-              0 0 60px rgba(255, 217, 102, 0.2);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 50%, transparent),
+              0 0 60px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 /* Magnetic Hover Effect Container */
@@ -222,7 +239,7 @@ h1, h2, h3, h4, h5, h6 {
   left: 0;
   width: 100%;
   height: 1px;
-  background: var(--gold-200);
+  background: var(--accent);
   transform: scaleX(0);
   transform-origin: right;
   transition: transform var(--transition-base);
@@ -239,23 +256,23 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Cards */
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
   border-radius: 2px;
   transition: all var(--transition-base);
 }
 
 .card:hover {
-  background: var(--card-hover);
-  border-color: var(--noir-600);
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
 }
 
 /* Buttons */
 .btn-primary {
-  background: var(--gold-200);
-  color: var(--noir-950);
+  background: var(--accent);
+  color: var(--text-on-accent);
   font-family: var(--font-accent), sans-serif;
   font-size: 14px;
   letter-spacing: 0.15em;
@@ -268,7 +285,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary:hover {
-  background: var(--gold-300);
+  background: var(--accent-hover);
   box-shadow: var(--shadow-gold);
 }
 
@@ -278,26 +295,26 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-secondary {
   background: transparent;
-  color: var(--ivory-50);
+  color: var(--text-primary);
   font-family: var(--font-accent), sans-serif;
   font-size: 14px;
   letter-spacing: 0.15em;
   padding: 14px 30px;
-  border: 1px solid var(--ivory-50);
+  border: 1px solid var(--text-primary);
   cursor: pointer;
   transition: all var(--transition-base);
 }
 
 .btn-secondary:hover {
-  background: var(--ivory-50);
-  color: var(--noir-950);
+  background: var(--text-primary);
+  color: var(--surface-page);
 }
 
 /* Inputs */
 .input {
-  background: var(--noir-900);
-  border: 1px solid var(--border);
-  color: var(--ivory-50);
+  background: var(--surface-input);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
   padding: 14px 16px;
   font-size: 16px;
   transition: all var(--transition-fast);
@@ -305,12 +322,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .input:focus {
-  border-color: var(--gold-200);
+  border-color: var(--accent);
   outline: none;
 }
 
 .input::placeholder {
-  color: var(--ivory-400);
+  color: var(--text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -464,16 +481,18 @@ h1, h2, h3, h4, h5, h6 {
 .cursor-dot {
   width: 8px;
   height: 8px;
-  background: var(--gold-200);
+  background: var(--accent);
   border-radius: 50%;
   pointer-events: none;
-  mix-blend-mode: difference;
+  /* `difference` is correct on the dark page but inverts a light one into an
+     unreadable blob, so the blend mode itself is a per-theme token. */
+  mix-blend-mode: var(--cursor-blend);
 }
 
 .cursor-ring {
   width: 40px;
   height: 40px;
-  border: 1px solid var(--gold-200);
+  border: 1px solid var(--accent);
   border-radius: 50%;
   pointer-events: none;
   opacity: 0.6;
@@ -483,7 +502,7 @@ h1, h2, h3, h4, h5, h6 {
 .cursor-ring[data-state="pointer"] {
   transform: scale(1.5);
   opacity: 0.8;
-  border-color: var(--gold-300);
+  border-color: var(--accent-hover);
 }
 
 .cursor-ring[data-state="text"] {
@@ -500,33 +519,28 @@ h1, h2, h3, h4, h5, h6 {
    PREMIUM GLOW EFFECTS
    ───────────────────────────────────────────────────────────────────────────── */
 .glow-gold-input:focus {
-  border-color: var(--gold-200);
-  box-shadow: 0 0 0 3px rgba(255, 217, 102, 0.1),
-              0 0 20px rgba(255, 217, 102, 0.15),
-              0 0 40px rgba(255, 217, 102, 0.05);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent),
+              0 0 20px color-mix(in srgb, var(--accent) 15%, transparent),
+              0 0 40px color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .glow-gold-hover:hover {
-  box-shadow: 0 0 30px rgba(255, 217, 102, 0.3),
-              0 0 60px rgba(255, 217, 102, 0.15);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 30%, transparent),
+              0 0 60px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    DEPTH SHADOWS (Premium layered shadows)
    ───────────────────────────────────────────────────────────────────────────── */
 .shadow-depth {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.1),
-    0 4px 8px rgba(0, 0, 0, 0.1),
-    0 8px 16px rgba(0, 0, 0, 0.1);
+  /* Token, not a literal: the depth stack inverts between themes (dark-blur on
+     the dark page, light-lift on the light one). */
+  box-shadow: var(--shadow-depth);
 }
 
 .shadow-depth-hover:hover {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.1),
-    0 8px 16px rgba(0, 0, 0, 0.15),
-    0 16px 32px rgba(0, 0, 0, 0.2),
-    0 32px 64px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-depth);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -551,7 +565,7 @@ h1, h2, h3, h4, h5, h6 {
   left: 50%;
   width: 1px;
   height: 0;
-  background: linear-gradient(to bottom, var(--gold-200), transparent);
+  background: linear-gradient(to bottom, var(--accent), transparent);
   transition: height 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   transform: translateX(-50%);
 }
@@ -635,9 +649,9 @@ h1, h2, h3, h4, h5, h6 {
   position: absolute;
   width: 4px;
   height: 4px;
-  background: var(--gold-200);
+  background: var(--accent-on-media);
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--gold-200);
+  box-shadow: 0 0 6px var(--accent-on-media);
   animation: sparkle 3s ease-in-out infinite;
 }
 
@@ -645,11 +659,11 @@ h1, h2, h3, h4, h5, h6 {
 .gold-text-animated {
   background: linear-gradient(
     90deg,
-    var(--gold-100) 0%,
-    var(--gold-300) 25%,
-    var(--gold-100) 50%,
-    var(--gold-300) 75%,
-    var(--gold-100) 100%
+    var(--accent) 0%,
+    var(--accent-hover) 25%,
+    var(--accent) 50%,
+    var(--accent-hover) 75%,
+    var(--accent) 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -670,7 +684,7 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 217, 102, 0.3) 50%,
+    color-mix(in srgb, var(--accent) 30%, transparent) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -697,8 +711,8 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    var(--gold-200) 30%,
-    var(--gold-200) 70%,
+    var(--accent) 30%,
+    var(--accent) 70%,
     transparent 100%
   );
   opacity: 0.3;

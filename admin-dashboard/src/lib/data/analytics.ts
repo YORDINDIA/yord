@@ -44,9 +44,13 @@ export function revenueWindowStart(days: number): Date {
  *
  * Non-INR orders are excluded, matching the previous JS filter so the numbers
  * stay comparable with what admins saw before.
+ *
+ * The RPCs are `SECURITY DEFINER` but granted only to `service_role`
+ * (004_atomic_writes.sql), so they run through the service client: the
+ * cookie-backed session client gets a permission-denied error instead.
  */
 export async function revenueByDay(days: number): Promise<RevenueSummary> {
-  const supabase = await reader();
+  const supabase = await reader({ service: true });
   const since = revenueWindowStart(days);
 
   const { data, error } = await supabase.rpc('revenue_by_day', {
@@ -59,7 +63,12 @@ export async function revenueByDay(days: number): Promise<RevenueSummary> {
     const day = String(row.day ?? '').slice(0, 10);
     totals.set(day, Number(row.total ?? 0));
   }
-  return { total: sumAll(totals.values()), byDay: zeroFill(totals, since, days) };
+  // The total is derived from the zero-filled points, not from every SQL row:
+  // SQL aggregates everything from `since` (including today), while the chart
+  // emits exactly the `days` dates ending yesterday. Summing the raw rows
+  // counted a day the chart never showed.
+  const byDay = zeroFill(totals, since, days);
+  return { total: sumAll(byDay.map((point) => point.total)), byDay };
 }
 
 function sumAll(values: Iterable<number>): number {
@@ -100,7 +109,8 @@ export interface TopProductsResult {
  * one row and their revenue was attributed to whichever id was seen first.
  */
 export async function topProductsByUnits(limit = 8): Promise<TopProductsResult> {
-  const supabase = await reader();
+  // Service client: granted only to `service_role`, like `revenue_by_day`.
+  const supabase = await reader({ service: true });
   const { data, error } = await supabase.rpc('top_products_by_units', { p_limit: limit });
   if (error) fail('line_items', error);
 
@@ -175,17 +185,21 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     ),
     runCount(
       'orders',
+      // Migrated orders carry NULL instead of 'unfulfilled'; the literal-only
+      // predicate dropped them from the queue entirely.
       supabase
         .from('orders')
         .select('id', { count: 'exact', head: true })
-        .eq('fulfillment_status', 'unfulfilled'),
+        .or('fulfillment_status.eq.unfulfilled,fulfillment_status.is.null'),
     ),
     runCount(
       'product_variants',
+      // NULL means "unknown stock" and the inventory UI renders it as zero;
+      // the low-stock product filter counts it too, so the KPI must match.
       supabase
         .from('product_variants')
         .select('id', { count: 'exact', head: true })
-        .lte('inventory_quantity', LOW_STOCK_THRESHOLD),
+        .or(`inventory_quantity.lte.${LOW_STOCK_THRESHOLD},inventory_quantity.is.null`),
     ),
     rows<RecentOrder>(
       'orders',

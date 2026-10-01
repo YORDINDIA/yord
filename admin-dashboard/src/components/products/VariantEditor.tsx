@@ -29,8 +29,28 @@ export default function VariantEditor({
   productId: number;
 }) {
   const [rows, setRows] = useState<VariantRow[]>(variants);
-  const dirty = JSON.stringify(rows) !== JSON.stringify(variants);
   const router = useRouter();
+
+  // Only rows the admin actually touched are submitted. The old payload sent
+  // every row's inventory value on each save, so fixing one price rewrote all
+  // variants' stock with the stale values from page load — restoring units a
+  // completed checkout had just decremented. Untouched rows are excluded, so a
+  // price-only save cannot move inventory it never displayed as editable.
+  const baselineById = new Map(variants.map((row) => [row.id, row]));
+  const changedRows = rows.filter((row) => {
+    const base = baselineById.get(row.id);
+    return (
+      !base ||
+      base.price !== row.price ||
+      base.compare_at_price !== row.compare_at_price ||
+      base.inventory_quantity !== row.inventory_quantity
+    );
+  });
+  const dirty = changedRows.length > 0;
+  // Inventory this save will actually write (subset of the touched rows).
+  const inventoryTouched = changedRows.some(
+    (row) => baselineById.get(row.id)?.inventory_quantity !== row.inventory_quantity,
+  );
 
   const { state, pending, formAction } = useActionForm(updateVariantsAction, {
     onResult: (result) => {
@@ -53,7 +73,9 @@ export default function VariantEditor({
   return (
     <form action={formAction}>
       <input type="hidden" name="product_id" value={productId} />
-      <input type="hidden" name="payload" value={JSON.stringify(rows)} />
+      {/* Sparse payload: untouched variants are omitted so the bulk writer
+          leaves their prices and stock exactly as checkout left them. */}
+      <input type="hidden" name="payload" value={JSON.stringify(changedRows)} />
 
       {state.status === 'error' && state.formError && (
         <div className="form-alert form-alert-error" role="alert" style={{ marginBottom: 12 }}>
@@ -64,11 +86,18 @@ export default function VariantEditor({
       {dirty && (
         <div className="save-bar" style={{ marginBottom: 12 }}>
           <span className="helper">
-            {rows.length} variant{rows.length === 1 ? '' : 's'} · unsaved price/inventory changes
+            {changedRows.length} changed variant{changedRows.length === 1 ? '' : 's'} · unsaved
+            price/inventory changes
           </span>
           <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>
-            {pending ? 'Saving…' : 'Save All Variants'}
+            {pending ? 'Saving…' : 'Save Changed Variants'}
           </button>
+        </div>
+      )}
+      {dirty && inventoryTouched && (
+        <div className="helper" style={{ marginBottom: 12 }}>
+          This save writes inventory. Stock shown is from page load — reload the page first if a
+          checkout may have sold units since.
         </div>
       )}
 
@@ -126,8 +155,8 @@ export default function VariantEditor({
         </table>
       </div>
 
-      <button className="button" type="submit" style={{ marginTop: 12 }} disabled={pending} aria-busy={pending}>
-        {pending ? 'Saving…' : 'Save All Variants'}
+      <button className="button" type="submit" style={{ marginTop: 12 }} disabled={pending || !dirty} aria-busy={pending}>
+        {pending ? 'Saving…' : 'Save Changed Variants'}
       </button>
     </form>
   );

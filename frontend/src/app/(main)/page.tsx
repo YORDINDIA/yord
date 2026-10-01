@@ -79,16 +79,16 @@ export default function HomePage() {
 
 function FeaturedProductsSkeleton() {
   return (
-    <section className="py-24 bg-noir-950">
+    <section className="py-24 bg-surface-page">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        <div className="h-8 w-48 bg-noir-800 animate-pulse mb-12" />
+        <div className="h-8 w-48 bg-surface-raised animate-pulse mb-12" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-4">
-              <div className="aspect-[3/4] bg-noir-800 animate-pulse" />
-              <div className="h-4 w-20 bg-noir-800 animate-pulse" />
-              <div className="h-6 w-full bg-noir-800 animate-pulse" />
-              <div className="h-4 w-24 bg-noir-800 animate-pulse" />
+              <div className="aspect-[3/4] bg-surface-raised animate-pulse" />
+              <div className="h-4 w-20 bg-surface-raised animate-pulse" />
+              <div className="h-6 w-full bg-surface-raised animate-pulse" />
+              <div className="h-4 w-24 bg-surface-raised animate-pulse" />
             </div>
           ))}
         </div>
@@ -99,22 +99,22 @@ function FeaturedProductsSkeleton() {
 
 function ArtistProductsSkeleton({ }: { artistName: string }) {
   return (
-    <section className="py-16 bg-noir-900 overflow-hidden">
+    <section className="py-16 bg-surface-card overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         <div className="mb-8">
-          <div className="h-0.5 w-12 bg-noir-700 animate-pulse mb-4" />
-          <div className="h-10 w-48 bg-noir-800 animate-pulse mb-2" />
-          <div className="h-4 w-32 bg-noir-800 animate-pulse" />
+          <div className="h-0.5 w-12 bg-surface-inset animate-pulse mb-4" />
+          <div className="h-10 w-48 bg-surface-raised animate-pulse mb-2" />
+          <div className="h-4 w-32 bg-surface-raised animate-pulse" />
         </div>
       </div>
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-6 px-6 lg:px-12 pb-4" style={{ width: 'max-content' }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="w-[260px] sm:w-[280px] space-y-4">
-              <div className="aspect-[3/4] bg-noir-800 animate-pulse" />
-              <div className="h-4 w-20 bg-noir-800 animate-pulse" />
-              <div className="h-6 w-full bg-noir-800 animate-pulse" />
-              <div className="h-4 w-24 bg-noir-800 animate-pulse" />
+              <div className="aspect-[3/4] bg-surface-raised animate-pulse" />
+              <div className="h-4 w-20 bg-surface-raised animate-pulse" />
+              <div className="h-6 w-full bg-surface-raised animate-pulse" />
+              <div className="h-4 w-24 bg-surface-raised animate-pulse" />
             </div>
           ))}
         </div>
@@ -125,23 +125,23 @@ function ArtistProductsSkeleton({ }: { artistName: string }) {
 
 function UpcomingConcertsSkeleton() {
   return (
-    <section className="py-24 bg-noir-950">
+    <section className="py-24 bg-surface-page">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        <div className="h-4 w-32 bg-noir-800 animate-pulse mb-3" />
-        <div className="h-10 w-80 bg-noir-800 animate-pulse mb-12" />
+        <div className="h-4 w-32 bg-surface-raised animate-pulse mb-3" />
+        <div className="h-10 w-80 bg-surface-raised animate-pulse mb-12" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-noir-900 border border-noir-800 p-6 space-y-4">
-              <div className="h-0.5 w-12 bg-noir-800 animate-pulse" />
-              <div className="h-8 w-48 bg-noir-800 animate-pulse" />
-              <div className="h-4 w-32 bg-noir-800 animate-pulse" />
-              <div className="h-4 w-40 bg-noir-800 animate-pulse" />
+            <div key={i} className="bg-surface-card border border-border-default p-6 space-y-4">
+              <div className="h-0.5 w-12 bg-surface-raised animate-pulse" />
+              <div className="h-8 w-48 bg-surface-raised animate-pulse" />
+              <div className="h-4 w-32 bg-surface-raised animate-pulse" />
+              <div className="h-4 w-40 bg-surface-raised animate-pulse" />
               <div className="grid grid-cols-3 gap-3 mt-6">
                 {Array.from({ length: 3 }).map((_, j) => (
-                  <div key={j} className="aspect-[3/4] bg-noir-800 animate-pulse" />
+                  <div key={j} className="aspect-[3/4] bg-surface-raised animate-pulse" />
                 ))}
               </div>
-              <div className="h-10 w-full bg-noir-800 animate-pulse mt-4" />
+              <div className="h-10 w-full bg-surface-raised animate-pulse mt-4" />
             </div>
           ))}
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,13 +16,23 @@ export default function WishlistPage() {
   const hydrated = useWishlistHydrated();
   const items = useWishlistStore((state) => state.items);
   const removeItem = useWishlistStore((state) => state.removeItem);
+  // Persisted storage can be unavailable (private mode, blocked
+  // localStorage) so `_hasHydrated` may never flip. Stop skeletoning after
+  // a grace period and render the usable fallback (empty state with a
+  // shopping CTA) instead of hanging forever.
+  const [hydrateTimedOut, setHydrateTimedOut] = useState(false);
+  useEffect(() => {
+    if (hydrated) return;
+    const t = setTimeout(() => setHydrateTimedOut(true), 2500);
+    return () => clearTimeout(t);
+  }, [hydrated]);
 
   // Pre-hydration `items` is the store default (`[]`), not the real
   // wishlist — skeleton instead of a flashing "empty" state.
-  if (!hydrated) {
+  if (!hydrated && !hydrateTimedOut) {
     return (
       <div className="space-y-6">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
           My Wishlist
         </h2>
         <ProductGridSkeleton count={4} />
@@ -37,30 +48,30 @@ export default function WishlistPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
           My Wishlist
         </h2>
         {items.length > 0 && (
-          <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+          <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </span>
         )}
       </div>
 
       {items.length === 0 ? (
-        <div className="bg-noir-900 border border-noir-800 p-12 text-center">
-          <div className="w-16 h-16 bg-noir-800 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Heart className="w-8 h-8 text-ivory-500" />
+        <div className="bg-surface-card border border-border-default p-12 text-center">
+          <div className="w-16 h-16 bg-surface-raised rounded-full flex items-center justify-center mx-auto mb-6">
+            <Heart className="w-8 h-8 text-text-muted" />
           </div>
-          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-ivory-100 mb-2">
+          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-secondary mb-2">
             Your wishlist is empty
           </h3>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-6">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-6">
             Save items you love by clicking the heart icon on any product.
           </p>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
           >
             <ShoppingBag size={18} />
             EXPLORE PRODUCTS
@@ -71,13 +82,13 @@ export default function WishlistPage() {
           {items.map((item) => (
             <div
               key={item.productId}
-              className="bg-noir-900 border border-noir-800 group"
+              className="bg-surface-card border border-border-default group"
             >
               <div className="flex">
                 {/* Product Image */}
                 <Link
                   href={`/product/${item.productHandle}`}
-                  className="relative w-32 h-32 flex-shrink-0 bg-noir-800"
+                  className="relative w-32 h-32 flex-shrink-0 bg-surface-raised"
                 >
                   {item.image ? (
                     <Image
@@ -87,7 +98,7 @@ export default function WishlistPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-ivory-600">
+                    <div className="w-full h-full flex items-center justify-center text-text-muted">
                       <ShoppingBag size={24} />
                     </div>
                   )}
@@ -97,22 +108,22 @@ export default function WishlistPage() {
                 <div className="flex-1 p-4 flex flex-col justify-between">
                   <div>
                     {item.artist && (
-                      <p className="font-[family-name:var(--font-jakarta)] text-xs text-gold-200 uppercase tracking-wider mb-1">
+                      <p className="font-[family-name:var(--font-jakarta)] text-xs text-accent uppercase tracking-wider mb-1">
                         {item.artist}
                       </p>
                     )}
                     <Link
                       href={`/product/${item.productHandle}`}
-                      className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100 hover:text-gold-200 transition-colors line-clamp-2"
+                      className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors line-clamp-2"
                     >
                       {item.title}
                     </Link>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="font-[family-name:var(--font-bebas)] text-lg text-gold-200">
+                      <span className="font-[family-name:var(--font-bebas)] text-lg text-accent">
                         {formatPrice(item.price)}
                       </span>
                       {isPriceOnSale(item.price, item.compareAtPrice) && (
-                        <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500 line-through">
+                        <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted line-through">
                           {formatPrice(item.compareAtPrice ?? 0)}
                         </span>
                       )}
@@ -123,14 +134,14 @@ export default function WishlistPage() {
                   <div className="flex items-center gap-2 mt-3">
                     <button
                       onClick={() => handleViewProduct(item)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-xs tracking-wider hover:bg-gold-300 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-xs tracking-wider hover:bg-accent-hover transition-colors"
                     >
                       <ShoppingCart size={14} />
                       SELECT OPTIONS
                     </button>
                     <button
                       onClick={() => removeItem(item.productId)}
-                      className="w-8 h-8 flex items-center justify-center border border-noir-700 text-ivory-400 hover:text-red-400 hover:border-red-400/50 transition-colors"
+                      className="w-8 h-8 flex items-center justify-center border border-border-default text-text-muted hover:text-red-400 hover:border-red-400/50 transition-colors"
                       aria-label="Remove from wishlist"
                     >
                       <X size={16} />

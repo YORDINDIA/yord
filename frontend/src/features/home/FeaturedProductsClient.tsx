@@ -12,7 +12,7 @@ interface FeaturedProductsClientProps {
 
 export function FeaturedProductsClient({ products }: FeaturedProductsClientProps) {
   return (
-    <section className="py-24 bg-noir-900">
+    <section className="py-24 bg-surface-card">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
@@ -24,18 +24,18 @@ export function FeaturedProductsClient({ products }: FeaturedProductsClientProps
         >
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles size={16} className="text-gold-200" />
-              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200">
+              <Sparkles size={16} className="text-accent" />
+              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent">
                 CURATED FOR YOU
               </p>
             </div>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
               Featured Collection
             </h2>
           </div>
           <Link
             href="/collection/new-arrivals"
-            className="flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors group"
+            className="flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
           >
             SHOP ALL
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
@@ -75,12 +75,12 @@ export function FeaturedProductsClient({ products }: FeaturedProductsClientProps
           transition={{ duration: 0.6, delay: 0.8 }}
           className="mt-16 text-center"
         >
-          <p className="font-[family-name:var(--font-cormorant)] text-xl text-ivory-200 mb-6">
+          <p className="font-[family-name:var(--font-cormorant)] text-xl text-text-secondary mb-6">
             Explore our complete collection of premium concert merchandise
           </p>
           <Link
             href="/collection/new-arrivals"
-            className="inline-flex items-center justify-center px-8 py-4 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-gold-300 transition-colors"
+            className="inline-flex items-center justify-center px-8 py-4 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors"
           >
             VIEW ALL PRODUCTS
           </Link>

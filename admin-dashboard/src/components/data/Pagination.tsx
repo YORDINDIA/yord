@@ -34,7 +34,9 @@ export default function Pagination({
 }) {
   const totalPages = pageCount(total, pageSize);
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to = Math.min(page, totalPages) * pageSize;
+  // Cap at the result count: rounding up to a full page overshoots on a
+  // partial final page ("Showing 1–25 of 23").
+  const to = Math.min(page * pageSize, total);
 
   return (
     <div className="pagination">

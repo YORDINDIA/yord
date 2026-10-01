@@ -23,14 +23,20 @@ export default function FilterBar({
     const next = new URLSearchParams();
     for (const [key, value] of form.entries()) {
       const asString = String(value);
-      if (!asString || asString === 'all') continue;
+      if (!asString) continue;
+      // `all` means "no filter" for selects — except a literal search for the
+      // word "all", which must survive like any other query.
+      if (asString === 'all' && key !== 'q') continue;
       next.set(key, asString);
     }
-    // Keep sort/direction when filtering; drop pagination.
+    // Keep sort/direction when filtering — but only when the submitted form
+    // has no field of its own for them. The Products bar submits `sort`
+    // itself; overwriting it with the previous URL value pinned the old sort
+    // no matter what the admin just picked.
     const sort = params.get('sort');
     const dir = params.get('dir');
-    if (sort) next.set('sort', sort);
-    if (dir) next.set('dir', dir);
+    if (sort && !next.has('sort')) next.set('sort', sort);
+    if (dir && !next.has('dir')) next.set('dir', dir);
     const query = next.toString();
     router.push(query ? `?${query}` : '?', { scroll: false });
   }

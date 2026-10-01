@@ -48,7 +48,7 @@ export function HeroSection() {
         style={{ y, scale }}
       >
         {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-noir-950/40 via-noir-950/20 to-noir-950 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-scrim/40 via-scrim/20 to-surface-page z-10" />
 
         {/* Subtle Noise Texture */}
         <div
@@ -59,7 +59,12 @@ export function HeroSection() {
         />
 
         {/* Enhanced Animated Gradient Mesh Background */}
-        <div className="absolute inset-0 bg-noir-950">
+        {/* The hero is full-bleed media and stays DARK in both themes — it is the
+            one page region that is not a page surface. Using --surface-page here
+            would render it light in light mode and break every on-media token
+            above it (and the transparent header that floats over it), so this
+            paints the fixed scrim colour instead. */}
+        <div className="absolute inset-0 bg-scrim">
           <div className="absolute inset-0 opacity-40">
             {/* Primary Gold Orb - larger, more prominent */}
             <div
@@ -141,7 +146,7 @@ export function HeroSection() {
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="mx-auto">
               <motion.path
                 d="M12 2L22 12L12 22L2 12L12 2Z"
-                stroke="var(--gold-200)"
+                stroke="var(--accent-on-media)"
                 strokeWidth="1"
                 fill="none"
                 initial={{ pathLength: 0 }}
@@ -150,7 +155,7 @@ export function HeroSection() {
               />
               <motion.path
                 d="M12 6L18 12L12 18L6 12L12 6Z"
-                stroke="var(--gold-200)"
+                stroke="var(--accent-on-media)"
                 strokeWidth="0.5"
                 fill="none"
                 initial={{ pathLength: 0, opacity: 0 }}
@@ -165,13 +170,13 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.3em] text-gold-200 mb-6"
+            className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.3em] text-accent-on-media mb-6"
           >
             LUXURY CONCERT FASHION
           </motion.p>
 
           {/* Main Headline with Split Text Animation */}
-          <h1 className="display-text text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl text-ivory-50 mb-6 max-w-5xl">
+          <h1 className="display-text text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl text-text-on-media mb-6 max-w-5xl">
             <span className="block overflow-hidden">
               <SplitText text="Where Music" delay={0.4} />
             </span>
@@ -187,7 +192,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 1.2 }}
-            className="font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-ivory-200 max-w-2xl mb-10"
+            className="font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-text-on-media-muted max-w-2xl mb-10"
           >
             Premium artist merchandise and concert couture for devoted fans.
             Coldplay. Taylor Swift. Diljit Dosanjh. And more.
@@ -211,7 +216,7 @@ export function HeroSection() {
                 </Button>
               </Link>
               {/* Gold glow on hover */}
-              <div className="absolute inset-0 bg-gold-200/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 rounded-sm" />
+              <div className="absolute inset-0 bg-accent-tint-strong blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 rounded-sm" />
             </motion.div>
 
             <motion.div
@@ -219,7 +224,12 @@ export function HeroSection() {
               whileTap={{ scale: 0.98 }}
             >
               <Link href="/artists">
-                <Button variant="secondary" size="lg" data-cursor="pointer">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  data-cursor="pointer"
+                  className="text-text-on-media border-text-on-media hover:bg-text-on-media hover:text-text-on-accent"
+                >
                   EXPLORE ARTISTS
                 </Button>
               </Link>
@@ -237,24 +247,24 @@ export function HeroSection() {
           <div className="relative max-w-3xl w-full stats-premium-border">
             <div className="glass py-5 px-8 flex items-center justify-center gap-8 sm:gap-16">
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-gold-200 group-hover:text-gold-100 transition-colors">
+                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={50000} formatAbbreviated suffix="+" />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-ivory-400 mt-1">HAPPY FANS</p>
+                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">HAPPY FANS</p>
               </div>
               <div className="gradient-divider" />
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-gold-200 group-hover:text-gold-100 transition-colors">
+                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={127} />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-ivory-400 mt-1">COUNTRIES</p>
+                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">COUNTRIES</p>
               </div>
               <div className="gradient-divider" />
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-gold-200 group-hover:text-gold-100 transition-colors">
+                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={15} suffix="+" />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-ivory-400 mt-1">ARTISTS</p>
+                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">ARTISTS</p>
               </div>
             </div>
           </div>
@@ -270,12 +280,12 @@ export function HeroSection() {
           <motion.div
             animate={{ y: [0, 8, 0] }}
             transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="flex flex-col items-center gap-2 text-ivory-400 scroll-indicator-line cursor-pointer group"
+            className="flex flex-col items-center gap-2 text-text-on-media-muted scroll-indicator-line cursor-pointer group"
           >
-            <span className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] group-hover:text-gold-200 transition-colors">
+            <span className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] group-hover:text-accent-on-media transition-colors">
               SCROLL
             </span>
-            <ChevronDown size={20} className="group-hover:text-gold-200 transition-colors animate-gold-breath" />
+            <ChevronDown size={20} className="group-hover:text-accent-on-media transition-colors animate-gold-breath" />
           </motion.div>
         </motion.div>
       </motion.div>

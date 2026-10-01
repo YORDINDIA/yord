@@ -121,14 +121,25 @@ async function attachListDerivedFields(rowsIn: ProductSeed[]): Promise<ProductLi
 /** Every product id with at least one variant at or below the threshold. */
 export async function listLowStockProductIds(): Promise<number[]> {
   const supabase = await reader();
-  const result = await rows<{ product_id: number }>(
-    'product_variants',
-    supabase
-      .from('product_variants')
-      .select('product_id')
-      .or(`inventory_quantity.lte.${LOW_STOCK_THRESHOLD},inventory_quantity.is.null`),
-  );
-  return uniqueIds(result.map((row) => row.product_id));
+  // A single response is capped at 1,000 rows: products whose low-stock
+  // variants sit past the cap were silently excluded from the filter and the
+  // count, so page through the whole match set in stable order.
+  const ids: number[] = [];
+  const WINDOW = 1000;
+  for (let from = 0; ; from += WINDOW) {
+    const page = await rows<{ product_id: number }>(
+      'product_variants',
+      supabase
+        .from('product_variants')
+        .select('product_id')
+        .or(`inventory_quantity.lte.${LOW_STOCK_THRESHOLD},inventory_quantity.is.null`)
+        .order('product_id', { ascending: true })
+        .range(from, from + WINDOW - 1),
+    );
+    for (const row of page) ids.push(row.product_id);
+    if (page.length < WINDOW) break;
+  }
+  return uniqueIds(ids);
 }
 
 export interface ProductDetail {

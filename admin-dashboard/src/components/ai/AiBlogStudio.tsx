@@ -45,9 +45,16 @@ export default function AiBlogStudio() {
       return;
     }
     const { data } = result;
-    setDraft(data.body_html ?? '');
-    setSummary(data.summary_html ?? '');
-    setCitations(Array.isArray(data.citations) ? data.citations : []);
+    // The model returns untyped JSON: a non-string citation (e.g. `[{}]`)
+    // passes the route's body_html-only check and throws inside the preview
+    // list, so keep strings only. Same for the HTML fields below.
+    setDraft(typeof data.body_html === 'string' ? data.body_html : '');
+    setSummary(typeof data.summary_html === 'string' ? data.summary_html : '');
+    setCitations(
+      Array.isArray(data.citations)
+        ? data.citations.filter((citation): citation is string => typeof citation === 'string')
+        : [],
+    );
     toast('Draft generated. Review it before saving.', 'success');
   }
 

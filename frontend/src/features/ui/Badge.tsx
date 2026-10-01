@@ -19,14 +19,14 @@ export function Badge({
   `;
 
   const variants = {
-    default: 'bg-noir-700 text-ivory-100',
+    default: 'bg-surface-inset text-text-secondary',
     sale: 'bg-gradient-to-r from-red-600 to-red-500 text-white',
     new: 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white',
     limited: `
-      bg-gradient-to-r from-gold-200 to-gold-400 text-noir-950
-      shadow-[0_0_20px_rgba(255,217,102,0.3)]
+      bg-gradient-to-r from-accent to-accent-hover text-text-on-accent
+      glow-gold
     `,
-    soldout: 'bg-noir-600 text-ivory-400',
+    soldout: 'bg-surface-inset text-text-muted',
     artist: 'bg-transparent border border-current',
   };
 
@@ -80,7 +80,9 @@ export function ArtistBadge({
   return (
     <Badge
       variant="artist"
-      style={{ borderColor: color, color }}
+      // The artist colour stays as the rule; the label uses the theme accent so
+      // it stays readable (marshmello white on a white badge was 1.1:1).
+      style={{ borderColor: color, color: 'var(--accent)' }}
     >
       {artist}
     </Badge>

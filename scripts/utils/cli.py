@@ -21,6 +21,23 @@ import logging
 
 from .config import BATCH_SIZE, SUPABASE_UPSERT_BATCH_SIZE
 
+# Shopify caps page size at 250; larger limits are rejected by the API and
+# non-positive limits fetch nothing (or error), silently migrating zero rows.
+MAX_BATCH_SIZE = 250
+
+
+def batch_size_arg(raw: str) -> int:
+    """argparse ``type`` for --batch-size: positive int, at most 250."""
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(f"invalid batch size: {raw!r}")
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"--batch-size must be positive, got {value}")
+    if value > MAX_BATCH_SIZE:
+        raise argparse.ArgumentTypeError(f"--batch-size max is {MAX_BATCH_SIZE}, got {value}")
+    return value
+
 
 def create_parser(description: str, default_checkpoint: str | None = None) -> argparse.ArgumentParser:
     """Build an argparse parser with the standard migration flags."""
@@ -36,8 +53,8 @@ def create_parser(description: str, default_checkpoint: str | None = None) -> ar
     else:
         parser.add_argument("--checkpoint-file", default=None,
                             help="Checkpoint file for resume (optional)")
-    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
-                        help=f"Records per batch (default: {BATCH_SIZE})")
+    parser.add_argument("--batch-size", type=batch_size_arg, default=BATCH_SIZE,
+                        help=f"Records per batch, 1-{MAX_BATCH_SIZE} (default: {BATCH_SIZE})")
     parser.add_argument("--verbose", action="store_true",
                         help="Debug-level logging")
     return parser
@@ -54,7 +71,17 @@ def configure_logging(verbose: bool = False) -> None:
 
 
 def upsert_batch_size(args: argparse.Namespace | None = None) -> int:
-    """Supabase upsert batch size: explicit CLI value wins, else the default (500)."""
-    if args is not None and getattr(args, "batch_size", None):
-        return int(args.batch_size)
+    """Supabase upsert batch size: explicit CLI value wins, else the default (500).
+
+    Clamped defensively — callers constructing ``args`` by hand (or an env
+    default that bypassed ``batch_size_arg``) still get a usable batch size.
+    """
+    if args is not None:
+        raw = getattr(args, "batch_size", None)
+        try:
+            value = int(raw) if raw is not None else 0
+        except (TypeError, ValueError):
+            value = 0
+        if value > 0:
+            return min(value, MAX_BATCH_SIZE)
     return SUPABASE_UPSERT_BATCH_SIZE

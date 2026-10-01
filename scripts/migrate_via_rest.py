@@ -421,7 +421,10 @@ def migrate_collections():
                 try:
                     supabase.table('smart_collection_rules').insert(rule_record).execute()
                 except Exception as e:
-                    pass  # May already exist
+                    # Logged (not swallowed): run_entity only checkpoints an
+                    # entity with zero record errors, so silent failures here
+                    # would mark a partial collection set as done.
+                    logger.error(f"Error inserting rule for collection {col['id']}: {e}")
         except Exception as e:
             logger.error(f"Error inserting smart collection {col['id']}: {e}")
 
@@ -627,7 +630,7 @@ def migrate_orders():
             try:
                 supabase.table('order_billing_addresses').upsert(ba_record).execute()
             except Exception as e:
-                pass
+                logger.error(f"Error inserting billing address for order {order['id']}: {e}")
 
         # Shipping address
         if order.get('shipping_address'):
@@ -652,7 +655,7 @@ def migrate_orders():
             try:
                 supabase.table('order_shipping_addresses').upsert(sa_record).execute()
             except Exception as e:
-                pass
+                logger.error(f"Error inserting shipping address for order {order['id']}: {e}")
 
         # Line items
         for item in order.get('line_items', []):
@@ -704,7 +707,7 @@ def migrate_orders():
             try:
                 supabase.table('shipping_lines').upsert(shipping_record).execute()
             except Exception as e:
-                pass
+                logger.error(f"Error inserting shipping line {shipping.get('id')} for order {order['id']}: {e}")
 
         # Discount codes applied to order
         for dc in order.get('discount_codes', []):
@@ -717,7 +720,7 @@ def migrate_orders():
             try:
                 supabase.table('order_discount_codes').insert(dc_record).execute()
             except Exception as e:
-                pass
+                logger.error(f"Error inserting discount code for order {order['id']}: {e}")
 
     logger.info(f"Migrated {order_count} orders, {line_item_count} line items")
     return order_count
@@ -815,7 +818,7 @@ def migrate_inventory():
                 try:
                     supabase.table('inventory_items').upsert(item_record).execute()
                 except Exception as e:
-                    pass
+                    logger.error(f"Error inserting inventory item {item['id']}: {e}")
 
             # Insert inventory level
             level_record = {
@@ -903,6 +906,12 @@ def main():
             sys.exit(2)
     checkpoint_data = load_checkpoint(checkpoint_file)
     if checkpoint_data.get('source') != source:
+        # A new Supabase/Shopify pair must not inherit the old pair's
+        # completions: without --resume there is no refusal above, so reset
+        # here. Otherwise entities migrate zero rows and read as done.
+        if checkpoint_data.get('completed_entities'):
+            print("Source changed since last run: clearing stale completions.")
+        checkpoint_data['completed_entities'] = []
         checkpoint_data['source'] = source
         save_checkpoint(checkpoint_file, checkpoint_data)
 

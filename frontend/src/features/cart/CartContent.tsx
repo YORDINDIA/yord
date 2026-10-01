@@ -42,12 +42,12 @@ export function CartContent() {
       >
         <ol className="flex items-center gap-2 text-sm font-[family-name:var(--font-jakarta)]">
           <li>
-            <Link href="/" className="text-ivory-400 hover:text-gold-200 transition-colors">
+            <Link href="/" className="text-text-muted hover:text-accent transition-colors">
               Home
             </Link>
           </li>
-          <ChevronRight size={14} className="text-ivory-600" />
-          <li className="text-ivory-100">Shopping Bag</li>
+          <ChevronRight size={14} className="text-text-muted" />
+          <li className="text-text-secondary">Shopping Bag</li>
         </ol>
       </motion.nav>
 
@@ -59,12 +59,12 @@ export function CartContent() {
         className="mb-12"
       >
         <div className="flex items-center gap-4">
-          <div className="w-1 h-12 rounded-full bg-gold-200" />
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+          <div className="w-1 h-12 rounded-full bg-accent" />
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
             Shopping Bag
           </h1>
         </div>
-        <p className="mt-4 font-[family-name:var(--font-jakarta)] text-ivory-400">
+        <p className="mt-4 font-[family-name:var(--font-jakarta)] text-text-muted">
           {itemCount} {itemCount === 1 ? 'item' : 'items'} in your bag
         </p>
       </motion.div>
@@ -81,11 +81,11 @@ export function CartContent() {
           animate={{ opacity: 1, y: 0 }}
           className="py-24 text-center"
         >
-          <ShoppingBag size={64} className="mx-auto text-noir-600 mb-6" />
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-100 mb-4">
+          <ShoppingBag size={64} className="mx-auto text-text-muted mb-6" />
+          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-secondary mb-4">
             Your bag is empty
           </h2>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-md mx-auto mb-8">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-md mx-auto mb-8">
             Looks like you haven&apos;t added anything to your bag yet.
             Discover our exclusive artist collections.
           </p>
@@ -105,12 +105,12 @@ export function CartContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: 0.2 }}
-              className="mb-8 p-6 bg-noir-900 border border-noir-800"
+              className="mb-8 p-6 bg-surface-card border border-border-default"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Truck size={18} className="text-gold-200" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
+                  <Truck size={18} className="text-accent" />
+                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
                     {hasFreeFastShipping
                       ? 'Congratulations! You have FREE fast shipping!'
                       : hasFreeShipping
@@ -119,13 +119,13 @@ export function CartContent() {
                     }
                   </span>
                 </div>
-                <span className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-gold-200">
+                <span className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-accent">
                   {hasFreeFastShipping ? '✓' : `${Math.round(hasFreeShipping ? fastShippingProgress : shippingProgress)}%`}
                 </span>
               </div>
-              <div className="h-2 bg-noir-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-gold-400 to-gold-200 rounded-full"
+                  className="h-full bg-gradient-to-r from-accent-hover to-accent rounded-full"
                   initial={{ width: 0 }}
                   animate={{ width: `${hasFreeShipping ? fastShippingProgress : shippingProgress}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -138,7 +138,7 @@ export function CartContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: 0.3 }}
-              className="divide-y divide-noir-800"
+              className="divide-y divide-border-default"
             >
               {items.map((item, index) => (
                 <motion.div
@@ -152,7 +152,7 @@ export function CartContent() {
                     {/* Image */}
                     <Link
                       href={`/product/${item.productHandle}`}
-                      className="relative w-28 h-36 md:w-32 md:h-40 bg-noir-900 shrink-0 group"
+                      className="relative w-28 h-36 md:w-32 md:h-40 bg-surface-card shrink-0 group"
                     >
                       {item.image ? (
                         <Image
@@ -163,8 +163,8 @@ export function CartContent() {
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-16 h-16 rounded-full bg-gold-200/10" />
-                          <span className="absolute text-ivory-400 text-xs">No image</span>
+                          <div className="w-16 h-16 rounded-full bg-accent-tint" />
+                          <span className="absolute text-text-muted text-xs">No image</span>
                         </div>
                       )}
                     </Link>
@@ -173,7 +173,7 @@ export function CartContent() {
                     <div className="flex-1 min-w-0">
                       {/* Artist */}
                       {item.artist && (
-                        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-gold-200">
+                        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-accent">
                           {item.artist.toUpperCase()}
                         </span>
                       )}
@@ -181,14 +181,14 @@ export function CartContent() {
                       {/* Title */}
                       <Link
                         href={`/product/${item.productHandle}`}
-                        className="block font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-ivory-50 hover:text-gold-200 transition-colors line-clamp-2 mt-1"
+                        className="block font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-text-primary hover:text-accent transition-colors line-clamp-2 mt-1"
                       >
                         {item.title}
                       </Link>
 
                       {/* Variant */}
                       {item.variantTitle && (
-                        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mt-1">
+                        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-1">
                           Size: {item.variantTitle}
                         </p>
                       )}
@@ -196,15 +196,15 @@ export function CartContent() {
                       {/* Price Row */}
                       <div className="flex flex-wrap items-center gap-4 mt-4">
                         {/* Quantity Controls */}
-                        <div className="flex items-center border border-noir-700">
+                        <div className="flex items-center border border-border-default">
                           <button
                             onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                            className="w-10 h-10 flex items-center justify-center text-ivory-400 hover:text-ivory-50 hover:bg-noir-800 transition-colors"
+                            className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors"
                             aria-label="Decrease quantity"
                           >
                             <Minus size={16} />
                           </button>
-                          <span className="w-12 h-10 flex items-center justify-center text-ivory-50 font-[family-name:var(--font-jakarta)]">
+                          <span className="w-12 h-10 flex items-center justify-center text-text-primary font-[family-name:var(--font-jakarta)]">
                             {item.quantity}
                           </span>
                           <button
@@ -213,8 +213,8 @@ export function CartContent() {
                             className={cn(
                               'w-10 h-10 flex items-center justify-center transition-colors',
                               item.quantity >= item.maxQuantity
-                                ? 'text-noir-600 cursor-not-allowed'
-                                : 'text-ivory-400 hover:text-ivory-50 hover:bg-noir-800'
+                                ? 'text-text-muted cursor-not-allowed'
+                                : 'text-text-muted hover:text-text-primary hover:bg-surface-raised'
                             )}
                             aria-label="Increase quantity"
                           >
@@ -223,7 +223,7 @@ export function CartContent() {
                         </div>
 
                         {/* Unit Price */}
-                        <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                        <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                           {formatPrice(item.price)} each
                         </span>
                       </div>
@@ -241,18 +241,18 @@ export function CartContent() {
                     <div className="flex flex-col items-end justify-between">
                       <button
                         onClick={() => removeItem(item.variantId)}
-                        className="w-10 h-10 flex items-center justify-center text-ivory-400 hover:text-red-500 transition-colors"
+                        className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-red-500 transition-colors"
                         aria-label="Remove item"
                       >
                         <Trash2 size={18} />
                       </button>
 
                       <div className="text-right">
-                        <p className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
+                        <p className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
                           {formatPrice(item.price * item.quantity)}
                         </p>
                         {isPriceOnSale(item.price, item.compareAtPrice) && (
-                          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 line-through">
+                          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted line-through">
                             {formatPrice((item.compareAtPrice ?? 0) * item.quantity)}
                           </p>
                         )}
@@ -270,26 +270,26 @@ export function CartContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: 0.4 }}
-              className="sticky top-28 bg-noir-900 border border-noir-800 p-6"
+              className="sticky top-28 bg-surface-card border border-border-default p-6"
             >
-              <h2 className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-ivory-50 mb-6">
+              <h2 className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-text-primary mb-6">
                 ORDER SUMMARY
               </h2>
 
               {/* Subtotal */}
-              <div className="space-y-4 pb-6 border-b border-noir-700">
+              <div className="space-y-4 pb-6 border-b border-border-default">
                 <div className="flex items-center justify-between">
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     Subtotal ({itemCount} items)
                   </span>
-                  <span className="font-[family-name:var(--font-jakarta)] text-ivory-100">
+                  <span className="font-[family-name:var(--font-jakarta)] text-text-secondary">
                     {formatPrice(subtotal)}
                   </span>
                 </div>
 
                 {totalSavings > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                    <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                       You&apos;re saving
                     </span>
                     <span className="font-[family-name:var(--font-jakarta)] text-emerald-500">
@@ -299,10 +299,10 @@ export function CartContent() {
                 )}
 
                 <div className="flex items-center justify-between">
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     Shipping
                   </span>
-                  <span className="font-[family-name:var(--font-jakarta)] text-ivory-100">
+                  <span className="font-[family-name:var(--font-jakarta)] text-text-secondary">
                     {hasFreeFastShipping ? (
                       <span className="text-emerald-500">FREE Fast</span>
                     ) : hasFreeShipping ? (
@@ -315,11 +315,11 @@ export function CartContent() {
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-between py-6 border-b border-noir-700">
-                <span className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-ivory-50">
+              <div className="flex items-center justify-between py-6 border-b border-border-default">
+                <span className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.1em] text-text-primary">
                   TOTAL
                 </span>
-                <span className="font-[family-name:var(--font-cormorant)] text-3xl text-ivory-50">
+                <span className="font-[family-name:var(--font-cormorant)] text-3xl text-text-primary">
                   {formatPrice(subtotal)}
                 </span>
               </div>
@@ -334,29 +334,29 @@ export function CartContent() {
 
                 <Link
                   href="/"
-                  className="block text-center font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 hover:text-gold-200 transition-colors"
+                  className="block text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted hover:text-accent transition-colors"
                 >
                   Continue Shopping
                 </Link>
               </div>
 
               {/* Trust Badges */}
-              <div className="mt-8 pt-6 border-t border-noir-700 grid grid-cols-3 gap-4">
+              <div className="mt-8 pt-6 border-t border-border-default grid grid-cols-3 gap-4">
                 <div className="text-center">
-                  <Shield size={18} className="mx-auto mb-2 text-gold-200" />
-                  <span className="block text-[10px] text-ivory-400 font-[family-name:var(--font-jakarta)]">
+                  <Shield size={18} className="mx-auto mb-2 text-accent" />
+                  <span className="block text-[10px] text-text-muted font-[family-name:var(--font-jakarta)]">
                     Secure Checkout
                   </span>
                 </div>
                 <div className="text-center">
-                  <Truck size={18} className="mx-auto mb-2 text-gold-200" />
-                  <span className="block text-[10px] text-ivory-400 font-[family-name:var(--font-jakarta)]">
+                  <Truck size={18} className="mx-auto mb-2 text-accent" />
+                  <span className="block text-[10px] text-text-muted font-[family-name:var(--font-jakarta)]">
                     Pan-India Delivery
                   </span>
                 </div>
                 <div className="text-center">
-                  <RotateCcw size={18} className="mx-auto mb-2 text-gold-200" />
-                  <span className="block text-[10px] text-ivory-400 font-[family-name:var(--font-jakarta)]">
+                  <RotateCcw size={18} className="mx-auto mb-2 text-accent" />
+                  <span className="block text-[10px] text-text-muted font-[family-name:var(--font-jakarta)]">
                     Easy Returns
                   </span>
                 </div>

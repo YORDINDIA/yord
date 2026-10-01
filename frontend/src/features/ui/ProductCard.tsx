@@ -135,7 +135,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
       const secondaryImage = getSecondaryImage(product.product_images);
       const lowestVariant = getLowestPriceVariant(product.product_variants);
 
-      handle = product.handle;
+      handle = product.handle ?? '';
       title = product.title;
       artist = product.vendor;
       price = lowestVariant?.price ?? 0;
@@ -163,9 +163,31 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
 
       if (!inStock) return;
 
-      // Always open quick view to let user select size
+      // Full product data: open quick view to let user select size.
       if (productData) {
         setShowQuickView(true);
+        return;
+      }
+
+      // ID-fallback cards (e.g. related products) carry only the cheapest
+      // variant's metadata, so there is no size choice to make — add that
+      // variant directly instead of silently ignoring the click.
+      if (productId !== null && variantId !== null) {
+        addItem(
+          {
+            variantId,
+            productId,
+            productHandle: handle,
+            title,
+            variantTitle,
+            price,
+            compareAtPrice: compareAtPrice ?? null,
+            image: primaryImageUrl,
+            maxQuantity,
+            artist: artist ?? null,
+          } satisfies Omit<CartItem, 'quantity'>,
+          1
+        );
       }
     };
 
@@ -206,12 +228,12 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
     return (
       <motion.div
         ref={ref}
-        className={cn('group relative transition-shadow duration-300 hover:-translate-y-2 hover:shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.15),0_16px_32px_rgba(0,0,0,0.2),0_32px_64px_rgba(0,0,0,0.1)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]', className)}
+        className={cn('group relative transition-shadow duration-300 hover:-translate-y-2 hover:shadow-depth-hover shadow-depth', className)}
         data-cursor="pointer"
       >
         <Link href={`/product/${handle}`} className="block">
           {/* Image Container */}
-          <div className="relative aspect-[3/4] overflow-hidden bg-noir-900">
+          <div className="relative aspect-[3/4] overflow-hidden bg-surface-card">
             {/* Primary Image with blur-to-sharp reveal */}
             {primaryImageUrl && !imageError ? (
               <motion.div
@@ -235,8 +257,8 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                 />
               </motion.div>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-noir-800">
-                <span className="text-ivory-400 text-sm">No Image</span>
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-raised">
+                <span className="text-text-muted text-sm">No Image</span>
               </div>
             )}
 
@@ -254,7 +276,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
             )}
 
             {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-noir-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
             {/* Badges */}
             <div className="absolute top-3 left-3 flex flex-col gap-2">
@@ -275,8 +297,8 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                 className={cn(
                   'w-10 h-10 flex items-center justify-center backdrop-blur-sm transition-colors duration-200',
                   isWishlisted
-                    ? 'bg-gold-200 text-noir-950'
-                    : 'bg-noir-900/80 text-ivory-100 hover:bg-gold-200 hover:text-noir-950'
+                    ? 'bg-accent text-text-on-accent'
+                    : 'bg-surface-card/80 text-text-secondary hover:bg-accent hover:text-text-on-accent'
                 )}
                 aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
               >
@@ -289,7 +311,7 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                     e.stopPropagation();
                     setShowQuickView(true);
                   }}
-                  className="w-10 h-10 flex items-center justify-center bg-noir-900/80 backdrop-blur-sm text-ivory-100 hover:bg-gold-200 hover:text-noir-950 transition-colors duration-200"
+                  className="w-10 h-10 flex items-center justify-center bg-surface-card/80 backdrop-blur-sm text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors duration-200"
                   aria-label="Quick view"
                 >
                   <Eye size={18} />
@@ -309,12 +331,12 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
                   'font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] uppercase',
                   'transition-all duration-300',
                   inStock
-                    ? 'bg-gold-200 text-noir-950 hover:bg-gold-300'
-                    : 'bg-noir-700 text-ivory-400 cursor-not-allowed'
+                    ? 'bg-accent text-text-on-accent hover:bg-accent-hover'
+                    : 'bg-surface-inset text-text-muted cursor-not-allowed'
                 )}
               >
                 <ShoppingBag size={16} />
-                {!inStock ? 'SOLD OUT' : 'VIEW OPTIONS'}
+                {!inStock ? 'SOLD OUT' : productData ? 'VIEW OPTIONS' : 'ADD TO BAG'}
               </button>
             </div>
 
@@ -335,17 +357,17 @@ const ProductCard = forwardRef<HTMLDivElement, ProductCardProps>(
             )}
 
             {/* Title */}
-            <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-ivory-50 group-hover:text-gold-200 transition-colors duration-300 line-clamp-2">
+            <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-primary group-hover:text-accent transition-colors duration-300 line-clamp-2">
               {title}
             </h3>
 
             {/* Price */}
             <div className="flex items-center gap-2">
-              <span className="font-[family-name:var(--font-jakarta)] text-ivory-50 font-medium">
+              <span className="font-[family-name:var(--font-jakarta)] text-text-primary font-medium">
                 {formatPrice(price)}
               </span>
               {onSale && compareAtPrice && (
-                <span className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-sm line-through">
+                <span className="font-[family-name:var(--font-jakarta)] text-text-muted text-sm line-through">
                   {formatPrice(compareAtPrice)}
                 </span>
               )}

@@ -54,14 +54,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { data: products } = await supabase
     .from('products')
     .select('handle, updated_at')
-    .eq('status', 'active') as { data: { handle: string; updated_at: string }[] | null };
+    .eq('status', 'active') as { data: { handle: string | null; updated_at: string }[] | null };
 
-  const productPages: MetadataRoute.Sitemap = (products || []).map((p) => ({
-    url: `${BASE_URL}/product/${p.handle}`,
-    lastModified: new Date(p.updated_at),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
+  const productPages: MetadataRoute.Sitemap = (products || [])
+    .filter((p) => p.handle)
+    .map((p) => ({
+      url: `${BASE_URL}/product/${p.handle}`,
+      lastModified: new Date(p.updated_at),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
 
   // Collection pages
   const { data: collections } = await supabase

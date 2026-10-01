@@ -762,7 +762,10 @@ input, textarea, select, button {
 .form-alert-error {
   border-color: rgba(228, 87, 91, 0.5);
   background: rgba(228, 87, 91, 0.12);
-  color: #f5b0b2;
+  /* #f5b0b2 on this background is ~1.6:1 in the light theme. The border and
+     background already carry the error affordance; the text uses the
+     theme-aware high-contrast foreground instead. */
+  color: var(--text-strong);
 }
 
 .field-error {

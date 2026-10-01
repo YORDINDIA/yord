@@ -63,17 +63,17 @@ export function ContactForm() {
   };
 
   return (
-    <div className="min-h-screen bg-noir-950">
+    <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-6 lg:px-12">
         <div className="max-w-[1440px] mx-auto text-center">
-          <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-gold-200 mb-4">
+          <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-accent mb-4">
             GET IN TOUCH
           </p>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Contact Us
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
             Have a question about your order or need help finding the perfect
             merchandise? We&apos;re here to help.
           </p>
@@ -86,30 +86,30 @@ export function ContactForm() {
           <div className="grid lg:grid-cols-3 gap-12">
             {/* Contact Info */}
             <div className="space-y-8">
-              <div className="bg-noir-900 border border-noir-800 p-6">
+              <div className="bg-surface-card border border-border-default p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gold-200/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-5 h-5 text-gold-200" />
+                  <div className="w-12 h-12 bg-accent-tint rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                       EMAIL US
                     </h3>
-                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-1">
+                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-1">
                       General Inquiries
                     </p>
                     <a
                       href="mailto:info@yordindia.com"
-                      className="font-[family-name:var(--font-jakarta)] text-gold-200 hover:text-gold-300 transition-colors"
+                      className="font-[family-name:var(--font-jakarta)] text-accent hover:text-accent-hover transition-colors"
                     >
                       info@yordindia.com
                     </a>
-                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mt-3 mb-1">
+                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-3 mb-1">
                       Order Support
                     </p>
                     <a
                       href="mailto:support@yordindia.com"
-                      className="font-[family-name:var(--font-jakarta)] text-gold-200 hover:text-gold-300 transition-colors"
+                      className="font-[family-name:var(--font-jakarta)] text-accent hover:text-accent-hover transition-colors"
                     >
                       support@yordindia.com
                     </a>
@@ -117,21 +117,21 @@ export function ContactForm() {
                 </div>
               </div>
 
-              <div className="bg-noir-900 border border-noir-800 p-6">
+              <div className="bg-surface-card border border-border-default p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gold-200/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-5 h-5 text-gold-200" />
+                  <div className="w-12 h-12 bg-accent-tint rounded-full flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                       CALL US
                     </h3>
-                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-1">
+                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-1">
                       Mon - Sat, 10am - 7pm IST
                     </p>
                     <a
                       href="tel:+919876543210"
-                      className="font-[family-name:var(--font-jakarta)] text-gold-200 hover:text-gold-300 transition-colors"
+                      className="font-[family-name:var(--font-jakarta)] text-accent hover:text-accent-hover transition-colors"
                     >
                       +91 98765 43210
                     </a>
@@ -139,16 +139,16 @@ export function ContactForm() {
                 </div>
               </div>
 
-              <div className="bg-noir-900 border border-noir-800 p-6">
+              <div className="bg-surface-card border border-border-default p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gold-200/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 text-gold-200" />
+                  <div className="w-12 h-12 bg-accent-tint rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+                    <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                       OFFICE
                     </h3>
-                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                       YORD India
                       <br />
                       Gurgaon - 122001
@@ -162,8 +162,8 @@ export function ContactForm() {
 
             {/* Contact Form */}
             <div className="lg:col-span-2">
-              <div className="bg-noir-900 border border-noir-800 p-8">
-                <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+              <div className="bg-surface-card border border-border-default p-8">
+                <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
                   SEND US A MESSAGE
                 </h2>
 
@@ -172,16 +172,16 @@ export function ContactForm() {
                     <div className="w-16 h-16 mx-auto mb-6 bg-green-500/10 rounded-full flex items-center justify-center">
                       <Check className="w-8 h-8 text-green-400" />
                     </div>
-                    <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-100 mb-2">
+                    <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-text-secondary mb-2">
                       Message Sent!
                     </h3>
-                    <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
+                    <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
                       Thank you for reaching out. We&apos;ll get back to you
                       within 24 hours.
                     </p>
                     <button
                       onClick={() => setIsSubmitted(false)}
-                      className="text-gold-200 font-[family-name:var(--font-jakarta)] text-sm hover:text-gold-300 transition-colors"
+                      className="text-accent font-[family-name:var(--font-jakarta)] text-sm hover:text-accent-hover transition-colors"
                     >
                       Send another message
                     </button>
@@ -198,7 +198,7 @@ export function ContactForm() {
                     )}
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                        <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                           Your Name *
                         </label>
                         <input
@@ -207,12 +207,12 @@ export function ContactForm() {
                           required
                           value={formData.name}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                          className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                           placeholder="Enter your name"
                         />
                       </div>
                       <div>
-                        <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                        <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                           Email Address *
                         </label>
                         <input
@@ -221,14 +221,14 @@ export function ContactForm() {
                           required
                           value={formData.email}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors"
+                          className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                           placeholder="Enter your email"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                      <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                         Subject *
                       </label>
                       <select
@@ -236,7 +236,7 @@ export function ContactForm() {
                         required
                         value={formData.subject}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm focus:border-gold-200 transition-colors"
+                        className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
                       >
                         <option value="">Select a subject</option>
                         <option value="order">Order Inquiry</option>
@@ -249,7 +249,7 @@ export function ContactForm() {
                     </div>
 
                     <div>
-                      <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+                      <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                         Message *
                       </label>
                       <textarea
@@ -258,7 +258,7 @@ export function ContactForm() {
                         rows={6}
                         value={formData.message}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:border-gold-200 transition-colors resize-none"
+                        className="w-full px-4 py-3 bg-surface-raised border border-border-default text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors resize-none"
                         placeholder="How can we help you?"
                       />
                     </div>
@@ -266,7 +266,7 @@ export function ContactForm() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex items-center justify-center gap-2 w-full md:w-auto px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50"
+                      className="flex items-center justify-center gap-2 w-full md:w-auto px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50"
                     >
                       {isSubmitting ? (
                         <>

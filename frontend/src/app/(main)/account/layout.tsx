@@ -23,11 +23,11 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+      <main className="min-h-screen bg-surface-page pt-24 pb-16">
         <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 w-48 bg-noir-800 rounded" />
-            <div className="h-64 bg-noir-900 rounded" />
+            <div className="h-8 w-48 bg-surface-raised rounded" />
+            <div className="h-64 bg-surface-card rounded" />
           </div>
         </div>
       </main>
@@ -35,15 +35,15 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
   }
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-2">
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-2">
             My Account
           </h1>
           {user?.email && (
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
               {user.email}
             </p>
           )}
@@ -53,7 +53,7 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}
           <aside className="lg:col-span-1">
-            <nav className="bg-noir-900 border border-noir-800">
+            <nav className="bg-surface-card border border-border-default">
               <ul>
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
@@ -63,10 +63,10 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
                       <Link
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-3 px-6 py-4 font-[family-name:var(--font-jakarta)] text-sm transition-colors border-b border-noir-800 last:border-b-0',
+                          'flex items-center gap-3 px-6 py-4 font-[family-name:var(--font-jakarta)] text-sm transition-colors border-b border-border-default last:border-b-0',
                           isActive
-                            ? 'text-gold-200 bg-noir-800/50'
-                            : 'text-ivory-300 hover:text-ivory-100 hover:bg-noir-800/30'
+                            ? 'text-accent bg-surface-raised/50'
+                            : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised/30'
                         )}
                       >
                         <Icon size={18} />
@@ -78,7 +78,7 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
                 <li>
                   <button
                     onClick={signOut}
-                    className="w-full flex items-center gap-3 px-6 py-4 font-[family-name:var(--font-jakarta)] text-sm text-ivory-300 hover:text-red-400 transition-colors"
+                    className="w-full flex items-center gap-3 px-6 py-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted hover:text-red-400 transition-colors"
                   >
                     <LogOut size={18} />
                     Sign Out

@@ -5,7 +5,7 @@ import DataTable, { type DataTableColumn } from '@/components/data/DataTable';
 import Pagination from '@/components/data/Pagination';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { listDiscounts } from '@/lib/data/discounts';
-import { firstParam } from '@/lib/pagination';
+import { firstParam, pageCount } from '@/lib/pagination';
 import { formatDate } from '@/lib/utils/format';
 
 export const metadata: Metadata = { title: 'Discounts · YORD Admin' };
@@ -33,9 +33,13 @@ export default async function DiscountsPage({
   searchParams?: Promise<Search>;
 }) {
   const resolved = searchParams ? await searchParams : {};
-  const { rows, count, page, pageSize } = await listDiscounts({
-    page: Number(firstParam(resolved?.page)) || 1,
-  });
+  const requestedPage = Number(firstParam(resolved?.page)) || 1;
+  const first = await listDiscounts({ page: requestedPage });
+  // An out-of-range `?page=` otherwise renders an empty table under a "no
+  // discounts" empty state. Clamp to the last available page and re-read.
+  const lastPage = pageCount(first.count, first.pageSize);
+  const { rows, count, page, pageSize } =
+    requestedPage > lastPage ? await listDiscounts({ page: lastPage }) : first;
 
   const columns: DataTableColumn<DiscountRow>[] = [
     { key: 'title', header: 'Title', render: (row) => row.rule.title },

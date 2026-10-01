@@ -23,6 +23,7 @@ export default function ConfirmModal({
   onClose: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +34,10 @@ export default function ConfirmModal({
     }
     window.addEventListener("keydown", onKey);
     // Move focus into the dialog so keyboard users are not left behind it.
-    confirmRef.current?.focus();
+    // While the write runs both buttons are disabled, so focusing the confirm
+    // button would drop focus out of the modal — hold it on the dialog itself.
+    if (pending) dialogRef.current?.focus();
+    else confirmRef.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose, pending]);
 
@@ -42,10 +46,12 @@ export default function ConfirmModal({
   return (
     <div className="modal-backdrop" onClick={pending ? undefined : onClose} role="presentation">
       <div
+        ref={dialogRef}
         className="card modal-card"
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="card-title">{title}</div>

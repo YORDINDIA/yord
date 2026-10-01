@@ -29,7 +29,7 @@ function SuccessParticles({ show }: { show: boolean }) {
           {particles.map((particle) => (
             <motion.div
               key={particle.id}
-              className="absolute w-2 h-2 rounded-full bg-gold-200"
+              className="absolute w-2 h-2 rounded-full bg-accent"
               style={{ width: particle.size, height: particle.size }}
               initial={{
                 x: 0,
@@ -72,7 +72,7 @@ function AnimatedSparkle({ delay = 0 }: { delay?: number }) {
         ease: 'easeInOut',
       }}
     >
-      <Sparkles size={14} className="text-gold-200" />
+      <Sparkles size={14} className="text-accent" />
     </motion.div>
   );
 }
@@ -133,12 +133,12 @@ export function NewsletterSection() {
   return (
     <section ref={containerRef} className="relative py-24 overflow-hidden">
       {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-noir-950 via-noir-900 to-noir-950" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface-page via-surface-card to-surface-page" />
 
       {/* Decorative Elements */}
       <div className="absolute inset-0">
         <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gold-200/5 blur-[150px] animate-liquid-morph"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-accent-tint blur-[150px] animate-liquid-morph"
           animate={{
             scale: [1, 1.1, 1],
             opacity: [0.05, 0.08, 0.05],
@@ -164,17 +164,17 @@ export function NewsletterSection() {
             initial={{ scale: 0 }}
             animate={isInView ? { scale: 1 } : {}}
             transition={{ duration: 0.5, delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center w-16 h-16 mb-8 border border-gold-200/30 bg-noir-900/50"
+            className="inline-flex items-center justify-center w-16 h-16 mb-8 border border-accent/30 bg-surface-card/50"
             whileHover={{
-              boxShadow: '0 0 30px rgba(255, 217, 102, 0.3), 0 0 60px rgba(255, 217, 102, 0.15)',
-              borderColor: 'rgba(255, 217, 102, 0.5)',
+              boxShadow: `0 0 30px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 60px color-mix(in srgb, var(--accent) 15%, transparent)`,
+              borderColor: 'var(--accent)',
             }}
           >
             <motion.div
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <Mail size={24} className="text-gold-200" />
+              <Mail size={24} className="text-accent" />
             </motion.div>
           </motion.div>
 
@@ -186,15 +186,15 @@ export function NewsletterSection() {
           >
             <div className="flex items-center justify-center gap-2 mb-4">
               <AnimatedSparkle delay={0} />
-              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200">
+              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent">
                 JOIN THE INNER CIRCLE
               </p>
               <AnimatedSparkle delay={1.5} />
             </div>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50 mb-4">
+            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary mb-4">
               Be First in Line
             </h2>
-            <p className="font-[family-name:var(--font-cormorant)] text-xl text-ivory-200 mb-8">
+            <p className="font-[family-name:var(--font-cormorant)] text-xl text-text-secondary mb-8">
               Get exclusive early access to new drops, limited editions, and VIP-only offers.
               Plus, enjoy 10% off your first order.
             </p>
@@ -232,13 +232,13 @@ export function NewsletterSection() {
                   <div className="flex-1 relative">
                     {/* Input glow layers */}
                     <motion.div
-                      className="absolute -inset-[2px] bg-gradient-to-r from-gold-200/50 via-gold-300/50 to-gold-200/50 blur-sm pointer-events-none"
+                      className="absolute -inset-[2px] bg-gradient-to-r from-accent/50 via-accent-hover/50 to-accent/50 blur-sm pointer-events-none"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: isFocused ? 1 : 0 }}
                       transition={{ duration: 0.3 }}
                     />
                     <motion.div
-                      className="absolute -inset-[1px] bg-gradient-to-r from-gold-200 via-gold-300 to-gold-200 pointer-events-none"
+                      className="absolute -inset-[1px] bg-gradient-to-r from-accent via-accent-hover to-accent pointer-events-none"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: isFocused ? 0.6 : 0 }}
                       transition={{ duration: 0.3 }}
@@ -253,10 +253,10 @@ export function NewsletterSection() {
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}
                       placeholder="Enter your email address"
-                      className="relative w-full bg-noir-900 border border-noir-700 text-ivory-50 px-6 py-4 text-base placeholder:text-ivory-400 focus:border-gold-200 transition-all duration-300"
+                      className="relative w-full bg-surface-card border border-border-default text-text-primary px-6 py-4 text-base placeholder:text-text-muted focus:border-accent transition-all duration-300"
                       style={{
                         boxShadow: isFocused
-                          ? '0 0 20px rgba(255, 217, 102, 0.2), 0 0 40px rgba(255, 217, 102, 0.1)'
+                          ? `0 0 20px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 40px color-mix(in srgb, var(--accent) 10%, transparent)`
                           : 'none',
                       }}
                       disabled={status === 'loading'}
@@ -274,7 +274,7 @@ export function NewsletterSection() {
                   <button
                     type="submit"
                     disabled={status === 'loading'}
-                    className="inline-flex items-center justify-center gap-2 bg-gold-200 text-noir-950 px-8 py-4 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center gap-2 bg-accent text-text-on-accent px-8 py-4 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {status === 'loading' ? (
                       <>
@@ -295,7 +295,7 @@ export function NewsletterSection() {
             initial={{ opacity: 0 }}
             animate={isInView ? { opacity: 1 } : {}}
             transition={{ duration: 0.6, delay: 0.7 }}
-            className="mt-6 font-[family-name:var(--font-jakarta)] text-xs text-ivory-400"
+            className="mt-6 font-[family-name:var(--font-jakarta)] text-xs text-text-muted"
           >
             By subscribing, you agree to our Privacy Policy. No spam, ever. Unsubscribe anytime.
           </motion.p>
@@ -305,25 +305,25 @@ export function NewsletterSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.9 }}
-            className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-ivory-400"
+            className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-text-muted"
           >
             <div className="flex items-center gap-2">
-              <CheckCircle size={14} className="text-gold-200" />
+              <CheckCircle size={14} className="text-accent" />
               <span>Early Access</span>
             </div>
-            <div className="w-px h-4 bg-noir-700 hidden sm:block" />
+            <div className="w-px h-4 bg-surface-inset hidden sm:block" />
             <div className="flex items-center gap-2">
-              <CheckCircle size={14} className="text-gold-200" />
+              <CheckCircle size={14} className="text-accent" />
               <span>Exclusive Offers</span>
             </div>
-            <div className="w-px h-4 bg-noir-700 hidden sm:block" />
+            <div className="w-px h-4 bg-surface-inset hidden sm:block" />
             <div className="flex items-center gap-2">
-              <CheckCircle size={14} className="text-gold-200" />
+              <CheckCircle size={14} className="text-accent" />
               <span>10% Off First Order</span>
             </div>
-            <div className="w-px h-4 bg-noir-700 hidden sm:block" />
+            <div className="w-px h-4 bg-surface-inset hidden sm:block" />
             <div className="flex items-center gap-2">
-              <CheckCircle size={14} className="text-gold-200" />
+              <CheckCircle size={14} className="text-accent" />
               <span>No Spam</span>
             </div>
           </motion.div>

@@ -1,14 +1,12 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import { getArtistByHandle, getArtistsWithMetadata, getProductsByCollectionHandle } from '@/lib/supabase/queries';
-import { parseSortParam, parsePageParam } from '@/lib/product';
 import { ArtistHero } from '@/features/artist/ArtistHero';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArtistPageProps {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ sort?: string; page?: string }>;
 }
 
 export const revalidate = 3600;
@@ -46,11 +44,13 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
   };
 }
 
-export default async function ArtistPage({ params, searchParams }: ArtistPageProps) {
+export default async function ArtistPage({ params }: ArtistPageProps) {
   const { handle } = await params;
-  const { sort: rawSort, page: rawPage } = await searchParams;
-  const sort = parseSortParam(rawSort);
-  const page = parsePageParam(rawPage);
+  // No `searchParams` here on purpose: awaiting it opts the whole route
+  // into dynamic rendering and every request reruns the Supabase reads,
+  // bypassing `revalidate = 3600`. The page prerenders with the default
+  // order (newest, page 1); sort changes refetch client-side via
+  // `CatalogGrid clientSort`, and deep ?page= links still seed the grid.
   const pageSize = 16;
 
   // Static (cookie-free) client so `revalidate = 3600` actually applies.
@@ -64,7 +64,7 @@ export default async function ArtistPage({ params, searchParams }: ArtistPagePro
   // two-hop skips the published gate, matching the old client fetch.
   const result = await getProductsByCollectionHandle(
     handle,
-    { sort, page, pageSize },
+    { sort: 'newest', page: 1, pageSize },
     { publishedOnly: false, useStatic: true },
   );
   const products = result?.data ?? [];
@@ -85,7 +85,7 @@ export default async function ArtistPage({ params, searchParams }: ArtistPagePro
 
       {/* Products Grid */}
       <section
-        className="py-24 bg-noir-950"
+        className="py-24 bg-surface-page"
         style={{
           '--artist-accent': artist.accentColor,
           '--artist-secondary': artist.secondaryColor,
@@ -95,21 +95,22 @@ export default async function ArtistPage({ params, searchParams }: ArtistPagePro
           <CatalogGrid
             initialProducts={products}
             totalCount={count}
-            initialPage={page}
-            query={{ mode: 'artist', handle, sort, pageSize }}
+            initialPage={1}
+            query={{ mode: 'artist', handle, sort: 'newest', pageSize }}
             showSort
             showGridToggle
+            clientSort
             toolbarClassName="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12"
             accentColor={artist.accentColor}
             toolbarLeft={
               <div>
                 <p
                   className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] mb-3"
-                  style={{ color: artist.accentColor }}
+                  style={{ color: 'var(--accent)' }}
                 >
                   {artist.name.toUpperCase()} COLLECTION
                 </p>
-                <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+                <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
                   Shop the Collection
                 </h2>
               </div>

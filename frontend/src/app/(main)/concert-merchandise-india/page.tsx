@@ -49,7 +49,7 @@ export default function ConcertMerchandiseIndiaPage() {
   const artistEntries = Object.values(ARTISTS).slice(0, 20);
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16">
       <JsonLd data={organizationSchema()} />
       <JsonLd
         data={breadcrumbSchema([
@@ -62,13 +62,13 @@ export default function ConcertMerchandiseIndiaPage() {
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Hero */}
         <div className="text-center mb-16">
-          <div className="w-20 h-20 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <ShoppingBag className="w-10 h-10 text-gold-200" />
+          <div className="w-20 h-20 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <ShoppingBag className="w-10 h-10 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Buy Concert Merchandise Online in India
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-300 max-w-3xl mx-auto text-lg leading-relaxed">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-3xl mx-auto text-lg leading-relaxed">
             YORD India is India&apos;s premier destination for premium concert merchandise. We offer
             exclusive, fan-made designs for 50+ artists — from global superstars like Coldplay and
             Taylor Swift to Indian icons like Diljit Dosanjh and Karan Aujla. Premium quality,
@@ -77,13 +77,13 @@ export default function ConcertMerchandiseIndiaPage() {
           <div className="flex flex-wrap justify-center gap-4 mt-8">
             <Link
               href="/products"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
             >
               SHOP ALL PRODUCTS <ArrowRight size={16} />
             </Link>
             <Link
               href="/concerts"
-              className="inline-flex items-center gap-2 px-8 py-3 border border-ivory-400 text-ivory-300 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-gold-200 hover:text-gold-200 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-3 border border-text-muted text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
             >
               BROWSE CONCERTS <Music size={16} />
             </Link>
@@ -111,13 +111,13 @@ export default function ConcertMerchandiseIndiaPage() {
           ].map((v) => (
             <div
               key={v.title}
-              className="text-center p-8 bg-noir-900 border border-noir-800"
+              className="text-center p-8 bg-surface-card border border-border-default"
             >
-              <v.icon className="w-10 h-10 text-gold-200 mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+              <v.icon className="w-10 h-10 text-accent mx-auto mb-4" />
+              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                 {v.title}
               </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 {v.desc}
               </p>
             </div>
@@ -126,7 +126,7 @@ export default function ConcertMerchandiseIndiaPage() {
 
         {/* Artists Grid */}
         <section className="mb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-8 text-center">
+          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
             Shop by Artist
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -134,16 +134,16 @@ export default function ConcertMerchandiseIndiaPage() {
               <Link
                 key={artist.handle}
                 href={`/artist/${artist.handle}`}
-                className="group block p-4 bg-noir-900 border border-noir-800 text-center hover:border-gold-200/40 transition-all"
+                className="group block p-4 bg-surface-card border border-border-default text-center hover:border-accent/40 transition-all"
               >
                 <span
                   className="w-3 h-3 rounded-full inline-block mb-2"
                   style={{ backgroundColor: artist.accentColor }}
                 />
-                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-ivory-100 group-hover:text-gold-200 transition-colors">
+                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
                   {artist.name}
                 </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-400 mt-1">
+                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-1">
                   {artist.tagline}
                 </p>
               </Link>
@@ -152,7 +152,7 @@ export default function ConcertMerchandiseIndiaPage() {
           <div className="text-center mt-6">
             <Link
               href="/artists"
-              className="inline-flex items-center gap-2 text-gold-200 font-[family-name:var(--font-bebas)] tracking-wider text-sm hover:underline"
+              className="inline-flex items-center gap-2 text-accent font-[family-name:var(--font-bebas)] tracking-wider text-sm hover:underline"
             >
               VIEW ALL ARTISTS <ArrowRight size={14} />
             </Link>
@@ -161,19 +161,19 @@ export default function ConcertMerchandiseIndiaPage() {
 
         {/* FAQ Section */}
         <section className="mb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-8 text-center">
+          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
             Frequently Asked Questions
           </h2>
           <div className="max-w-3xl mx-auto space-y-4">
             {LANDING_FAQS.map((faq) => (
               <div
                 key={faq.question}
-                className="bg-noir-900 border border-noir-800 p-6"
+                className="bg-surface-card border border-border-default p-6"
               >
-                <h3 className="font-[family-name:var(--font-jakarta)] text-ivory-100 font-medium mb-3">
+                <h3 className="font-[family-name:var(--font-jakarta)] text-text-secondary font-medium mb-3">
                   {faq.question}
                 </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 leading-relaxed">
+                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
                   {faq.answer}
                 </p>
               </div>
@@ -182,11 +182,11 @@ export default function ConcertMerchandiseIndiaPage() {
         </section>
 
         {/* SEO Content */}
-        <section className="bg-noir-900 border border-noir-800 p-8 md:p-12">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-6">
+        <section className="bg-surface-card border border-border-default p-8 md:p-12">
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
             India&apos;s Leading Concert Merchandise Store
           </h2>
-          <div className="font-[family-name:var(--font-jakarta)] text-ivory-300 space-y-4 text-sm leading-relaxed">
+          <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
             <p>
               YORD India is India&apos;s premier online destination for premium concert merchandise. Founded with a passion for live music and fashion, YORD India bridges the gap between concert experiences and everyday style. We offer an extensive catalog of fan-made, artist-inspired designs for over 65 artists — both Indian and international — who have performed or are performing in India in 2024, 2025, and 2026.
             </p>
