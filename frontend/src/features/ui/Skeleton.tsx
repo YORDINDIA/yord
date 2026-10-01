@@ -9,7 +9,7 @@ import { cn } from '@yord/ui';
 type SkeletonVariant = 'grid' | 'card' | 'text' | 'hero';
 
 function Pulse({ className }: { className?: string }) {
-  return <div aria-hidden="true" className={cn('animate-pulse bg-noir-800', className)} />;
+  return <div aria-hidden="true" className={cn('animate-pulse bg-surface-raised', className)} />;
 }
 
 function ProductCardSkeleton() {

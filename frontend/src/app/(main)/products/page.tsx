@@ -56,7 +56,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const baseFilters = { artist: artistFilter, type: typeFilter, sort: sortBy };
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16">
       <JsonLd
         data={breadcrumbSchema([
           { name: 'Home', url: '/' },
@@ -76,13 +76,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           >
             <ShoppingBag
               className="w-8 h-8"
-              style={{ color: currentArtist?.accentColor || '#D4AF37' }}
+              style={{ color: 'var(--accent)' }}
             />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-4">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-4">
             {currentArtist ? currentArtist.name : typeFilter || 'All Products'}
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
             {count} {count === 1 ? 'product' : 'products'} available
             {currentArtist && ` from ${currentArtist.name}`}
             {typeFilter && !currentArtist && ` in ${typeFilter}`}
@@ -115,14 +115,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           />
         ) : (
           <div className="text-center py-16">
-            <ShoppingBag className="w-16 h-16 mx-auto text-ivory-600 mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-4">
+            <ShoppingBag className="w-16 h-16 mx-auto text-text-muted mb-4" />
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-4">
               No products found{hasFilters ? ' with the selected filters' : ''}.
             </p>
             {hasFilters && (
               <Link
                 href="/products"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
               >
                 Clear Filters
               </Link>

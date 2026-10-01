@@ -15,9 +15,9 @@ export function EmptyState({
 }) {
   return (
     <div className="py-16 text-center">
-      <p className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-100 mb-3">{title}</p>
+      <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-secondary mb-3">{title}</p>
       {message ? (
-        <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-6">{message}</p>
+        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-6">{message}</p>
       ) : null}
       {children}
     </div>

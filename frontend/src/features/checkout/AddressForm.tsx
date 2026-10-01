@@ -39,17 +39,17 @@ export function AddressForm({ type, data, onChange, errors = {} }: AddressFormPr
   };
 
   const inputClass = (field: keyof AddressData) => cn(
-    'w-full px-4 py-3 bg-noir-900 border text-ivory-100 placeholder:text-ivory-500',
+    'w-full px-4 py-3 bg-surface-card border text-text-secondary placeholder:text-text-muted',
     'font-[family-name:var(--font-jakarta)] text-sm',
-    'focus:border-gold-200 transition-colors',
-    errors[field] ? 'border-red-500' : 'border-noir-700'
+    'focus:border-accent transition-colors',
+    errors[field] ? 'border-red-500' : 'border-border-default'
   );
 
-  const labelClass = 'block text-ivory-300 font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider mb-2';
+  const labelClass = 'block text-text-muted font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider mb-2';
 
   return (
     <div className="space-y-6">
-      <h3 className="font-[family-name:var(--font-playfair)] text-xl text-ivory-50 mb-6">
+      <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-primary mb-6">
         {type === 'shipping' ? 'Shipping Address' : 'Billing Address'}
       </h3>
 

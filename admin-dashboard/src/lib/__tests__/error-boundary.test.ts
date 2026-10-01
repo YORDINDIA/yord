@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DatabaseError, errorMessage } from '@/lib/errors';
 
@@ -14,8 +16,26 @@ import { DatabaseError, errorMessage } from '@/lib/errors';
  * These tests pin the message contract the boundary matches on. If the format
  * changes, the boundary degrades silently again — that is what this test exists
  * to prevent.
+ *
+ * The matcher itself is read out of `src/app/(admin)/error.tsx` (not
+ * duplicated here): if the boundary ever stops recognizing database errors,
+ * these tests fail against its own pattern instead of passing against a stale
+ * local copy.
  */
-const DATABASE_PREFIX = /^Could not read ([^:]+):/;
+
+/** The exact message pattern the client boundary matches on, read from its source. */
+function boundaryPattern(): RegExp {
+  const source = readFileSync(join(process.cwd(), 'src', 'app', '(admin)', 'error.tsx'), 'utf8');
+  const match = /\/([^/\n]*Could not read[^/\n]*)\//.exec(source);
+  if (!match) {
+    throw new Error('error.tsx no longer matches DatabaseError by message prefix');
+  }
+  return new RegExp(match[1]);
+}
+
+function boundaryEntity(message: string): string | undefined {
+  return boundaryPattern().exec(message)?.[1];
+}
 
 describe('DatabaseError', () => {
   it('prefixes the message with the entity so a client boundary can match it', () => {
@@ -32,19 +52,26 @@ describe('DatabaseError', () => {
     // Exactly what Next hands the client boundary: the class is gone, only the
     // message and digest survive.
     const asClientSeesIt = { message: error.message, digest: 'abc123' };
-    expect(DATABASE_PREFIX.exec(asClientSeesIt.message)?.[1]).toBe('products');
+    expect(boundaryEntity(asClientSeesIt.message)).toBe('products');
   });
 
   it('handles an entity name containing spaces', () => {
-    expect(DATABASE_PREFIX.exec(new DatabaseError('product variants', 'boom').message)?.[1]).toBe(
+    expect(boundaryEntity(new DatabaseError('product variants', 'boom').message)).toBe(
       'product variants',
     );
   });
 
   it('does not match a message missing the separator colon', () => {
     // Guards against the regex growing loose enough to catch unrelated errors.
-    expect(DATABASE_PREFIX.exec('Could not read orders')?.[1]).toBeUndefined();
-    expect(DATABASE_PREFIX.exec('Could not render orders')?.[1]).toBeUndefined();
+    expect(boundaryEntity('Could not read orders')).toBeUndefined();
+    expect(boundaryEntity('Could not render orders')).toBeUndefined();
+  });
+
+  it('fails loudly if error.tsx stops matching this contract', () => {
+    // The pattern comes from the boundary's own source: if someone edits
+    // error.tsx to match something else, this — not a stale copy — changes.
+    expect(() => boundaryPattern()).not.toThrow();
+    expect(boundaryEntity(new DatabaseError('orders', 'boom').message)).toBe('orders');
   });
 });
 

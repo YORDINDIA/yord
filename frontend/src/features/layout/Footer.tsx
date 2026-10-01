@@ -69,7 +69,7 @@ export function Footer() {
   };
 
   return (
-    <footer className="bg-noir-950 border-t border-noir-800">
+    <footer className="bg-surface-page border-t border-border-default">
       {/* Main Footer */}
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-16 lg:py-24">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
@@ -79,7 +79,10 @@ export function Footer() {
               <span
                 className="font-[family-name:var(--font-playfair)] text-3xl font-bold"
                 style={{
-                  background: 'linear-gradient(135deg, var(--ivory-50) 0%, var(--gold-100) 40%, var(--gold-200) 60%, var(--ivory-50) 100%)',
+                  // On the page surface (not over media), so the light theme
+                  // reverses to ink→bronze; an ivory start would be invisible.
+                  background:
+                    'linear-gradient(135deg, var(--text-primary) 0%, var(--accent-on-surface) 45%, var(--text-primary) 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -89,20 +92,20 @@ export function Footer() {
               </span>
               <span className="mx-2 opacity-40 group-hover:opacity-100 transition-opacity duration-300">
                 <svg width="6" height="6" viewBox="0 0 6 6" fill="none">
-                  <path d="M3 0L6 3L3 6L0 3L3 0Z" fill="var(--gold-200)" />
+                  <path d="M3 0L6 3L3 6L0 3L3 0Z" fill="var(--accent-on-surface)" />
                 </svg>
               </span>
-              <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-gold-200 group-hover:text-gold-100 transition-colors duration-300">
+              <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-accent group-hover:text-accent-hover transition-colors duration-300">
                 INDIA
               </span>
             </Link>
-            <p className="font-[family-name:var(--font-cormorant)] text-xl text-ivory-200 mb-6 max-w-sm">
+            <p className="font-[family-name:var(--font-cormorant)] text-xl text-text-secondary mb-6 max-w-sm">
               Where Music Meets Luxury. Premium concert couture for the devoted fan.
             </p>
 
             {/* Newsletter */}
             <div className="space-y-4">
-              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400">
+              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted">
                 JOIN THE INNER CIRCLE
               </p>
               {status === 'success' ? (
@@ -119,13 +122,13 @@ export function Footer() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="flex-1 bg-noir-900 border border-noir-700 text-ivory-50 px-4 py-3 text-sm placeholder:text-ivory-400 focus:border-gold-200 transition-colors"
+                    className="flex-1 bg-surface-card border border-border-default text-text-primary px-4 py-3 text-sm placeholder:text-text-muted focus:border-accent transition-colors"
                     disabled={status === 'loading'}
                   />
                   <button
                     type="submit"
                     disabled={status === 'loading'}
-                    className="bg-gold-200 text-noir-950 px-6 py-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50"
+                    className="bg-accent text-text-on-accent px-6 py-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50"
                   >
                     {status === 'loading' ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -135,7 +138,7 @@ export function Footer() {
                   </button>
                 </form>
               )}
-              <p className="text-xs text-ivory-400">
+              <p className="text-xs text-text-muted">
                 Early access to drops. Exclusive offers. No spam.
               </p>
             </div>
@@ -143,7 +146,7 @@ export function Footer() {
 
           {/* Links Columns */}
           <div className="lg:col-span-2">
-            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-6">
               SHOP
             </h4>
             <ul className="space-y-3">
@@ -151,7 +154,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors"
+                    className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -161,7 +164,7 @@ export function Footer() {
           </div>
 
           <div className="lg:col-span-2">
-            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-6">
               CONCERTS
             </h4>
             <ul className="space-y-3">
@@ -169,7 +172,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors"
+                    className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -179,7 +182,7 @@ export function Footer() {
           </div>
 
           <div className="lg:col-span-2">
-            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-6">
               SUPPORT
             </h4>
             <ul className="space-y-3">
@@ -187,7 +190,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors"
+                    className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -197,7 +200,7 @@ export function Footer() {
           </div>
 
           <div className="lg:col-span-2">
-            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-6">
               COMPANY
             </h4>
             <ul className="space-y-3">
@@ -205,7 +208,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors"
+                    className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -216,7 +219,7 @@ export function Footer() {
 
           {/* Artists Column */}
           <div className="lg:col-span-2">
-            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-ivory-400 mb-6">
+            <h4 className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-6">
               ARTISTS
             </h4>
             <ul className="flex flex-wrap gap-x-6 gap-y-2">
@@ -224,7 +227,7 @@ export function Footer() {
                 <li key={artist.handle}>
                   <Link
                     href={`/artist/${artist.handle}`}
-                    className="flex items-center gap-2 font-[family-name:var(--font-jakarta)] text-sm text-ivory-200 hover:text-gold-200 transition-colors group"
+                    className="flex items-center gap-2 font-[family-name:var(--font-jakarta)] text-sm text-text-secondary hover:text-accent transition-colors group"
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full transition-transform group-hover:scale-150"
@@ -237,9 +240,9 @@ export function Footer() {
               <li>
                 <Link
                   href="/artists"
-                  className="flex items-center gap-2 font-[family-name:var(--font-jakarta)] text-sm text-gold-200 hover:text-gold-300 transition-colors group"
+                  className="flex items-center gap-2 font-[family-name:var(--font-jakarta)] text-sm text-accent hover:text-accent-hover transition-colors group"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-gold-200 group-hover:scale-150 transition-transform" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent group-hover:scale-150 transition-transform" />
                   View All Artists →
                 </Link>
               </li>
@@ -249,11 +252,11 @@ export function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="border-t border-noir-800">
+      <div className="border-t border-border-default">
         <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             {/* Copyright */}
-            <p suppressHydrationWarning className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-400 text-center md:text-left">
+            <p suppressHydrationWarning className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted text-center md:text-left">
               &copy; {new Date().getFullYear()} YORD India. All rights reserved.
             </p>
 
@@ -265,7 +268,7 @@ export function Footer() {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 flex items-center justify-center text-ivory-400 hover:text-gold-200 transition-colors"
+                  className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-accent transition-colors"
                   aria-label={social.label}
                 >
                   <social.icon size={20} />
@@ -274,14 +277,14 @@ export function Footer() {
             </div>
 
             {/* Legal Links */}
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-ivory-400">
-              <Link href="/privacy" className="hover:text-gold-200 transition-colors">
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-text-muted">
+              <Link href="/privacy" className="hover:text-accent transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="hover:text-gold-200 transition-colors">
+              <Link href="/terms" className="hover:text-accent transition-colors">
                 Terms of Service
               </Link>
-              <Link href="/cookies" className="hover:text-gold-200 transition-colors">
+              <Link href="/cookies" className="hover:text-accent transition-colors">
                 Cookies
               </Link>
             </div>

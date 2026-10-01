@@ -340,6 +340,9 @@ CREATE TABLE discount_codes (
 
 CREATE INDEX idx_discount_codes_price_rule_id ON discount_codes(price_rule_id);
 CREATE INDEX idx_discount_codes_code ON discount_codes(code);
+-- Case-insensitive uniqueness, matching the admin action's toUpperCase()
+-- normalization (see supabase/migrations/007_discount_codes_code_ci.sql).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_discount_codes_code_ci ON discount_codes (upper(code));
 
 -- ============================================================
 -- 17. ORDERS (depends on customers)
@@ -349,7 +352,7 @@ CREATE TABLE orders (
     id BIGINT PRIMARY KEY,
     customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
     name VARCHAR(50) NOT NULL,
-    order_number INTEGER,
+    order_number BIGINT,
     email VARCHAR(255),
     phone VARCHAR(50),
     note TEXT,

@@ -1,4 +1,199 @@
 /**
+ * Decode every character reference that can smuggle a URL scheme past the
+ * check below. `href="javascript&colon;alert(1)"` has no literal colon, so a
+ * scheme test on the raw string passes — but the browser decodes `&colon;`
+ * before navigating, making it a live `javascript:` link (stored XSS, since
+ * this column renders via dangerouslySetInnerHTML). Numeric references were
+ * already decoded; named ones were not.
+ *
+ * Decoded iteratively to a fixpoint so double-encoded payloads
+ * (`&amp;colon;` → `&colon;` → `:`) cannot peel off one layer per save.
+ * Over-decoding is the safe direction here: anything decoded is then checked
+ * by the element/attribute/scheme strippers below.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  lt: '<',
+  gt: '>',
+  amp: '&',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  colon: ':',
+  semi: ';',
+  comma: ',',
+  sol: '/',
+  bsol: '\\',
+  NewLine: '\n',
+  Tab: '\t',
+  excl: '!',
+  quest: '?',
+ lpar: '(',  rpar: ')',
+  period: '.',
+  midast: '*',
+  lowbar: '_',
+  hyphen: '-',
+  num: '#',
+  dollar: '$',
+  percnt: '%',
+  plus: '+',
+  equals: '=',
+  Hat: '^',
+  brvbar: '|',
+  tilde: '~',
+  grave: '`',
+  trade: '™',
+  copy: '©',
+  reg: '®',
+  curren: '¤',
+  iexcl: '¡',
+  iquest: '¿',
+  laquo: '«',
+  raquo: '»',
+  ndash: '–',
+  mdash: '—',
+  lsquo: '‘',
+  rsquo: '’',
+  sbquo: '‚',
+  ldquo: '“',
+  rdquo: '”',
+  bdquo: '„',
+  dagger: '†',
+  Dagger: '‡',
+  permil: '‰',
+  lsaquo: '‹',
+  rsaquo: '›',
+  oline: '‾',
+  frasl: '⁄',
+  euro: '€',
+  hellip: '…',
+  prime: '′',
+  Prime: '″',
+  oelig: 'œ',
+  OElig: 'Œ',
+  scaron: 'š',
+  Scaron: 'Š',
+  yuml: 'ÿ',
+  Yuml: 'Ÿ',
+  fnof: 'ƒ',
+  Alpha: 'Α',
+  Beta: 'Β',
+  Gamma: 'Γ',
+  Delta: 'Δ',
+  Epsilon: 'Ε',
+  Omega: 'Ω',
+  alpha: 'α',
+  beta: 'β',
+  gamma: 'γ',
+  pi: 'π',
+  omega: 'ω',
+  Agrave: 'À',
+  Aacute: 'Á',
+  Acirc: 'Â',
+  Atilde: 'Ã',
+  Auml: 'Ä',
+  Aring: 'Å',
+  AElig: 'Æ',
+  Ccedil: 'Ç',
+  Egrave: 'È',
+  Eacute: 'É',
+  Ecirc: 'Ê',
+  Euml: 'Ë',
+  Igrave: 'Ì',
+  Iacute: 'Í',
+  Icirc: 'Î',
+  Iuml: 'Ï',
+  Ntilde: 'Ñ',
+  Ograve: 'Ò',
+  Oacute: 'Ó',
+  Ocirc: 'Ô',
+  Otilde: 'Õ',
+  Ouml: 'Ö',
+  Oslash: 'Ø',
+  Ugrave: 'Ù',
+  Uacute: 'Ú',
+  Ucirc: 'Û',
+  Uuml: 'Ü',
+  Yacute: 'Ý',
+  THORN: 'Þ',
+  szlig: 'ß',
+  agrave: 'à',
+  aacute: 'á',
+  acirc: 'â',
+  atilde: 'ã',
+  auml: 'ä',
+  aring: 'å',
+  aelig: 'æ',
+  ccedil: 'ç',
+  egrave: 'è',
+  eacute: 'é',
+  ecirc: 'ê',
+  euml: 'ë',
+  igrave: 'ì',
+  iacute: 'í',
+  icirc: 'î',
+  iuml: 'ï',
+  ntilde: 'ñ',
+  ograve: 'ò',
+  oacute: 'ó',
+  ocirc: 'ô',
+  otilde: 'õ',
+  ouml: 'ö',
+  oslash: 'ø',
+  ugrave: 'ù',
+  uacute: 'ú',
+  ucirc: 'û',
+  uuml: 'ü',
+  yacute: 'ý',
+  thorn: 'þ',
+  sup1: '¹',
+  sup2: '²',
+  sup3: '³',
+  frac14: '¼',
+  frac12: '½',
+  frac34: '¾',
+  times: '×',
+  divide: '÷',
+  sect: '§',
+  para: '¶',
+  middot: '·',
+ uml: '¨',
+  ordf: 'ª',
+  ordm: 'º',
+  deg: '°',
+  plusmn: '±',
+  micro: 'µ',
+ ETH: 'Ð',
+  eth: 'ð',
+};
+
+function decodeEntitiesOnce(html: string): string {
+  return html
+    .replace(/&#x([0-9a-fA-F]+);?/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);?/g, (m, name: string) => {
+      // Case-sensitive first (spec behavior), then case-insensitive so
+      // `&COLON;` cannot smuggle a scheme past the check either.
+      if (Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, name)) {
+        return NAMED_ENTITIES[name];
+      }
+      const lower = name.toLowerCase();
+      for (const key of Object.keys(NAMED_ENTITIES)) {
+        if (key.toLowerCase() === lower) return NAMED_ENTITIES[key];
+      }
+      return m;
+    });
+}
+
+function decodeEntities(html: string): string {
+  let out = html;
+  for (let i = 0; i < 5; i += 1) {
+    const next = decodeEntitiesOnce(out);
+    if (next === out) return out;
+    out = next;
+  }
+  return out;
+}
+/**
  * Sanitize admin-authored HTML before it is stored.
  *
  * `body_html` / `summary_html` are written by admins and later rendered with
@@ -7,35 +202,13 @@
  * or `javascript:`-family URLs.
  *
  * Dependency-free on purpose: isomorphic-dompurify pulls jsdom+undici, which
- * breaks vitest on Node 20 (undici needs worker_threads.markAsUncloneable,
+ * breaks vitest on Node 20 (undici needs `worker_threads.markAsUncloneable`,
  * added in Node 22). Same approach as the storefront's sanitizeHtml.
  */
 export function sanitizeHtml(html: string | null | undefined): string {
   if (!html) return '';
-  let out = String(html);
   // Decode numeric/element entities first so encoded payloads cannot slip past.
-  out = out
-    .replace(/&#x([0-9a-fA-F]+);?/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
-    .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
-    .replace(/&(lt|gt|amp|quot|#39|#x27|#x2f);?/gi, (m) => {
-      switch (m.toLowerCase()) {
-        case '&lt;':
-          return '<';
-        case '&gt;':
-          return '>';
-        case '&amp;':
-          return '&';
-        case '&quot;':
-          return '"';
-        case '&#39;':
-        case '&#x27;':
-          return "'";
-        case '&#x2f;':
-          return '/';
-        default:
-          return m;
-      }
-    });
+  let out = decodeEntities(String(html));
   // Drop dangerous elements with their content, then any leftover open tags.
   out = out.replace(
     /<\s*(script|style|iframe|object|embed|link|meta|base|form|noscript|template)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,

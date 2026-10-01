@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { actionError, actionOk, type ActionState } from '@/lib/action-state';
 import { getNextId } from '@/lib/utils/ids';
-import { sanitizeHtml } from '@/lib/utils/sanitize';
+import { sanitizeHtml, slugify } from '@/lib/utils/sanitize';
 import { collectionSchema, newCollectionSchema, smartRuleSchema } from '@/lib/validation';
 import { audit, parseForm, withAdmin } from './_shared';
 
@@ -38,15 +38,21 @@ export async function updateCollectionAction(
     if (readError) return actionError('Could not load the collection. Nothing was saved.');
     if (!before) return actionError('That collection no longer exists.');
 
+    // An empty handle is create-only: persisting '' would make the record
+    // unreachable by handle, so regenerate from the title.
+    const handle = input.handle || slugify(input.title, before.handle ?? `collection-${input.id}`);
+
     const { error } = await context.service
       .from('collections')
       .update({
         title: input.title,
-        handle: input.handle,
+        handle,
         published: input.published,
         body_html: sanitizeHtml(input.body_html) || null,
         updated_at: now,
-        published_at: input.published ? now : null,
+        // Stamp the publication date only on first publish: resetting it on
+        // every save rewrote history and broke "newest collection" ordering.
+        published_at: input.published ? (before.published_at ?? now) : null,
       })
       .eq('id', input.id);
     if (error) {
@@ -61,6 +67,21 @@ export async function updateCollectionAction(
     );
     if (collectsError) {
       console.error('[collections] set_collection_products failed', input.id, collectsError);
+      // The detail row above already committed: audit the partial mutation
+      // before returning, or the committed update leaves no audit trail.
+      await audit(context, {
+        action: 'update_partial',
+        entity: ENTITY,
+        entityId: input.id,
+        before,
+        after: {
+          title: input.title,
+          handle,
+          published: input.published,
+          productIdsAttempted: input.product_ids,
+          collectsError: collectsError.message,
+        },
+      });
       if (collectsError.message.includes('COLLECTION_NOT_FOUND')) {
         return actionError('That collection was deleted. Nothing was changed.');
       }
@@ -76,7 +97,7 @@ export async function updateCollectionAction(
       before,
       after: {
         title: input.title,
-        handle: input.handle,
+        handle,
         published: input.published,
         productCount: inserted,
       },
@@ -126,6 +147,19 @@ export async function createCollectionAction(
       });
       if (collectsError) {
         console.error('[collections] initial products failed', collectsError);
+        // The collection row already committed: audit it before returning, or
+        // the created collection leaves no audit trail.
+        await audit(context, {
+          action: 'create_partial',
+          entity: ENTITY,
+          entityId: id,
+          after: {
+            title: input.title,
+            collection_type: input.collection_type,
+            productIdsAttempted: productIds,
+            collectsError: collectsError.message,
+          },
+        });
         if (collectsError.message.includes('COLLECTION_NOT_FOUND')) {
           return actionError('The collection disappeared before its products could be attached.');
         }

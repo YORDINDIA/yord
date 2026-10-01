@@ -119,8 +119,11 @@ describe('position helpers', () => {
 });
 
 describe('artistAccentColor', () => {
-  it('falls back to gold for unknown/missing vendors', () => {
-    expect(artistAccentColor(null)).toBe('#FFD700');
-    expect(artistAccentColor('Nobody')).toBe('#FFD700');
+  it('falls back to the theme accent for unknown/missing vendors', () => {
+    // The fallback is painted as artist-badge text, so it has to resolve per
+    // theme. A gold literal reaches only ~3.9:1 on the light page, which fails
+    // AA; --accent is 5.48:1 on light and 14.49:1 on dark.
+    expect(artistAccentColor(null)).toBe('var(--accent)');
+    expect(artistAccentColor('Nobody')).toBe('var(--accent)');
   });
 });

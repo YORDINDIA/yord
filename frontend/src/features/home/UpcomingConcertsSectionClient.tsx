@@ -74,7 +74,7 @@ export function UpcomingConcertsSectionClient({
   const isSingle = count === 1;
 
   return (
-    <section className="py-24 bg-noir-950">
+    <section className="py-24 bg-surface-page">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
@@ -85,16 +85,16 @@ export function UpcomingConcertsSectionClient({
           className="flex items-end justify-between mb-12"
         >
           <div>
-            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200 mb-3">
+            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
               UPCOMING CONCERTS
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
               Shop for Upcoming Concerts
             </h2>
           </div>
           <Link
             href="/concerts"
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors group"
+            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
             data-cursor="pointer"
           >
             VIEW ALL CONCERTS
@@ -125,7 +125,7 @@ export function UpcomingConcertsSectionClient({
         <div className="sm:hidden mt-8 text-center">
           <Link
             href="/concerts"
-            className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors"
+            className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
           >
             VIEW ALL CONCERTS
             <ArrowRight size={16} />
@@ -149,7 +149,7 @@ function SingleConcertCard({
   const isUrgent = daysUntil >= 0 && daysUntil <= 7;
 
   return (
-    <div className="bg-noir-900 border border-noir-800 overflow-hidden">
+    <div className="bg-surface-card border border-border-default overflow-hidden">
       <div className="flex flex-col lg:flex-row">
         {/* Left — Concert Info */}
         <div className="p-8 lg:w-2/5 flex flex-col justify-between">
@@ -158,9 +158,9 @@ function SingleConcertCard({
               className="h-0.5 w-16 mb-5"
               style={{ backgroundColor: concert.accentColor }}
             />
-            <h3 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-2 flex items-center gap-4">
+            <h3 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-2 flex items-center gap-4">
               {concert.artistImage && (
-                <div className="relative w-12 h-12 rounded-full overflow-hidden border border-noir-700 shrink-0">
+                <div className="relative w-12 h-12 rounded-full overflow-hidden border border-border-default shrink-0">
                   <div
                     className="w-full h-full bg-cover bg-center"
                     style={{ backgroundImage: `url(${concert.artistImage})` }}
@@ -169,25 +169,25 @@ function SingleConcertCard({
               )}
               {concert.artistName}
             </h3>
-            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-ivory-400 mb-6">
+            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted mb-6">
               {concert.tourName.toUpperCase()}
             </p>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center gap-1.5 text-ivory-200">
-                <Calendar size={16} className="text-ivory-400" />
+              <div className="flex items-center gap-1.5 text-text-secondary">
+                <Calendar size={16} className="text-text-muted" />
                 <span className="font-[family-name:var(--font-jakarta)] text-base">
                   {formatConcertDate(concert.nextShowDate)}
                 </span>
               </div>
               <span
-                className={`px-3 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-gold-200/20 text-gold-200 ${isUrgent ? 'animate-pulse' : ''}`}
+                className={`px-3 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-accent-tint-strong text-accent ${isUrgent ? 'animate-pulse' : ''}`}
               >
                 {urgencyLabel}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-ivory-400 mb-4">
+            <div className="flex items-center gap-1.5 text-text-muted mb-4">
               <MapPin size={16} />
               <span className="font-[family-name:var(--font-jakarta)] text-sm">
                 {concert.nextShowCity}
@@ -196,7 +196,7 @@ function SingleConcertCard({
             </div>
 
             {concert.totalUpcomingShows > 1 && (
-              <div className="flex items-center gap-1.5 text-ivory-400">
+              <div className="flex items-center gap-1.5 text-text-muted">
                 <Music size={16} />
                 <span className="font-[family-name:var(--font-jakarta)] text-sm">
                   {concert.totalUpcomingShows} shows across India
@@ -217,7 +217,7 @@ function SingleConcertCard({
         </div>
 
         {/* Right — Products Grid */}
-        <div className="lg:w-3/5 p-6 lg:p-8 lg:border-l border-noir-800">
+        <div className="lg:w-3/5 p-6 lg:p-8 lg:border-l border-border-default">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {concert.products.map((product) => (
               <ProductCard
@@ -259,7 +259,7 @@ function ConcertArtistCard({
   const isUrgent = daysUntil >= 0 && daysUntil <= 7;
 
   return (
-    <div className="bg-noir-900 border border-noir-800 overflow-hidden group h-full flex flex-col">
+    <div className="bg-surface-card border border-border-default overflow-hidden group h-full flex flex-col">
       {/* Concert Info Block */}
       <div className="p-6 pb-4">
         <div
@@ -267,9 +267,9 @@ function ConcertArtistCard({
           style={{ backgroundColor: concert.accentColor }}
         />
 
-        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-1 flex items-center gap-3">
+        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-1 flex items-center gap-3">
           {concert.artistImage && (
-            <div className="relative w-10 h-10 rounded-full overflow-hidden border border-noir-700 shrink-0">
+            <div className="relative w-10 h-10 rounded-full overflow-hidden border border-border-default shrink-0">
               <div
                 className="w-full h-full bg-cover bg-center"
                 style={{ backgroundImage: `url(${concert.artistImage})` }}
@@ -279,25 +279,25 @@ function ConcertArtistCard({
           {concert.artistName}
         </h3>
 
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-ivory-400 mb-4">
+        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-text-muted mb-4">
           {concert.tourName.toUpperCase()}
         </p>
 
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center gap-1.5 text-ivory-200">
-            <Calendar size={14} className="text-ivory-400" />
+          <div className="flex items-center gap-1.5 text-text-secondary">
+            <Calendar size={14} className="text-text-muted" />
             <span className="font-[family-name:var(--font-jakarta)] text-sm">
               {formatConcertDate(concert.nextShowDate)}
             </span>
           </div>
           <span
-            className={`px-2.5 py-0.5 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-gold-200/20 text-gold-200 ${isUrgent ? 'animate-pulse' : ''}`}
+            className={`px-2.5 py-0.5 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-accent-tint-strong text-accent ${isUrgent ? 'animate-pulse' : ''}`}
           >
             {urgencyLabel}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-ivory-400 mb-3">
+        <div className="flex items-center gap-1.5 text-text-muted mb-3">
           <MapPin size={14} />
           <span className="font-[family-name:var(--font-jakarta)] text-sm truncate">
             {concert.nextShowCity}
@@ -306,7 +306,7 @@ function ConcertArtistCard({
         </div>
 
         {concert.totalUpcomingShows > 1 && (
-          <div className="flex items-center gap-1.5 text-ivory-400">
+          <div className="flex items-center gap-1.5 text-text-muted">
             <Music size={14} />
             <span className="font-[family-name:var(--font-jakarta)] text-xs">
               {concert.totalUpcomingShows} shows across India

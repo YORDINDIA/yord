@@ -30,7 +30,7 @@ interface SimpleProduct {
   maxQuantity: number;
 }
 
-export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD966' }: RelatedProductsProps) {
+export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(--accent)' }: RelatedProductsProps) {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +69,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
 
         return {
           id: p.id,
-          handle: p.handle,
+          handle: p.handle ?? '',
           title: p.title,
           price: variant?.price || 0,
           compareAtPrice: variant?.compare_at_price || null,
@@ -90,18 +90,18 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
 
   if (loading) {
     return (
-      <section className="py-24 bg-noir-900">
+      <section className="py-24 bg-surface-card">
         <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
           <div className="animate-pulse">
-            <div className="h-4 w-32 bg-noir-800 mb-3" />
-            <div className="h-8 w-64 bg-noir-800 mb-12" />
+            <div className="h-4 w-32 bg-surface-raised mb-3" />
+            <div className="h-8 w-64 bg-surface-raised mb-12" />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
               {[...Array(4)].map((_, i) => (
                 <div key={i}>
-                  <div className="aspect-[3/4] bg-noir-800 mb-4" />
-                  <div className="h-4 bg-noir-800 mb-2 w-1/3" />
-                  <div className="h-5 bg-noir-800 mb-2" />
-                  <div className="h-4 bg-noir-800 w-1/4" />
+                  <div className="aspect-[3/4] bg-surface-raised mb-4" />
+                  <div className="h-4 bg-surface-raised mb-2 w-1/3" />
+                  <div className="h-5 bg-surface-raised mb-2" />
+                  <div className="h-4 bg-surface-raised w-1/4" />
                 </div>
               ))}
             </div>
@@ -114,7 +114,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
   if (products.length === 0) return null;
 
   return (
-    <section className="py-24 bg-noir-900">
+    <section className="py-24 bg-surface-card">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
@@ -127,17 +127,17 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = '#FFD9
           <div>
             <p
               className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] mb-3"
-              style={{ color: accentColor }}
+              style={{ color: 'var(--accent)' }}
             >
               MORE FROM {vendor.toUpperCase()}
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50">
+            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary">
               You May Also Like
             </h2>
           </div>
           <Link
             href={`/artist/${vendorToHandle(vendor)}`}
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors group"
+            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
           >
             VIEW ALL
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />

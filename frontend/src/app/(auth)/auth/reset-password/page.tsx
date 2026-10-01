@@ -68,21 +68,21 @@ function ResetPasswordContent() {
 
   if (success) {
     return (
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-6 bg-green-500/10 rounded-full flex items-center justify-center">
               <Check className="w-8 h-8 text-green-500" />
             </div>
-            <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-4">
+            <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-4">
               Password Updated
             </h1>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
               Your password has been successfully reset. Redirecting to login...
             </p>
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
             >
               GO TO LOGIN
             </Link>
@@ -94,28 +94,28 @@ function ResetPasswordContent() {
 
   if (hasSession === null) {
     return (
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gold-200 animate-spin" />
+      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
       </main>
     );
   }
 
   if (hasSession === false) {
     return (
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-6 text-center">
           <div className="w-16 h-16 mx-auto mb-6 bg-red-500/10 rounded-full flex items-center justify-center">
             <AlertCircle className="w-8 h-8 text-red-400" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-2">
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-2">
             Link Expired
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
             This password reset link is invalid or has expired. Request a new one to continue.
           </p>
           <Link
             href="/auth/forgot-password"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
           >
             REQUEST NEW LINK
           </Link>
@@ -125,16 +125,16 @@ function ResetPasswordContent() {
   }
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
       <div className="max-w-md w-full mx-auto px-6">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <KeyRound className="w-8 h-8 text-gold-200" />
+          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <KeyRound className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-ivory-50 mb-2">
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-2">
             Reset Password
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
             Enter your new password below.
           </p>
         </div>
@@ -150,7 +150,7 @@ function ResetPasswordContent() {
           )}
 
           <div>
-            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-2">
+            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
               NEW PASSWORD
             </label>
             <input
@@ -159,13 +159,13 @@ function ResetPasswordContent() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:border-gold-200"
+              className="w-full h-12 px-4 bg-surface-card border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               placeholder="Enter new password"
             />
           </div>
 
           <div>
-            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-2">
+            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
               CONFIRM PASSWORD
             </label>
             <input
@@ -174,7 +174,7 @@ function ResetPasswordContent() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full h-12 px-4 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:border-gold-200"
+              className="w-full h-12 px-4 bg-surface-card border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               placeholder="Confirm new password"
             />
           </div>
@@ -182,7 +182,7 @@ function ResetPasswordContent() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 flex items-center justify-center gap-2 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-12 flex items-center justify-center gap-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
@@ -195,9 +195,9 @@ function ResetPasswordContent() {
           </button>
         </form>
 
-        <p className="mt-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+        <p className="mt-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
           Remember your password?{' '}
-          <Link href="/auth/login" className="text-gold-200 hover:underline">
+          <Link href="/auth/login" className="text-accent hover:underline">
             Sign in
           </Link>
         </p>
@@ -209,8 +209,8 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gold-200 animate-spin" />
+      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
       </main>
     }>
       <ResetPasswordContent />

@@ -130,10 +130,10 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
                 <div className={cn(
                   'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors',
                   isCompleted
-                    ? 'bg-gold-200 border-gold-200 text-noir-950'
+                    ? 'bg-accent border-accent text-text-on-accent'
                     : isCurrent
-                    ? 'border-gold-200 text-gold-200 bg-transparent'
-                    : 'border-noir-600 text-noir-500 bg-transparent'
+                    ? 'border-accent text-accent bg-transparent'
+                    : 'border-border-strong text-text-muted bg-transparent'
                 )}>
                   {isCompleted ? (
                     <Check size={20} />
@@ -146,11 +146,11 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
                 <div className="mt-2 text-center">
                   <p className={cn(
                     'font-[family-name:var(--font-jakarta)] text-sm font-medium',
-                    isCurrent || isCompleted ? 'text-ivory-100' : 'text-ivory-500'
+                    isCurrent || isCompleted ? 'text-text-secondary' : 'text-text-muted'
                   )}>
                     {step.name}
                   </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 hidden sm:block">
+                  <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted hidden sm:block">
                     {step.description}
                   </p>
                 </div>
@@ -160,7 +160,7 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
                   <div className="absolute top-5 left-[calc(50%+1.25rem)] w-[calc(100%-2.5rem)] h-0.5 -translate-y-1/2">
                     <div className={cn(
                       'h-full transition-colors',
-                      isCompleted ? 'bg-gold-200' : 'bg-noir-700'
+                      isCompleted ? 'bg-accent' : 'bg-surface-inset'
                     )} />
                   </div>
                 )}
@@ -178,7 +178,7 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          className="bg-noir-900 border border-noir-800 p-6 md:p-8"
+          className="bg-surface-card border border-border-default p-6 md:p-8"
         >
           {currentStep === 1 && (
             <AddressForm
@@ -202,9 +202,9 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
                       setBillingAddress(shippingAddress);
                     }
                   }}
-                  className="w-5 h-5 rounded border-noir-600 bg-noir-800 text-gold-200 focus:ring-gold-200 focus:ring-offset-noir-900"
+                  className="w-5 h-5 rounded border-border-strong bg-surface-raised text-accent focus:ring-accent focus:ring-offset-surface-card"
                 />
-                <span className="font-[family-name:var(--font-jakarta)] text-ivory-100">
+                <span className="font-[family-name:var(--font-jakarta)] text-text-secondary">
                   Same as shipping address
                 </span>
               </label>
@@ -219,15 +219,15 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
               )}
 
               {sameAsShipping && (
-                <div className="p-4 bg-noir-800 border border-noir-700">
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-300">
+                <div className="p-4 bg-surface-raised border border-border-default">
+                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     {shippingAddress.firstName} {shippingAddress.lastName}
                   </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     {shippingAddress.address1}
                     {shippingAddress.address2 && `, ${shippingAddress.address2}`}
                   </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     {shippingAddress.city}, {shippingAddress.state} {shippingAddress.pincode}
                   </p>
                 </div>
@@ -249,7 +249,7 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
         {currentStep > 1 ? (
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 px-6 py-3 border border-noir-600 text-ivory-300 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-ivory-400 hover:text-ivory-100 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 border border-border-strong text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted hover:text-text-secondary transition-colors"
           >
             <ChevronLeft size={18} />
             BACK
@@ -261,7 +261,7 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
         {currentStep < 3 ? (
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+            className="flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
           >
             CONTINUE
             <ChevronRight size={18} />
@@ -273,8 +273,8 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
             className={cn(
               'flex items-center gap-2 px-8 py-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors',
               isProcessing
-                ? 'bg-noir-700 text-ivory-400 cursor-not-allowed'
-                : 'bg-gold-200 text-noir-950 hover:bg-gold-300'
+                ? 'bg-surface-inset text-text-muted cursor-not-allowed'
+                : 'bg-accent text-text-on-accent hover:bg-accent-hover'
             )}
           >
             {isProcessing ? (

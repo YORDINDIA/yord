@@ -8,8 +8,12 @@ export default function manifest(): MetadataRoute.Manifest {
       "India's leading premium concert merchandise store. Shop exclusive fan-made designs for Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, and 50+ artists.",
     start_url: '/',
     display: 'standalone',
-    background_color: '#0A0A0A',
-    theme_color: '#D4AF37',
+    // The splash window for a standalone PWA install is painted before any page
+    // CSS loads, so it cannot follow the user's theme. Light is the product
+    // default, so these match the light palette — a dark splash on a light site
+    // reads as a flash of the wrong app.
+    background_color: '#F4F4F2',
+    theme_color: '#F4F4F2',
     icons: [
       { src: '/favicon.ico', sizes: '48x48', type: 'image/x-icon' },
     ],

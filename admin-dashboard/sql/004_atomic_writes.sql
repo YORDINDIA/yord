@@ -160,7 +160,15 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Analytics: per-day INR revenue over a window (no row cap).
+-- Analytics: per-day INR revenue over a window (no row cap), net of refunds.
+--
+-- Gross counts only captured money: paid / partially_paid /
+-- partially_refunded. Pending, authorized, failed, voided, and fully-refunded
+-- orders never enter the sum. Completed gateway refunds (note carries
+-- 'Razorpay refund <id>') are subtracted in paise/100 on the refund's day;
+-- pending/failed/unknown reservations have moved no money and are excluded.
+-- Legacy pre-reservation refunds have no amount and their orders sit in
+-- 'refunded' status, so they net to zero through exclusion.
 -- ---------------------------------------------------------------------------
 create or replace function public.revenue_by_day(p_since timestamptz)
 returns table (day date, total numeric)
@@ -169,13 +177,39 @@ stable
 security definer
 set search_path = public
 as $$
+  with gross as (
+    select
+      (o.created_at at time zone 'utc')::date as day,
+      sum(o.total_price)::numeric as gross
+    from public.orders o
+    where o.created_at >= p_since
+      and coalesce(o.currency, 'INR') = 'INR'
+      and o.financial_status in ('paid', 'partially_paid', 'partially_refunded')
+    group by 1
+  ),
+  refunded as (
+    select
+      (r.created_at at time zone 'utc')::date as day,
+      sum(r.amount)::numeric / 100 as refunded
+    from public.refunds r
+    join public.orders o on o.id = r.order_id
+    where r.created_at >= p_since
+      and coalesce(o.currency, 'INR') = 'INR'
+      and r.amount is not null
+      and r.note like '%Razorpay refund%'
+    group by 1
+  ),
+  days as (
+    select day from gross
+    union
+    select day from refunded
+  )
   select
-    (o.created_at at time zone 'utc')::date as day,
-    sum(coalesce(o.total_price, 0))::numeric as total
-  from public.orders o
-  where o.created_at >= p_since
-    and coalesce(o.currency, 'INR') = 'INR'
-  group by 1
+    d.day,
+    (coalesce(g.gross, 0) - coalesce(f.refunded, 0))::numeric as total
+  from days d
+  left join gross g using (day)
+  left join refunded f using (day)
   order by 1;
 $$;
 

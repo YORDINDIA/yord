@@ -48,6 +48,7 @@ export default function NewCollectionForm() {
           name="handle"
           placeholder="auto-generated if empty"
           aria-invalid={Boolean(errorFor('handle'))}
+          aria-describedby={errorFor('handle') ? 'handle-error' : undefined}
         />
       </ActionField>
 

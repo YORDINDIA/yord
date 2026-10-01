@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-noir-950">
+    <div className="min-h-screen bg-surface-page">
       <JsonLd data={organizationSchema()} />
       <JsonLd
         data={breadcrumbSchema([
@@ -23,13 +23,13 @@ export default function AboutPage() {
         <div className="max-w-[1440px] mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-gold-200 mb-4">
+              <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-accent mb-4">
                 OUR STORY
               </p>
-              <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+              <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
                 Where Music Meets Fashion
               </h1>
-              <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-lg leading-relaxed mb-8">
+              <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-lg leading-relaxed mb-8">
                 YORD India is India&apos;s premier destination for premium concert merchandise.
                 We curate exclusive, fan-made designs inspired by the world&apos;s most iconic
                 artists — from global superstars like Coldplay, Kanye West, Calvin Harris, and Linkin Park
@@ -39,19 +39,19 @@ export default function AboutPage() {
               </p>
               <Link
                 href="/artists"
-                className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
               >
                 EXPLORE ARTISTS
                 <ArrowRight size={16} />
               </Link>
             </div>
-            <div className="relative aspect-square bg-noir-900 border border-noir-800">
+            <div className="relative aspect-square bg-surface-card border border-border-default">
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center p-12">
-                  <div className="w-20 h-20 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-                    <Music className="w-10 h-10 text-gold-200" />
+                  <div className="w-20 h-20 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+                    <Music className="w-10 h-10 text-accent" />
                   </div>
-                  <p className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-100">
+                  <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-secondary">
                     Celebrating the art of live performance
                   </p>
                 </div>
@@ -62,13 +62,13 @@ export default function AboutPage() {
       </section>
 
       {/* Values Section */}
-      <section className="px-6 lg:px-12 py-24 bg-noir-900/50">
+      <section className="px-6 lg:px-12 py-24 bg-surface-card/50">
         <div className="max-w-[1440px] mx-auto">
           <div className="text-center mb-16">
-            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-gold-200 mb-4">
+            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-accent mb-4">
               WHY CHOOSE US
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50">
+            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary">
               Our Commitment to You
             </h2>
           </div>
@@ -98,15 +98,15 @@ export default function AboutPage() {
             ].map((value) => (
               <div
                 key={value.title}
-                className="text-center p-8 bg-noir-900 border border-noir-800"
+                className="text-center p-8 bg-surface-card border border-border-default"
               >
-                <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-                  <value.icon className="w-8 h-8 text-gold-200" />
+                <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+                  <value.icon className="w-8 h-8 text-accent" />
                 </div>
-                <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-3">
+                <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-3">
                   {value.title}
                 </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                   {value.description}
                 </p>
               </div>
@@ -119,18 +119,18 @@ export default function AboutPage() {
       <section className="px-6 lg:px-12 py-24">
         <div className="max-w-[1440px] mx-auto">
           <div className="max-w-3xl mx-auto text-center">
-            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-gold-200 mb-4">
+            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-accent mb-4">
               OUR MISSION
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-8">
+            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-8">
               Bringing the Concert Experience Home
             </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-lg leading-relaxed mb-6">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-lg leading-relaxed mb-6">
               We believe that music merchandise is more than just clothing — it&apos;s a
               connection to the moments that move us. Every t-shirt tells a story, every
               hoodie holds a memory, and every piece carries the energy of live performance.
             </p>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-lg leading-relaxed">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-lg leading-relaxed">
               Our mission is to make artist-inspired merchandise accessible to every
               music lover in India, bringing fans closer to the artists they love.
             </p>
@@ -141,16 +141,16 @@ export default function AboutPage() {
       {/* CTA Section */}
       <section className="px-6 lg:px-12 pb-24">
         <div className="max-w-[1440px] mx-auto">
-          <div className="bg-gradient-to-r from-noir-900 to-noir-800 border border-noir-700 p-12 md:p-16 text-center">
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-ivory-50 mb-4">
+          <div className="bg-gradient-to-r from-surface-card to-surface-raised border border-border-default p-12 md:p-16 text-center">
+            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-4">
               Ready to Wear Your Passion?
             </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-lg mx-auto mb-8">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-lg mx-auto mb-8">
               Explore our collection of artist-inspired merchandise and find your perfect piece.
             </p>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
             >
               SHOP NOW
               <ArrowRight size={16} />

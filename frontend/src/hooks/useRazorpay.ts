@@ -41,6 +41,35 @@ export interface VerifiedPaymentResponse extends RazorpayPaymentResponse {
   order_name: string;
 }
 
+// Durable reconcile state: a payment captured but not yet verified survives a
+// reload in sessionStorage, so the next checkout can re-POST the same ids
+// (idempotent on the server) instead of charging again.
+const PENDING_VERIFY_KEY = 'yord:pending-verify';
+
+function rememberPendingVerify(paymentId: string, body: string) {
+  try {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem(
+      PENDING_VERIFY_KEY,
+      JSON.stringify({ paymentId, body, at: Date.now() })
+    );
+  } catch {
+    // Storage unavailable: reconciliation still runs in-memory below.
+  }
+}
+
+function clearPendingVerify(paymentId: string) {
+  try {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem(PENDING_VERIFY_KEY);
+    if (!raw) return;
+    const pending = JSON.parse(raw) as { paymentId?: string };
+    if (pending.paymentId === paymentId) sessionStorage.removeItem(PENDING_VERIFY_KEY);
+  } catch {
+    // Ignore storage failures on the cleanup path.
+  }
+}
+
 export function useRazorpay(): UseRazorpayReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,37 +123,99 @@ export function useRazorpay(): UseRazorpayReturn {
             color: '#C9A227', // Gold color
           },
           handler: async (response) => {
-            try {
-              // Verify payment and create order on server (30s timeout so a
-              // hung verify never leaves the checkout promise pending forever)
+            // The verify body is reused verbatim for every reconcile attempt:
+            // same payment ids, so the server's confirmation_number lookup
+            // makes re-POSTs idempotent instead of duplicate orders.
+            const verifyBody = JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              // Order data for Supabase (server recomputes prices/totals)
+              orderData: {
+                email: data.customerEmail,
+                phone: data.customerPhone,
+                shippingAddress: data.shippingAddress,
+                cartItems: data.cartItems.map(item => ({
+                  variantId: item.variantId,
+                  quantity: item.quantity,
+                })),
+              },
+            });
+
+            async function postVerify(timeoutMs: number) {
               const verifyResponse = await fetch('/api/checkout/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  // Order data for Supabase (server recomputes prices/totals)
-                  orderData: {
-                    email: data.customerEmail,
-                    phone: data.customerPhone,
-                    shippingAddress: data.shippingAddress,
-                    cartItems: data.cartItems.map(item => ({
-                      variantId: item.variantId,
-                      quantity: item.quantity,
-                    })),
-                  },
-                }),
-                signal: AbortSignal.timeout(30000),
+                body: verifyBody,
+                signal: AbortSignal.timeout(timeoutMs),
               });
+              const verifyData = (await verifyResponse.json().catch(() => ({}))) as {
+                order_name?: string;
+                error?: string;
+                code?: string;
+              };
+              return { verifyResponse, verifyData };
+            }
 
-              if (!verifyResponse.ok) {
-                const errorData = await verifyResponse.json();
-                throw new Error(errorData.error || 'Payment verification failed');
+            function isTimeout(err: unknown): boolean {
+              return (
+                err instanceof DOMException &&
+                (err.name === 'TimeoutError' || err.name === 'AbortError')
+              );
+            }
+
+            try {
+              // First attempt: 30s so a hung verify never leaves checkout
+              // pending forever. A timeout here aborts only the browser
+              // request — the server may still create the order — so it is
+              // reconciled below, never reported as failure.
+              try {
+                const { verifyResponse, verifyData } = await postVerify(30000);
+                if (!verifyResponse.ok) {
+                  throw new Error(verifyData.error || 'Payment verification failed');
+                }
+                clearPendingVerify(response.razorpay_payment_id);
+                resolve({ ...response, order_name: verifyData.order_name ?? '' });
+                return;
+              } catch (err) {
+                if (!isTimeout(err)) throw err;
               }
 
-              const verifyData = await verifyResponse.json();
-              resolve({ ...response, order_name: verifyData.order_name });
+              // Durable reconciliation: the payment is captured, so re-POST
+              // the same ids (server returns the existing order when the
+              // first attempt actually succeeded) instead of failing and
+              // inviting a retry that charges twice.
+              rememberPendingVerify(response.razorpay_payment_id, verifyBody);
+              let lastError: unknown = new Error('Verification timed out');
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+                try {
+                  const { verifyResponse, verifyData } = await postVerify(45000);
+                  if (verifyResponse.ok) {
+                    clearPendingVerify(response.razorpay_payment_id);
+                    resolve({ ...response, order_name: verifyData.order_name ?? '' });
+                    return;
+                  }
+                  // Definitive server rejections (amount mismatch, stock,
+                  // bad signature) are terminal: no order will appear.
+                  lastError = new Error(verifyData.error || 'Payment verification failed');
+                  if (
+                    verifyResponse.status === 400 ||
+                    verifyResponse.status === 402 ||
+                    verifyResponse.status === 409
+                  ) {
+                    break;
+                  }
+                } catch (err) {
+                  lastError = err;
+                  if (!isTimeout(err)) break;
+                }
+              }
+              throw lastError instanceof Error
+                ? new Error(
+                    `${lastError.message}. Your payment may have completed — check Account → Orders before paying again.`
+                  )
+                : lastError;
             } catch (err) {
               reject(err);
             }

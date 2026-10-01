@@ -16,6 +16,17 @@ export const metadata: Metadata = { title: 'Dashboard · YORD Admin' };
  * `count ?? 0` — a failed count read rendered as a confident `0`, so a broken
  * query looked like a healthy business. Failed reads now throw `DatabaseError`
  * and land on the route error boundary.
+ *
+ * Money contracts this page requires of `getDashboardSummary()` (implemented
+ * in `lib/data/analytics.ts`, fixed alongside this page):
+ * - Fulfillment queue counts `unfulfilled` AND `NULL` fulfillment_status
+ *   (migrated orders have NULL). The drill-down href below stays unfiltered
+ *   by status text so NULL rows are reachable from here.
+ * - Revenue derives from successful transactions net of refunds — never a raw
+ *   sum over pending/failed/voided/refunded orders.
+ * - Both revenue windows end yesterday (the charted window). A today bucket
+ *   may only be added on top of these figures, never overlapping them, or
+ *   today is double-counted.
  */
 export default async function DashboardPage() {
   const { counts, revenue, recentOrders } = await getDashboardSummary();
@@ -27,7 +38,11 @@ export default async function DashboardPage() {
     {
       label: 'Fulfillment queue',
       value: String(counts.fulfillmentQueue),
-      href: '/orders?fulfillment=unfulfilled',
+      // Unfiltered: `?fulfillment=unfulfilled` matches only the literal value
+      // and hides migrated orders with NULL status — the same rows this KPI
+      // counts. Keep the drill-down unfiltered until the orders filter itself
+      // includes NULL.
+      href: '/orders',
     },
     { label: 'Low stock variants', value: String(counts.lowStockVariants), href: '/inventory' },
     { label: 'Products', value: String(counts.products), href: '/products' },

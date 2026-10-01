@@ -30,16 +30,16 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const totalPages = Math.ceil(count / pageSize);
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="min-h-screen bg-surface-page pt-20">
       {/* Hero Section */}
       <section className="max-w-[1440px] mx-auto px-6 lg:px-12 py-16">
-        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-gold-200 mb-2 block">
+        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-accent mb-2 block">
           THE JOURNAL
         </span>
-        <h1 className="font-[family-name:var(--font-playfair)] text-4xl lg:text-6xl text-ivory-50 mb-4">
+        <h1 className="font-[family-name:var(--font-playfair)] text-4xl lg:text-6xl text-text-primary mb-4">
           Stories & Style
         </h1>
-        <p className="font-[family-name:var(--font-cormorant)] text-xl text-ivory-300 max-w-2xl">
+        <p className="font-[family-name:var(--font-cormorant)] text-xl text-text-muted max-w-2xl">
           Behind-the-scenes, style guides, and stories from the world of premium concert fashion.
         </p>
       </section>
@@ -48,7 +48,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-24">
         {articles.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-ivory-400 text-lg">No articles yet. Check back soon!</p>
+            <p className="text-text-muted text-lg">No articles yet. Check back soon!</p>
           </div>
         ) : (
           <>
@@ -64,7 +64,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 {page > 1 && (
                   <Link
                     href={`/blog?page=${page - 1}`}
-                    className="px-4 h-10 flex items-center justify-center bg-noir-800 text-ivory-100 hover:bg-noir-700 transition-colors font-[family-name:var(--font-bebas)] tracking-wider"
+                    className="px-4 h-10 flex items-center justify-center bg-surface-raised text-text-secondary hover:bg-surface-inset transition-colors font-[family-name:var(--font-bebas)] tracking-wider"
                   >
                     PREV
                   </Link>
@@ -77,8 +77,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                     aria-current={p === page ? 'page' : undefined}
                     className={`w-10 h-10 flex items-center justify-center transition-colors ${
                       p === page
-                        ? 'bg-gold-200 text-noir-950'
-                        : 'bg-noir-800 text-ivory-100 hover:bg-noir-700'
+                        ? 'bg-accent text-text-on-accent'
+                        : 'bg-surface-raised text-text-secondary hover:bg-surface-inset'
                     }`}
                   >
                     {p}
@@ -87,7 +87,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 {page < totalPages && (
                   <Link
                     href={`/blog?page=${page + 1}`}
-                    className="px-4 h-10 flex items-center justify-center bg-noir-800 text-ivory-100 hover:bg-noir-700 transition-colors font-[family-name:var(--font-bebas)] tracking-wider"
+                    className="px-4 h-10 flex items-center justify-center bg-surface-raised text-text-secondary hover:bg-surface-inset transition-colors font-[family-name:var(--font-bebas)] tracking-wider"
                   >
                     NEXT
                   </Link>
@@ -107,9 +107,9 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
 
   return (
     <Link href={`/blog/${article.handle}`} className="group block">
-      <article className="bg-noir-900 border border-noir-800 overflow-hidden transition-all duration-300 hover:border-noir-700 hover:-translate-y-1">
+      <article className="bg-surface-card border border-border-default overflow-hidden transition-all duration-300 hover:border-border-default hover:-translate-y-1">
         {/* Image */}
-        <div className="relative aspect-[16/9] overflow-hidden bg-noir-800">
+        <div className="relative aspect-[16/9] overflow-hidden bg-surface-raised">
           {imageUrl ? (
             <Image
               src={imageUrl}
@@ -120,11 +120,11 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-ivory-400 text-sm">No Image</span>
+              <span className="text-text-muted text-sm">No Image</span>
             </div>
           )}
           {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-noir-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
 
         {/* Content */}
@@ -132,25 +132,25 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
           {/* Meta */}
           <div className="flex items-center gap-3 text-sm">
             {article.author && (
-              <span className="text-gold-200 font-[family-name:var(--font-bebas)] tracking-wider uppercase text-xs">
+              <span className="text-accent font-[family-name:var(--font-bebas)] tracking-wider uppercase text-xs">
                 {article.author}
               </span>
             )}
             {article.published_at && (
-              <span className="text-ivory-400 text-xs">
+              <span className="text-text-muted text-xs">
                 {formatDate(article.published_at)}
               </span>
             )}
           </div>
 
           {/* Title */}
-          <h2 className="font-[family-name:var(--font-cormorant)] text-xl text-ivory-50 group-hover:text-gold-200 transition-colors line-clamp-2">
+          <h2 className="font-[family-name:var(--font-cormorant)] text-xl text-text-primary group-hover:text-accent transition-colors line-clamp-2">
             {article.title}
           </h2>
 
           {/* Summary (plain text — no innerHTML needed) */}
           {article.summary_html && (
-            <p className="text-ivory-300 text-sm line-clamp-3">
+            <p className="text-text-muted text-sm line-clamp-3">
               {stripHtml(article.summary_html).slice(0, 150) + '...'}
             </p>
           )}
@@ -161,7 +161,7 @@ function ArticleCard({ article }: { article: ArticleWithBlog }) {
               {article.tags.split(',').slice(0, 3).map((tag) => (
                 <span
                   key={tag.trim()}
-                  className="px-2 py-1 bg-noir-800 text-ivory-400 text-xs"
+                  className="px-2 py-1 bg-surface-raised text-text-muted text-xs"
                 >
                   {tag.trim()}
                 </span>

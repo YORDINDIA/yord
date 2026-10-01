@@ -81,7 +81,7 @@ export default async function AnalyticsPage() {
             View orders
           </Link>
         </div>
-        <div role="img" aria-label={`Daily revenue for the last ${REVENUE_CHART_DAYS} days`}>
+        <div role="group" aria-label={`Daily revenue for the last ${REVENUE_CHART_DAYS} days`}>
           {revenue.byDay.map((point) => {
             const label = new Date(point.day).toLocaleDateString('en-IN', {
               day: 'numeric',

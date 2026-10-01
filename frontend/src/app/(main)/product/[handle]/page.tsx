@@ -26,9 +26,11 @@ export async function generateStaticParams() {
       .eq('status', 'active');
     if (error) return [];
 
-    return (products || []).map((p: { handle: string }) => ({
-      handle: p.handle,
-    }));
+    return (products || [])
+      .filter((p): p is { handle: string } => p.handle != null)
+      .map((p) => ({
+        handle: p.handle,
+      }));
   } catch {
     return [];
   }
@@ -45,13 +47,20 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const price = product.product_variants?.[0]?.price;
   const image = product.product_images?.[0];
   const imageUrl = image?.supabase_url || image?.src;
-  const description = product.body_html
-    ? stripHtml(product.body_html).slice(0, 160)
-    : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`;
+  // Enriched SEO columns win when present (005_seo_content.sql); otherwise
+  // fall back to the pre-enrichment title/body slicing.
+  const description = product.meta_description
+    ?? (product.body_html
+      ? stripHtml(product.body_html).slice(0, 160)
+      : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`);
 
   return {
-    title: `${product.title} — ${product.vendor || 'YORD India'} Concert Merchandise`,
+    title: product.meta_title
+      ?? `${product.title} — ${product.vendor || 'YORD India'} Concert Merchandise`,
     description,
+    keywords: product.search_keywords
+      ? product.search_keywords.split(',').map((k) => k.trim()).filter(Boolean)
+      : undefined,
     openGraph: {
       title: `${product.title} | YORD India`,
       description,
@@ -83,12 +92,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // Get artist accent color
   const artistHandle = productData.vendor?.toLowerCase().replace(/\s+/g, '-') || '';
   const artistData = ARTISTS[artistHandle];
-  const accentColor = artistData?.accentColor || '#FFD966';
+  const accentColor = artistData?.accentColor || 'var(--accent)';
 
   // Transform Supabase data to match component expectations
   const product = {
     id: productData.id,
-    handle: productData.handle,
+    handle: productData.handle ?? handle,
     title: productData.title,
     vendor: productData.vendor || '',
     description: productData.body_html || '',
@@ -115,7 +124,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <main className="bg-noir-950 pt-20">
+    <main className="bg-surface-page pt-20">
       <JsonLd data={productSchema(productData)} />
       <JsonLd
         data={breadcrumbSchema([

@@ -11,7 +11,11 @@ export type CartValidationCode = 'UNKNOWN_VARIANT' | 'BAD_AMOUNT' | 'OUT_OF_STOC
 export interface ValidatedVariant {
   id: number;
   price: number;
-  inventory_quantity: number;
+  // NULL means "unknown" (untracked stock), not zero: the inventory UI renders
+  // it as zero and the dashboard low-stock KPI counts it, so checkout must
+  // fail closed on it before any money moves (the guarded decrement RPC would
+  // reject it later, after capture, forcing a charge-then-refund).
+  inventory_quantity: number | null;
   title: string | null;
   product_id: number;
   productTitle: string;
@@ -63,8 +67,11 @@ export async function validateCartLines(
   const byId = new Map<number, ValidatedVariant>();
   for (const v of variants as {
     id: number;
-    price: number | string;
-    inventory_quantity: number;
+    // NULL/empty means "no price": it must stay invalid. `Number(null)` is 0
+    // and `Number('')` is 0, so converting before checking would sell the
+    // variant for free whenever the cart also holds a priced item.
+    price: number | string | null;
+    inventory_quantity: number | null;
     title: string | null;
     product_id: number;
     products: { title: string } | { title: string }[] | null;
@@ -72,10 +79,19 @@ export async function validateCartLines(
     const productTitle = Array.isArray(v.products)
       ? v.products[0]?.title
       : v.products?.title;
+    // Preserve null/empty as NaN (invalid) BEFORE numeric conversion: a NULL
+    // database price must fail the BAD_AMOUNT check below, never become 0.
+    const rawPrice = v.price;
+    const price =
+      rawPrice === null ||
+      rawPrice === undefined ||
+      (typeof rawPrice === 'string' && rawPrice.trim() === '')
+        ? NaN
+        : Number(rawPrice);
     byId.set(v.id, {
       id: v.id,
-      price: Number(v.price),
-      inventory_quantity: v.inventory_quantity,
+      price,
+      inventory_quantity: v.inventory_quantity ?? null,
       title: v.title,
       product_id: v.product_id,
       productTitle: productTitle || 'Product',
@@ -101,7 +117,7 @@ export async function validateCartLines(
         status: 400,
       };
     }
-    if (variant.inventory_quantity < line.quantity) {
+    if (variant.inventory_quantity == null || variant.inventory_quantity < line.quantity) {
       return {
         ok: false,
         code: 'OUT_OF_STOCK',

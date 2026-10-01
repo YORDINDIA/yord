@@ -158,7 +158,7 @@ export function transformProductForCard(
 
   return {
     id: product.id.toString(),
-    handle: product.handle,
+    handle: product.handle ?? '',
     title: product.title,
     artist,
     price: variant?.price || 0,
@@ -169,12 +169,20 @@ export function transformProductForCard(
   };
 }
 
-/** Artist accent color from vendor name; default gold. */
+/**
+ * Artist accent color from vendor name; default to the theme accent.
+ *
+ * The fallback is `var(--accent)` rather than a gold literal: this value is
+ * painted as text on the artist badge, and the gold ramp only reaches ~3.9:1
+ * on the light page, which fails AA. `var(--accent)` is 5.48:1 on light and
+ * 14.49:1 on dark. A per-artist accentColor from static data still wins, and
+ * those are brand identity colors used over artwork.
+ */
 export function artistAccentColor(vendor: string | null): string {
-  if (!vendor) return '#FFD700';
+  if (!vendor) return 'var(--accent)';
   const handle = vendor.toLowerCase().replace(/\s+/g, '-');
   const artistData = ARTISTS[handle];
-  return artistData?.accentColor || '#FFD700';
+  return artistData?.accentColor || 'var(--accent)';
 }
 
 /**

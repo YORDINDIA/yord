@@ -2,7 +2,6 @@ import { createServerClient, createStaticClient } from './server';
 import type { ProductWithDetails, Collection, ArtistData, Article, ArticleWithBlog } from '@yord/db-types';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 import { stripHtml } from '@yord/ui';
-import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/product';
 import type { SortOption } from '@/lib/product';
 import { escapeLike } from '@/lib/search';
 import { fetchProductsByIds, PRODUCT_SELECT } from '@/lib/data/productsByIds';
@@ -232,7 +231,7 @@ function toArtistData(
     bio: (col.body_html ? stripHtml(col.body_html) : '') || staticData?.bio || `Shop exclusive ${col.title} merchandise.`,
     heroImage: col.image_src || staticData?.heroImage,
     logoImage: staticData?.logoImage,
-    accentColor: staticData?.accentColor || '#FFD700',
+    accentColor: staticData?.accentColor || 'var(--accent)',
     secondaryColor: staticData?.secondaryColor || '#1C1C1C',
     productCount,
   } as ArtistData;
@@ -459,7 +458,9 @@ export async function getProductsFiltered(
 
   // Apply sorting. Price sorts order by the cached min_price in SQL (see
   // supabase/migrations/001_min_price.sql); rows that predate the backfill
-  // (NULL min_price) are re-sorted client-side from variant prices below.
+  // (NULL min_price) sort NULLS LAST in both directions. Pagination is
+  // database-side (`range(from, to)`) so every page — not just the first
+  // PRICE_SORT_FETCH_LIMIT rows — is reachable and agrees with `count`.
   const isPriceSort = sortBy === 'price-asc' || sortBy === 'price-desc';
   if (sortBy === 'title') {
     query = query.order('title', { ascending: true });
@@ -469,28 +470,14 @@ export async function getProductsFiltered(
     query = query.order('published_at', { ascending: false });
   }
 
-  const { data, error, count } = await query.range(
-    ...(isPriceSort ? [0, PRICE_SORT_FETCH_LIMIT - 1] as const : [from, to] as const)
-  );
+  const { data, error, count } = await query.range(from, to);
 
   // List queries cannot produce PGRST116; any error here is a failed read.
   if (error) throwDbError('products:filtered', 'products', error);
 
   // `as unknown as`: the inferred select shape is precise per the `Database`
   // type but structurally wider than the hand-maintained `ProductWithDetails`.
-  let products = (data || []) as unknown as ProductWithDetails[];
-
-  // SQL min_price ordering is authoritative only when every fetched row is
-  // backfilled. Otherwise the NULL-min_price rows (sorted to the tail by
-  // NULLS LAST) land in the wrong position, so re-sort client-side from
-  // variant prices. Correct while the filtered catalog stays under
-  // PRICE_SORT_FETCH_LIMIT; beyond it the sorted pages and `count` disagree.
-  if (isPriceSort && !products.every((p) => Number.isFinite(Number((p as { min_price?: unknown }).min_price)))) {
-    products = sortProductsByPrice(products, sortBy === 'price-asc' ? 'asc' : 'desc');
-  }
-  if (isPriceSort) {
-    products = products.slice(from, to + 1);
-  }
+  const products = (data || []) as unknown as ProductWithDetails[];
 
   return {
     data: products,

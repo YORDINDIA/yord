@@ -23,11 +23,11 @@ export async function FeaturedProducts() {
     // Determine artist accent color
     const artistHandle = p.vendor?.toLowerCase().replace(/\s+/g, '-') || '';
     const artistData = ARTISTS[artistHandle];
-    const accentColor = artistData?.accentColor || '#FFD966';
+    const accentColor = artistData?.accentColor || 'var(--accent)';
 
     return {
       id: p.id.toString(),
-      handle: p.handle,
+      handle: p.handle ?? '',
       title: p.title,
       artist: p.vendor || 'YORD',
       price: variant?.price || 0,

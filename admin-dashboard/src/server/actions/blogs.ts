@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { actionError, actionOk, type ActionState } from '@/lib/action-state';
 import { isUniqueViolation } from '@/lib/errors';
 import { getNextId } from '@/lib/utils/ids';
-import { sanitizeHtml } from '@/lib/utils/sanitize';
+import { sanitizeHtml, slugify } from '@/lib/utils/sanitize';
 import { articleSchema, blogSchema, newArticleSchema, newBlogSchema } from '@/lib/validation';
 import { audit, parseForm, withAdmin } from './_shared';
 
@@ -35,11 +35,15 @@ export async function updateBlogAction(
     if (readError) return actionError('Could not load the blog. Nothing was saved.');
     if (!before) return actionError('That blog no longer exists.');
 
+    // An empty handle is create-only: persisting '' would make the record
+    // unreachable by handle, so regenerate from the title.
+    const handle = input.handle || slugify(input.title, before.handle ?? `blog-${input.id}`);
+
     const { error } = await context.service
       .from('blogs')
       .update({
         title: input.title,
-        handle: input.handle,
+        handle,
         tags: input.tags || null,
         updated_at: new Date().toISOString(),
       })
@@ -54,7 +58,7 @@ export async function updateBlogAction(
       entity: 'blogs',
       entityId: input.id,
       before,
-      after: { title: input.title, handle: input.handle, tags: input.tags },
+      after: { title: input.title, handle, tags: input.tags },
     });
 
     revalidatePath(`/blogs/${input.id}`);
@@ -112,11 +116,14 @@ export async function createArticleAction(
     if (!parsed.ok) return parsed.state;
     const input = parsed.data;
 
-    const { data: blog } = await context.service
+    const { data: blog, error: blogError } = await context.service
       .from('blogs')
       .select('id')
       .eq('id', input.blog_id)
       .maybeSingle();
+    // A failed lookup is a load failure, not a deleted blog: reporting it as
+    // "no longer exists" sends the admin hunting for a record that is there.
+    if (blogError) return actionError('Could not load the blog. Nothing was saved.');
     if (!blog) return actionError('That blog no longer exists.');
 
     const id = await getNextId('articles');
@@ -181,11 +188,15 @@ export async function updateArticleAction(
     if (readError) return actionError('Could not load the article. Nothing was saved.');
     if (!before) return actionError('That article no longer exists.');
 
+    // An empty handle is create-only: persisting '' would make the record
+    // unreachable by handle, so regenerate from the title.
+    const handle = input.handle || slugify(input.title, before.handle ?? `article-${input.id}`);
+
     const { error } = await context.service
       .from('articles')
       .update({
         title: input.title,
-        handle: input.handle,
+        handle,
         author: input.author || null,
         tags: input.tags || null,
         // Both HTML columns are rendered with dangerouslySetInnerHTML downstream.
@@ -209,7 +220,7 @@ export async function updateArticleAction(
       entity: 'articles',
       entityId: input.id,
       before,
-      after: { title: input.title, handle: input.handle, published: input.published },
+      after: { title: input.title, handle, published: input.published },
     });
 
     revalidatePath(`/articles/${input.id}`);

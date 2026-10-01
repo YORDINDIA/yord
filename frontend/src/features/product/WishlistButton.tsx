@@ -67,7 +67,7 @@ export function WishlistButton({
         sizeClasses[size],
         inWishlist
           ? 'text-red-400 hover:text-red-300'
-          : 'text-ivory-400 hover:text-ivory-100',
+          : 'text-text-muted hover:text-text-secondary',
         className
       )}
       aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}

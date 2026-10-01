@@ -142,9 +142,9 @@ export function CustomCursor() {
               transition={{ duration: 0.15 }}
             >
               <div
-                className="w-2 h-2 -ml-1 -mt-1 rounded-full bg-gold-200"
+                className="w-2 h-2 -ml-1 -mt-1 rounded-full bg-accent"
                 style={{
-                  boxShadow: '0 0 10px rgba(255, 217, 102, 0.5)',
+                  boxShadow: `0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)`,
                 }}
               />
             </motion.div>
@@ -177,8 +177,12 @@ export function CustomCursor() {
                 <motion.div
                   className="w-full h-full rounded-full border"
                   animate={{
-                    borderColor: hovered ? 'rgba(255, 217, 102, 0.8)' : 'rgba(255, 217, 102, 0.4)',
-                    backgroundColor: hovered ? 'rgba(255, 217, 102, 0.1)' : 'rgba(0, 0, 0, 0)',
+                    borderColor: hovered
+                      ? 'color-mix(in srgb, var(--accent) 80%, transparent)'
+                      : 'color-mix(in srgb, var(--accent) 40%, transparent)',
+                    backgroundColor: hovered
+                      ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
+                      : 'transparent',
                   }}
                   transition={{ duration: 0.2 }}
                 />
@@ -187,7 +191,7 @@ export function CustomCursor() {
                 <AnimatePresence>
                   {text && (
                     <motion.span
-                      className="absolute font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.1em] text-gold-200 whitespace-nowrap"
+                      className="absolute font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.1em] text-accent whitespace-nowrap"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}

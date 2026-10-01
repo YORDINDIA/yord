@@ -39,14 +39,14 @@ export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistP
 
     return {
       id: p.id.toString(),
-      handle: p.handle,
+      handle: p.handle ?? '',
       title: p.title,
       artist: p.vendor || artistData.name,
       price: variant?.price || 0,
       compareAtPrice: variant?.compare_at_price || null,
       image: image?.supabase_url || image?.src || null,
       badge: getProductBadge(p, variant),
-      accentColor: artistData.accentColor || '#FFD966',
+      accentColor: artistData.accentColor || 'var(--accent)',
       originalProduct: p,
     };
   });
@@ -57,7 +57,7 @@ export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistP
       artistName={artistData.name}
       artistTagline={artistData.tagline}
       artistImage={artistData.heroImage}
-      accentColor={artistData.accentColor || '#FFD966'}
+      accentColor={artistData.accentColor || 'var(--accent)'}
       products={transformedProducts}
     />
   );

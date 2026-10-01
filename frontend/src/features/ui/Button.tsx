@@ -17,28 +17,28 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       font-[family-name:var(--font-bebas)] tracking-[0.15em] uppercase
       transition-all duration-300 ease-out
       disabled:opacity-50 disabled:cursor-not-allowed
-      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-200 focus-visible:ring-offset-2 focus-visible:ring-offset-noir-950
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-page
     `;
 
     const variants = {
       primary: `
-        bg-gold-200 text-noir-950
-        hover:bg-gold-300 hover:shadow-[0_4px_30px_rgba(255,217,102,0.15)]
+        bg-accent text-text-on-accent
+        hover:bg-accent-hover hover:shadow-gold
         active:scale-[0.98]
       `,
       secondary: `
-        bg-transparent text-ivory-50 border border-ivory-50
-        hover:bg-ivory-50 hover:text-noir-950
+        bg-transparent text-text-primary border border-text-primary
+        hover:bg-text-primary hover:text-text-on-accent
         active:scale-[0.98]
       `,
       ghost: `
-        bg-transparent text-ivory-100
-        hover:bg-noir-800 hover:text-ivory-50
+        bg-transparent text-text-secondary
+        hover:bg-surface-raised hover:text-text-primary
         active:scale-[0.98]
       `,
       gold: `
-        bg-gradient-to-r from-gold-200 to-gold-400 text-noir-950
-        hover:shadow-[0_0_30px_rgba(255,217,102,0.5),0_0_60px_rgba(255,217,102,0.2)]
+        bg-gradient-to-r from-accent to-accent-hover text-text-on-accent
+        hover:glow-gold-strong
         active:scale-[0.98]
       `,
     };

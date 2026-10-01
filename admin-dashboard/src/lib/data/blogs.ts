@@ -60,8 +60,15 @@ export async function listArticles(filters: {
 
 export interface BlogDetail {
   blog: Blog;
-  articles: Article[];
+  articles: ArticleListItem[];
 }
+
+/**
+ * The only article fields the blog-detail page renders (ArticleList shows
+ * id/title/published-state/dates). Selecting the full row pulled
+ * body_html/summary_html per article for nothing.
+ */
+export type ArticleListItem = Pick<Article, 'id' | 'blog_id' | 'title' | 'published' | 'created_at'>;
 
 /** One blog with its articles (unpaged: a blog's own article list). */
 export const getBlog = cache(async (id: number): Promise<BlogDetail | null> => {
@@ -72,11 +79,11 @@ export const getBlog = cache(async (id: number): Promise<BlogDetail | null> => {
   );
   if (!blog) return null;
 
-  const articles = await rows<Article>(
+  const articles = await rows<ArticleListItem>(
     ARTICLE_ENTITY,
     supabase
       .from('articles')
-      .select('*')
+      .select('id,blog_id,title,published,created_at')
       .eq('blog_id', id)
       .order('created_at', { ascending: false }),
   );

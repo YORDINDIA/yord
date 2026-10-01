@@ -8,17 +8,17 @@ export const metadata = {
 
 export default function ReturnsPage() {
   return (
-    <div className="min-h-screen bg-noir-950">
+    <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-6 lg:px-12">
         <div className="max-w-[1440px] mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <RefreshCw className="w-8 h-8 text-gold-200" />
+          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <RefreshCw className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Returns & Exchanges
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
             We want you to love your purchase. If something isn&apos;t right,
             we&apos;re here to make it right with our hassle-free return policy.
           </p>
@@ -29,30 +29,30 @@ export default function ReturnsPage() {
       <section className="px-6 lg:px-12 pb-16">
         <div className="max-w-[1440px] mx-auto">
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-noir-900 border border-noir-800 p-8 text-center">
-              <Clock className="w-10 h-10 text-gold-200 mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+            <div className="bg-surface-card border border-border-default p-8 text-center">
+              <Clock className="w-10 h-10 text-accent mx-auto mb-4" />
+              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                 14-DAY RETURNS
               </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 Return within 14 days of delivery
               </p>
             </div>
-            <div className="bg-noir-900 border border-noir-800 p-8 text-center">
-              <RefreshCw className="w-10 h-10 text-gold-200 mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+            <div className="bg-surface-card border border-border-default p-8 text-center">
+              <RefreshCw className="w-10 h-10 text-accent mx-auto mb-4" />
+              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                 FREE EXCHANGES
               </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 Free size exchanges on all orders
               </p>
             </div>
-            <div className="bg-noir-900 border border-noir-800 p-8 text-center">
-              <Package className="w-10 h-10 text-gold-200 mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-2">
+            <div className="bg-surface-card border border-border-default p-8 text-center">
+              <Package className="w-10 h-10 text-accent mx-auto mb-4" />
+              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
                 EASY PROCESS
               </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 Simple online return request
               </p>
             </div>
@@ -64,12 +64,12 @@ export default function ReturnsPage() {
       <section className="px-6 lg:px-12 pb-24">
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Return Eligibility */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               RETURN ELIGIBILITY
             </h2>
             <div className="space-y-4">
-              <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-sm leading-relaxed">
+              <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-sm leading-relaxed">
                 Items are eligible for return within 14 days of delivery if they meet the following conditions:
               </p>
               <ul className="space-y-3">
@@ -82,7 +82,7 @@ export default function ReturnsPage() {
                 ].map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                    <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-300">
+                    <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                       {item}
                     </span>
                   </li>
@@ -92,11 +92,11 @@ export default function ReturnsPage() {
           </div>
 
           {/* Non-Returnable Items */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               NON-RETURNABLE ITEMS
             </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 text-sm leading-relaxed mb-4">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-sm leading-relaxed mb-4">
               The following items cannot be returned or exchanged:
             </p>
             <ul className="space-y-3">
@@ -109,7 +109,7 @@ export default function ReturnsPage() {
               ].map((item, index) => (
                 <li key={index} className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-300">
+                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     {item}
                   </span>
                 </li>
@@ -118,8 +118,8 @@ export default function ReturnsPage() {
           </div>
 
           {/* How to Return */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               HOW TO INITIATE A RETURN
             </h2>
             <div className="space-y-6">
@@ -151,16 +151,16 @@ export default function ReturnsPage() {
                 },
               ].map((step) => (
                 <div key={step.step} className="flex gap-4">
-                  <div className="w-10 h-10 bg-gold-200/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="font-[family-name:var(--font-bebas)] text-gold-200">
+                  <div className="w-10 h-10 bg-accent-tint rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="font-[family-name:var(--font-bebas)] text-accent">
                       {step.step}
                     </span>
                   </div>
                   <div>
-                    <h3 className="font-[family-name:var(--font-bebas)] text-ivory-100 tracking-wider mb-1">
+                    <h3 className="font-[family-name:var(--font-bebas)] text-text-secondary tracking-wider mb-1">
                       {step.title}
                     </h3>
-                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                    <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                       {step.description}
                     </p>
                   </div>
@@ -170,17 +170,17 @@ export default function ReturnsPage() {
           </div>
 
           {/* Refund Information */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               REFUND INFORMATION
             </h2>
-            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 leading-relaxed">
+            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
               <p>
                 Once we receive and inspect your returned item, we will process your refund
                 within 5-7 business days. The refund will be credited to your original payment method.
               </p>
-              <div className="bg-noir-800 p-4 border-l-4 border-gold-200">
-                <p className="text-ivory-300">
+              <div className="bg-surface-raised p-4 border-l-4 border-accent">
+                <p className="text-text-muted">
                   <strong>Please Note:</strong> Depending on your bank or payment provider,
                   it may take an additional 5-10 business days for the refund to appear in your account.
                 </p>
@@ -193,11 +193,11 @@ export default function ReturnsPage() {
           </div>
 
           {/* Exchanges */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               SIZE EXCHANGES
             </h2>
-            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 leading-relaxed">
+            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
               <p>
                 Need a different size? We offer free size exchanges on all orders.
                 Simply initiate a return request and select &quot;Exchange - Different Size&quot; as the reason.
@@ -210,11 +210,11 @@ export default function ReturnsPage() {
           </div>
 
           {/* Damaged/Defective Items */}
-          <div className="bg-noir-900 border border-noir-800 p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-6">
+          <div className="bg-surface-card border border-border-default p-8">
+            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
               DAMAGED OR DEFECTIVE ITEMS
             </h2>
-            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 leading-relaxed">
+            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
               <p>
                 If you receive a damaged or defective item, please contact us within 48 hours
                 of delivery with photos of the damage. We&apos;ll arrange a free return and
@@ -224,7 +224,7 @@ export default function ReturnsPage() {
                 Email us at{' '}
                 <a
                   href="mailto:support@yordindia.com"
-                  className="text-gold-200 hover:text-gold-300 transition-colors"
+                  className="text-accent hover:text-accent-hover transition-colors"
                 >
                   support@yordindia.com
                 </a>
@@ -238,24 +238,24 @@ export default function ReturnsPage() {
       {/* Help CTA */}
       <section className="px-6 lg:px-12 pb-24">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-noir-900 border border-noir-800 p-12 text-center">
-            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-4">
+          <div className="bg-surface-card border border-border-default p-12 text-center">
+            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-4">
               Need help with a return?
             </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-6">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
               Our support team is ready to assist you with any return or exchange questions.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/account/orders"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
               >
                 VIEW MY ORDERS
                 <ArrowRight size={16} />
               </Link>
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-ivory-500 text-ivory-100 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-ivory-300 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted transition-colors"
               >
                 CONTACT SUPPORT
               </Link>

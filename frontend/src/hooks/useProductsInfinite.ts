@@ -53,7 +53,11 @@ export function useProductsInfinite(
     queryFn: ({ pageParam }) => fetchProductsPage(query, pageParam),
     initialPageParam: initialPage,
     getNextPageParam: (lastPage, allPages) => {
-      const loaded = allPages.flatMap((p) => p.data).length;
+      // A ?page=N deep-link seeds page N, so the rows before it count toward
+      // `count` even though they were never fetched; without the offset the
+      // comparison below never fills and the sentinel fetches past the end.
+      const skipped = (initialPage - 1) * initial.pageSize;
+      const loaded = skipped + allPages.flatMap((p) => p.data).length;
       return loaded < lastPage.count ? lastPage.page + 1 : undefined;
     },
     initialData: { pages: [initial], pageParams: [initialPage] },

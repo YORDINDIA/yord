@@ -10,8 +10,11 @@ export type IdsSort = SortOption;
 
 /** True when the products.min_price cache is usable for SQL ordering. */
 function hasMinPrice(row: ProductWithDetails): boolean {
-  const v = Number((row as { min_price?: unknown }).min_price);
-  return Number.isFinite(v);
+  // Absent cache is not a price: Number(null)/Number('') is 0, which would
+  // fake a free product and skip the variant-price fallback below.
+  const raw = (row as { min_price?: unknown }).min_price;
+  if (raw == null || raw === '') return false;
+  return Number.isFinite(Number(raw));
 }
 
 /**

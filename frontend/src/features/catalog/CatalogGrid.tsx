@@ -48,6 +48,13 @@ interface CatalogGridProps {
   toolbarLeft?: React.ReactNode;
   /** Overrides the toolbar row layout (artist rows differ from collection). */
   toolbarClassName?: string;
+  /**
+   * Handle sort changes client-side (refetch page 1 via /api/products)
+   * instead of navigating to `?sort=`. Used by statically prerendered routes
+   * (artist) so the route never awaits searchParams and keeps its ISR.
+   * Defaults to the navigating behavior so SSR'd sort URLs keep working.
+   */
+  clientSort?: boolean;
   accentColor?: string;
   emptyTitle?: string;
   emptyMessage?: string;
@@ -59,9 +66,12 @@ interface CatalogGridProps {
  * from `GET /api/products` via `useInfiniteQuery` — one server
  * implementation, so appended pages carry identical fields to page 1.
  *
- * Sort changes navigate (`?sort=`) for fresh SSR HTML; pagination appends
- * client-side and syncs `?page=` via `history.replaceState` (no reload).
- * Failure surfaces a retry button, never a silent stall or a fake empty.
+ * Sort changes navigate (`?sort=`) for fresh SSR HTML — or refetch
+ * client-side when `clientSort` is set; pagination appends client-side.
+ * The accumulated list is intentionally NOT written back to `?page=`: SSR
+ * treats `page=N` as that page's slice, so a deepest-page URL would drop
+ * previously appended products on refresh. Failure surfaces a retry button,
+ * never a silent stall or a fake empty.
  */
 export function CatalogGrid({
   initialProducts,
@@ -71,8 +81,9 @@ export function CatalogGrid({
   showSort = false,
   showGridToggle = false,
   toolbarLeft,
-  toolbarClassName = 'flex items-center justify-between gap-4 mb-8 pb-6 border-b border-noir-800',
-  accentColor = '#FFD700',
+  toolbarClassName = 'flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border-default',
+  clientSort = false,
+  accentColor = 'var(--accent)',
   emptyTitle = 'No products found',
   emptyMessage = 'Check back soon for new arrivals.',
 }: CatalogGridProps) {
@@ -80,7 +91,18 @@ export function CatalogGrid({
   const pathname = usePathname();
   const [gridSize, setGridSize] = useState<GridSize>('large');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  // Client-side sort (statically prerendered routes): the query key changes,
+  // so React Query fetches page 1 in the new order. The seed below carries
+  // no rows for the new order — the fetch fills them in.
+  const [activeSort, setActiveSort] = useState<SortOption>(query.sort);
+  const sortChanged = clientSort && activeSort !== query.sort;
+  const activeQuery: ProductsQuery = sortChanged ? { ...query, sort: activeSort } : query;
+  // Navigating routes re-render with a new `query.sort` on the same
+  // instance; only client-sort routes diverge from it.
+  const displaySort = clientSort ? activeSort : query.sort;
+  const seedPage = sortChanged ? 1 : initialPage;
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const sortTriggerRef = useRef<HTMLButtonElement>(null);
 
   const {
     data,
@@ -89,27 +111,17 @@ export function CatalogGrid({
     isFetchingNextPage,
     isError,
     refetch,
-  } = useProductsInfinite(query, {
-    data: initialProducts,
-    count: totalCount,
-    page: initialPage,
-    pageSize: query.pageSize,
-  }, initialPage);
+  } = useProductsInfinite(activeQuery, sortChanged
+    ? { data: [], count: totalCount, page: 1, pageSize: query.pageSize }
+    : {
+      data: initialProducts,
+      count: totalCount,
+      page: initialPage,
+      pageSize: query.pageSize,
+    }, seedPage);
 
   const products = data?.pages.flatMap((p) => p.data) ?? [];
   const count = data?.pages[data.pages.length - 1]?.count ?? totalCount;
-  // Deepest loaded page (a ?page=N deep-link may seed beyond page 1).
-  const deepestPage = initialPage + (data?.pages.length ?? 1) - 1;
-
-  // Sync ?page= with the deepest loaded page (replaceState, no reload) so a
-  // refresh or share lands on equivalent content via SSR pagination.
-  useEffect(() => {
-    if (deepestPage <= 1 && initialPage <= 1) return;
-    const url = new URL(window.location.href);
-    if (deepestPage > 1) url.searchParams.set('page', String(deepestPage));
-    else url.searchParams.delete('page');
-    window.history.replaceState(null, '', url.toString());
-  }, [deepestPage, initialPage]);
 
   // Sentinel auto-loads the next page; the Load More button below is the
   // explicit (touch/keyboard-friendly) equivalent.
@@ -135,8 +147,13 @@ export function CatalogGrid({
   }, [showSortDropdown]);
 
   const handleSortChange = (sort: SortOption) => {
-    // Fresh SSR HTML for the new order (SEO-friendly); page resets to 1.
-    router.push(`${pathname}?sort=${sort}`);
+    if (clientSort) {
+      // Fresh client fetch for the new order (no reload, no SSR round-trip).
+      setActiveSort(sort);
+    } else {
+      // Fresh SSR HTML for the new order (SEO-friendly); page resets to 1.
+      router.push(`${pathname}?sort=${sort}`);
+    }
   };
 
   if (products.length === 0) {
@@ -146,10 +163,10 @@ export function CatalogGrid({
         animate={{ opacity: 1 }}
         className="py-24 text-center"
       >
-        <p className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-400 mb-4">
+        <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-muted mb-4">
           {emptyTitle}
         </p>
-        <p className="font-[family-name:var(--font-jakarta)] text-ivory-500">
+        <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
           {emptyMessage}
         </p>
       </motion.div>
@@ -167,7 +184,7 @@ export function CatalogGrid({
           className={toolbarClassName}
         >
           {toolbarLeft ?? (
-            <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+            <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
               {count} products
             </div>
           )}
@@ -177,25 +194,31 @@ export function CatalogGrid({
               <div
                 className="relative"
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape') setShowSortDropdown(false);
+                  if (e.key === 'Escape') {
+                    setShowSortDropdown(false);
+                    // The focused option unmounts with the menu; return
+                    // focus to the trigger (same fix as SortMenu).
+                    sortTriggerRef.current?.focus();
+                  }
                 }}
               >
                 <button
+                  ref={sortTriggerRef}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowSortDropdown((v) => !v);
                   }}
                   aria-haspopup="listbox"
                   aria-expanded={showSortDropdown}
-                  className="flex items-center gap-2 px-4 py-2 bg-noir-900 border border-noir-700 hover:border-ivory-400 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-surface-card border border-border-default hover:border-text-muted transition-colors"
                 >
-                  <SlidersHorizontal size={16} className="text-ivory-400" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
-                    {DEFAULT_SORT_OPTIONS.find((o) => o.value === query.sort)?.label || 'Sort'}
+                  <SlidersHorizontal size={16} className="text-text-muted" />
+                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
+                    {DEFAULT_SORT_OPTIONS.find((o) => o.value === displaySort)?.label || 'Sort'}
                   </span>
                   <ChevronDown
                     size={14}
-                    className={cn('text-ivory-400 transition-transform', showSortDropdown && 'rotate-180')}
+                    className={cn('text-text-muted transition-transform', showSortDropdown && 'rotate-180')}
                   />
                 </button>
 
@@ -205,24 +228,24 @@ export function CatalogGrid({
                     animate={{ opacity: 1, y: 0 }}
                     role="listbox"
                     aria-label="Sort products"
-                    className="absolute top-full right-0 mt-2 w-48 bg-noir-900 border border-noir-700 z-50"
+                    className="absolute top-full right-0 mt-2 w-48 bg-surface-card border border-border-default z-50"
                   >
                     {DEFAULT_SORT_OPTIONS.map((option) => (
                       <button
                         key={option.value}
                         role="option"
-                        aria-selected={query.sort === option.value}
+                        aria-selected={displaySort === option.value}
                         onClick={() => {
                           handleSortChange(option.value);
                           setShowSortDropdown(false);
                         }}
                         className={cn(
                           'w-full px-4 py-3 text-left font-[family-name:var(--font-jakarta)] text-sm transition-colors',
-                          query.sort === option.value
-                            ? 'text-noir-950'
-                            : 'text-ivory-100 hover:bg-noir-800'
+                          displaySort === option.value
+                            ? 'text-text-on-brand'
+                            : 'text-text-secondary hover:bg-surface-raised'
                         )}
-                        style={query.sort === option.value ? { backgroundColor: `${accentColor}20`, color: accentColor } : {}}
+                        style={displaySort === option.value ? { backgroundColor: accentColor } : {}}
                       >
                         {option.label}
                       </button>
@@ -233,15 +256,15 @@ export function CatalogGrid({
             )}
 
             {showGridToggle && (
-              <div className="hidden sm:flex items-center border border-noir-700">
+              <div className="hidden sm:flex items-center border border-border-default">
                 <button
                   onClick={() => setGridSize('large')}
                   aria-pressed={gridSize === 'large'}
                   className={cn(
                     'w-10 h-10 flex items-center justify-center transition-colors',
                     gridSize === 'large'
-                      ? 'text-noir-950'
-                      : 'bg-noir-900 text-ivory-400 hover:text-ivory-100'
+                      ? 'text-text-on-brand'
+                      : 'bg-surface-card text-text-muted hover:text-text-secondary'
                   )}
                   style={gridSize === 'large' ? { backgroundColor: accentColor } : {}}
                   aria-label="Large grid"
@@ -254,8 +277,8 @@ export function CatalogGrid({
                   className={cn(
                     'w-10 h-10 flex items-center justify-center transition-colors',
                     gridSize === 'small'
-                      ? 'text-noir-950'
-                      : 'bg-noir-900 text-ivory-400 hover:text-ivory-100'
+                      ? 'text-text-on-brand'
+                      : 'bg-surface-card text-text-muted hover:text-text-secondary'
                   )}
                   style={gridSize === 'small' ? { backgroundColor: accentColor } : {}}
                   aria-label="Small grid"
@@ -291,7 +314,7 @@ export function CatalogGrid({
           </p>
           <button
             onClick={() => void refetch()}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-noir-900 border border-noir-700 text-ivory-100 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-gold-200 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-surface-card border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors"
           >
             RETRY
           </button>
@@ -299,11 +322,11 @@ export function CatalogGrid({
       ) : hasNextPage ? (
         <div ref={sentinelRef} className="py-8 flex flex-col items-center gap-4">
           {isFetchingNextPage ? (
-            <Loader2 size={24} className="text-gold-200 animate-spin" aria-label="Loading more products" />
+            <Loader2 size={24} className="text-accent animate-spin" aria-label="Loading more products" />
           ) : (
             <button
               onClick={() => void fetchNextPage()}
-              className="px-8 py-3 bg-noir-900 border border-noir-700 text-ivory-100 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-gold-200 transition-colors"
+              className="px-8 py-3 bg-surface-card border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors"
             >
               LOAD MORE
             </button>
@@ -311,7 +334,7 @@ export function CatalogGrid({
         </div>
       ) : (
         products.length > 0 && (
-          <p className="py-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-ivory-500">
+          <p className="py-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
             You&apos;ve seen all {count} products.
           </p>
         )

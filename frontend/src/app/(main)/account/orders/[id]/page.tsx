@@ -61,14 +61,14 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     <div className="space-y-6">
       <Link
         href="/account/orders"
-        className="inline-flex items-center gap-2 text-ivory-400 hover:text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm transition-colors"
+        className="inline-flex items-center gap-2 text-text-muted hover:text-text-secondary font-[family-name:var(--font-jakarta)] text-sm transition-colors"
       >
         <ArrowLeft size={16} />
         Back to orders
       </Link>
 
       <div className="flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
           Order {o.name}
         </h2>
         <span className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-green-400">
@@ -76,15 +76,15 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         </span>
       </div>
 
-      <div className="bg-noir-900 border border-noir-800 p-6 space-y-4">
-        <div className="flex items-center gap-3 text-ivory-400">
+      <div className="bg-surface-card border border-border-default p-6 space-y-4">
+        <div className="flex items-center gap-3 text-text-muted">
           <Calendar size={18} />
           <span className="font-[family-name:var(--font-jakarta)] text-sm">
             Ordered on{' '}
             {formatDate(o.created_at)}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-ivory-400">
+        <div className="flex items-center gap-3 text-text-muted">
           <Truck size={18} />
           <span className="font-[family-name:var(--font-jakarta)] text-sm">
             Fulfillment: {o.fulfillment_status?.toUpperCase() || 'PROCESSING'}
@@ -92,38 +92,38 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         </div>
       </div>
 
-      <div className="bg-noir-900 border border-noir-800 p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-4 flex items-center gap-2">
+      <div className="bg-surface-card border border-border-default p-6">
+        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-4 flex items-center gap-2">
           <Package size={18} /> ITEMS
         </h3>
         {items.length === 0 ? (
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
             No line items recorded for this order.
           </p>
         ) : (
-          <ul className="divide-y divide-noir-800">
+          <ul className="divide-y divide-border-default">
             {items.map((item) => (
               <li key={item.id} className="py-3 flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
+                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
                     {item.title}
                   </p>
                   {item.variant_title && (
-                    <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500">
+                    <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
                       {item.variant_title} × {item.quantity}
                     </p>
                   )}
                 </div>
-                <span className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100">
+                <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
                   {formatPrice(Number(item.price) * item.quantity)}
                 </span>
               </li>
             ))}
           </ul>
         )}
-        <div className="border-t border-noir-800 mt-4 pt-4 flex justify-between items-center">
-          <span className="font-[family-name:var(--font-jakarta)] text-ivory-400">Total</span>
-          <span className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
+        <div className="border-t border-border-default mt-4 pt-4 flex justify-between items-center">
+          <span className="font-[family-name:var(--font-jakarta)] text-text-muted">Total</span>
+          <span className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
             {formatPrice(Number(o.total_price))}
           </span>
         </div>

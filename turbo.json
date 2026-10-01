@@ -1,9 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env", ".env.local", "frontend/.env.local", "admin-dashboard/.env.local"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "outputs": [".next/**", "dist/**"],
+      "env": ["NEXT_PUBLIC_*", "SUPABASE_*", "RAZORPAY_*", "OPENAI_*"]
     },
     "lint": {},
     "typecheck": {},

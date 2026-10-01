@@ -30,6 +30,27 @@ export async function createDiscountAction(
     const now = new Date().toISOString();
     const startsAt = input.starts_at ? new Date(input.starts_at).toISOString() : now;
     const endsAt = input.ends_at ? new Date(input.ends_at).toISOString() : null;
+    // Codes are stored uppercased; compare in that form so `save10` and
+    // `SAVE10` collide here instead of creating two codes for one rule shape.
+    const normalizedCode = input.code.toUpperCase();
+
+    // `discount_codes.code` has no unique constraint yet (see the migration in
+    // the report), so check before inserting: without this, duplicates sail
+    // through and the `isUniqueViolation` branch below is dead code.
+    // `ilike` with LIKE-escaped input matches case-insensitively (`_` and `%`
+    // are wildcards, so they must be escaped first).
+    const escaped = normalizedCode.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data: existing, error: lookupError } = await context.service
+      .from('discount_codes')
+      .select('id')
+      .ilike('code', escaped)
+      .limit(1)
+      .maybeSingle();
+    if (lookupError) {
+      console.error('[discounts] duplicate lookup failed', lookupError);
+    } else if (existing) {
+      return actionError('That discount code already exists.');
+    }
 
     const { error: ruleError } = await context.service.from('price_rules').insert({
       id: ruleId,
@@ -54,7 +75,7 @@ export async function createDiscountAction(
     const { error: codeError } = await context.service.from('discount_codes').insert({
       id: codeId,
       price_rule_id: ruleId,
-      code: input.code.toUpperCase(),
+      code: normalizedCode,
       created_at: now,
       updated_at: now,
     });
@@ -72,10 +93,10 @@ export async function createDiscountAction(
       action: 'create',
       entity: 'price_rules',
       entityId: ruleId,
-      after: { title: input.title, code: input.code, value: input.value, value_type: input.value_type },
+      after: { title: input.title, code: normalizedCode, value: input.value, value_type: input.value_type },
     });
 
     revalidatePath('/discounts');
-    return actionOk<{ id: number }>(`Discount ${input.code.toUpperCase()} created.`, { id: ruleId });
+    return actionOk<{ id: number }>(`Discount ${normalizedCode} created.`, { id: ruleId });
   });
 }

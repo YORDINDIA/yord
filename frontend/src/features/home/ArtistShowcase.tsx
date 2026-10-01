@@ -14,7 +14,7 @@ export function ArtistShowcase() {
   const artists = Object.values(ARTISTS);
 
   return (
-    <section ref={containerRef} className="py-24 bg-noir-950 overflow-hidden">
+    <section ref={containerRef} className="py-24 bg-surface-page overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Section Header */}
         <motion.div
@@ -24,16 +24,16 @@ export function ArtistShowcase() {
           className="flex items-end justify-between mb-12"
         >
           <div>
-            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-gold-200 mb-3">
+            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
               EXCLUSIVE COLLECTIONS
             </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50">
+            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
               Featured Artists
             </h2>
           </div>
           <Link
             href="/artists"
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors group"
+            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
             data-cursor="pointer"
           >
             VIEW ALL
@@ -45,8 +45,8 @@ export function ArtistShowcase() {
       {/* Artist Cards - Horizontal Scroll */}
       <div className="relative">
         {/* Gradient Edges */}
-        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-noir-950 to-transparent z-10 pointer-events-none" />
-        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-noir-950 to-transparent z-10 pointer-events-none" />
+        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-surface-page to-transparent z-10 pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-surface-page to-transparent z-10 pointer-events-none" />
 
         {/* Scrollable Container */}
         <div className="overflow-x-auto scrollbar-hide">
@@ -69,7 +69,7 @@ export function ArtistShowcase() {
       <div className="sm:hidden mt-8 text-center">
         <Link
           href="/artists"
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-ivory-100 hover:text-gold-200 transition-colors"
+          className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
         >
           VIEW ALL ARTISTS
           <ArrowRight size={16} />
@@ -129,7 +129,7 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
       />
 
       {/* Artist Image */}
-      <div className="absolute inset-0 bg-noir-800">
+      <div className="absolute inset-0 bg-surface-raised">
         {artist.heroImage && (
         <Image
           src={artist.heroImage}
@@ -154,7 +154,10 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
       />
 
       {/* Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-noir-950 via-noir-950/50 to-transparent" />
+      {/* This wash sits on the artist PHOTO, under the name and tagline, so it
+          must stay dark in both themes. `from-surface-page` would put an opaque
+          light wash over the bottom of every photo in light mode. */}
+      <div className="absolute inset-0 bg-gradient-to-t from-scrim via-scrim/50 to-transparent" />
 
       {/* Content */}
       <div className="absolute inset-0 p-6 flex flex-col justify-end" style={{ transform: 'translateZ(20px)' }}>
@@ -167,12 +170,12 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
         />
 
         {/* Artist Name */}
-        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-1 group-hover:text-gold-200 transition-colors">
+        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-text-on-media mb-1 group-hover:text-accent-on-media transition-colors">
           {artist.name}
         </h3>
 
         {/* Tagline */}
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-ivory-400 mb-4">
+        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-text-on-media-muted mb-4">
           {(artist.tagline || 'Fan Collection').toUpperCase()}
         </p>
 

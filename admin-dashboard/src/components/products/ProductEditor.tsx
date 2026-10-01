@@ -112,54 +112,59 @@ export default function ProductEditor({
           </select>
         </div>
 
-        <div>
-          <label className="helper" htmlFor="tags">
-            Tags
-          </label>
-          <input className="input" id="tags" name="tags" defaultValue={product.tags || ''} />
-        </div>
+        <ActionField name="tags" label="Tags" state={state}>
+          <input
+            className="input"
+            id="tags"
+            name="tags"
+            defaultValue={product.tags || ''}
+            aria-invalid={Boolean(errorFor('tags'))}
+            aria-describedby={errorFor('tags') ? 'tags-error' : undefined}
+          />
+        </ActionField>
 
         <div style={{ gridColumn: '1 / -1' }}>
-          <label className="helper" htmlFor="body_html">
-            Description (HTML)
-          </label>
-          <div className="toolbar" style={{ marginBottom: 8 }}>
-            <button
-              type="button"
-              className="button icon-button"
-              title="Bold"
-              aria-label="Bold"
-              onClick={() => wrap('b')}
-            >
-              <Bold size={15} />
-            </button>
-            <button
-              type="button"
-              className="button icon-button"
-              title="Bullet list"
-              aria-label="Bullet list"
-              onClick={() => wrap('ul')}
-            >
-              <List size={15} />
-            </button>
-            <button
-              type="button"
-              className="button icon-button"
-              title="Link"
-              aria-label="Insert link"
-              onClick={() => wrap('a')}
-            >
-              <Link2 size={15} />
-            </button>
-          </div>
-          <textarea
-            ref={bodyRef}
-            className="textarea"
-            id="body_html"
-            name="body_html"
-            rows={8}
-            defaultValue={product.body_html || ''}
-          />
+          <ActionField name="body_html" label="Description (HTML)" state={state}>
+            <div className="toolbar" style={{ marginBottom: 8 }}>
+              <button
+                type="button"
+                className="button icon-button"
+                title="Bold"
+                aria-label="Bold"
+                onClick={() => wrap('b')}
+              >
+                <Bold size={15} />
+              </button>
+              <button
+                type="button"
+                className="button icon-button"
+                title="Bullet list"
+                aria-label="Bullet list"
+                onClick={() => wrap('ul')}
+              >
+                <List size={15} />
+              </button>
+              <button
+                type="button"
+                className="button icon-button"
+                title="Link"
+                aria-label="Insert link"
+                onClick={() => wrap('a')}
+              >
+                <Link2 size={15} />
+              </button>
+            </div>
+            <textarea
+              ref={bodyRef}
+              className="textarea"
+              id="body_html"
+              name="body_html"
+              rows={8}
+              defaultValue={product.body_html || ''}
+              aria-invalid={Boolean(errorFor('body_html'))}
+              aria-describedby={errorFor('body_html') ? 'body_html-error' : undefined}
+            />
+          </ActionField>
         </div>
 
         <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>

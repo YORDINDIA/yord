@@ -4,6 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PHProvider } from '@/providers/PostHogProvider';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 
 const PostHogPageView = dynamic(
   () => import('@/providers/PostHogPageView'),
@@ -32,11 +33,14 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   );
   return (
     <PHProvider>
-      <QueryClientProvider client={queryClient}>
-        <PostHogPageView />
-        <CustomCursor />
-        {children}
-      </QueryClientProvider>
+      {/* ThemeProvider must sit above everything that reads a colour token. */}
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <PostHogPageView />
+          <CustomCursor />
+          {children}
+        </QueryClientProvider>
+      </ThemeProvider>
     </PHProvider>
   );
 }

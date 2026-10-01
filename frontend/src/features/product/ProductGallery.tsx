@@ -38,7 +38,7 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative aspect-[3/4] bg-noir-900 overflow-hidden group">
+      <div className="relative aspect-[3/4] bg-surface-card overflow-hidden group">
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedIndex}
@@ -65,10 +65,10 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
                 <div
                   className="w-48 h-48 rounded-full opacity-20"
                   style={{
-                    background: `linear-gradient(135deg, ${accentColor}, ${accentColor}50)`,
+                    background: `linear-gradient(135deg, ${accentColor}, color-mix(in srgb, ${accentColor} 32%, transparent))`,
                   }}
                 />
-                <span className="absolute text-ivory-400">Product Image</span>
+                <span className="absolute text-text-muted">Product Image</span>
               </div>
             )}
           </motion.div>
@@ -79,14 +79,14 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-noir-950/80 text-ivory-100 hover:bg-gold-200 hover:text-noir-950 transition-colors opacity-0 group-hover:opacity-100"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Previous image"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-noir-950/80 text-ivory-100 hover:bg-gold-200 hover:text-noir-950 transition-colors opacity-0 group-hover:opacity-100"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Next image"
             >
               <ChevronRight size={20} />
@@ -97,14 +97,14 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
         {/* Zoom Toggle */}
         <button
           onClick={() => setIsZoomed(!isZoomed)}
-          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-noir-950/80 text-ivory-100 hover:bg-gold-200 hover:text-noir-950 transition-colors opacity-0 group-hover:opacity-100"
+          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
           aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
         >
           <ZoomIn size={18} />
         </button>
 
         {/* Image Counter */}
-        <div className="absolute bottom-4 right-4 px-3 py-1 bg-noir-950/80 text-ivory-100 text-sm font-[family-name:var(--font-bebas)] tracking-wider">
+        <div className="absolute bottom-4 right-4 px-3 py-1 bg-surface-page/80 text-text-secondary text-sm font-[family-name:var(--font-bebas)] tracking-wider">
           {selectedIndex + 1} / {sortedImages.length}
         </div>
 
@@ -126,7 +126,7 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
               key={image.id}
               onClick={() => setSelectedIndex(index)}
               className={cn(
-                'relative w-20 h-24 flex-shrink-0 bg-noir-900 overflow-hidden transition-all duration-200',
+                'relative w-20 h-24 flex-shrink-0 bg-surface-card overflow-hidden transition-all duration-200',
                 selectedIndex === index
                   ? 'ring-2'
                   : 'opacity-60 hover:opacity-100'

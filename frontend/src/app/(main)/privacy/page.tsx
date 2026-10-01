@@ -8,21 +8,21 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-noir-950">
+    <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-6 lg:px-12">
         <div className="max-w-[1440px] mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <Shield className="w-8 h-8 text-gold-200" />
+          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <Shield className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Privacy Policy
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
             Your privacy is important to us. This policy explains how we
             collect, use, and protect your personal information.
           </p>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500 mt-4">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-4">
             Last updated: January 1, 2025
           </p>
         </div>
@@ -31,13 +31,13 @@ export default function PrivacyPage() {
       {/* Content */}
       <section className="px-6 lg:px-12 pb-24">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-noir-900 border border-noir-800 p-8 md:p-12 space-y-8">
+          <div className="bg-surface-card border border-border-default p-8 md:p-12 space-y-8">
             {/* Introduction */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 INTRODUCTION
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   Welcome to YORD India (&quot;we,&quot; &quot;our,&quot; or
                   &quot;us&quot;). We are committed to protecting your personal
@@ -55,10 +55,10 @@ export default function PrivacyPage() {
 
             {/* Information We Collect */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 INFORMATION WE COLLECT
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   We collect information that you provide directly to us,
                   including:
@@ -88,10 +88,10 @@ export default function PrivacyPage() {
 
             {/* How We Use Information */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 HOW WE USE YOUR INFORMATION
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>We use the information we collect to:</p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>Process and fulfill your orders</li>
@@ -109,10 +109,10 @@ export default function PrivacyPage() {
 
             {/* Information Sharing */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 INFORMATION SHARING
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>We may share your information with:</p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>
@@ -131,10 +131,10 @@ export default function PrivacyPage() {
 
             {/* Data Security */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 DATA SECURITY
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   We implement appropriate technical and organizational security
                   measures to protect your personal information. These include:
@@ -153,10 +153,10 @@ export default function PrivacyPage() {
 
             {/* Cookies */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 COOKIES AND TRACKING
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   We use cookies and similar tracking technologies to enhance
                   your browsing experience, analyze site traffic, and
@@ -168,10 +168,10 @@ export default function PrivacyPage() {
 
             {/* Your Rights */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 YOUR RIGHTS
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>You have the right to:</p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>Access your personal information</li>
@@ -184,7 +184,7 @@ export default function PrivacyPage() {
                   To exercise these rights, please contact us at{" "}
                   <a
                     href="mailto:privacy@yordindia.com"
-                    className="text-gold-200 hover:text-gold-300 transition-colors"
+                    className="text-accent hover:text-accent-hover transition-colors"
                   >
                     privacy@yordindia.com
                   </a>
@@ -194,10 +194,10 @@ export default function PrivacyPage() {
 
             {/* Updates */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 POLICY UPDATES
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   We may update this privacy policy from time to time. We will
                   notify you of any changes by posting the new policy on this
@@ -208,15 +208,15 @@ export default function PrivacyPage() {
 
             {/* Contact */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 CONTACT US
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   If you have questions about this privacy policy or our
                   practices, please contact us:
                 </p>
-                <div className="bg-noir-800 p-4">
+                <div className="bg-surface-raised p-4">
                   <p>YORD India</p>
                   <p>Email: info@yordindia.com</p>
                   <p>Gurgaon - 122001</p>

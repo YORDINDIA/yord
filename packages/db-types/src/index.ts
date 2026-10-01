@@ -280,7 +280,7 @@ export interface Database {
         Returns: number;
       };
       /**
-       * Per-day INR revenue rollup (admin-dashboard/sql/004_analytics.sql).
+       * Per-day INR revenue rollup (admin-dashboard/sql/004_atomic_writes.sql).
        * Replaces client-side summation over a `.limit(500)` fetch, which
        * silently under-reported any window holding more than 500 orders.
        */
@@ -289,7 +289,7 @@ export interface Database {
         Returns: { day: string; total: number }[];
       };
       /**
-       * Units + revenue per product (admin-dashboard/sql/004_analytics.sql).
+       * Units + revenue per product (admin-dashboard/sql/004_atomic_writes.sql).
        * Grouped by `product_id`, so two products sharing a title stay distinct.
        */
       top_products_by_units: {
@@ -339,12 +339,21 @@ export type Product = {
   body_html: string | null;
   vendor: string | null;
   product_type: string | null;
-  handle: string;
+  // Nullable in the DB (migrated rows predate the not-null backfill), so
+  // link builders and card transforms must guard (?? '' / .filter) rather
+  // than calling string methods directly.
+  handle: string | null;
   status: 'active' | 'archived' | 'draft';
   published_at: string | null;
   published_scope: string | null;
   template_suffix: string | null;
   tags: string | null;
+  // Product-level SEO (supabase/migrations/005_seo_content.sql), enriched
+  // by the offline enrichment pass. Null until enriched; the storefront
+  // falls back to title/body slicing when these are absent.
+  meta_title: string | null;
+  meta_description: string | null;
+  search_keywords: string | null;
   // Cached minimum variant price (supabase/migrations/001_min_price.sql).
   // NULL until backfilled; price sorts fall back to client-side ordering.
   min_price: number | string | null;

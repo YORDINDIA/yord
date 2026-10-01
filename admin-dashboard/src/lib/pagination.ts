@@ -48,6 +48,10 @@ export function sanitizeSearch(value: unknown): string {
 /**
  * Merge current query params with overrides, dropping empty values so URLs
  * stay readable (`?q=&page=2` becomes `?page=2`).
+ *
+ * The literal `all` is dropped only for filter keys (`status=all`,
+ * `stock=all` mean "no filter"). A search for the literal word "all" is a
+ * real query and must survive, or paging wipes the search.
  */
 export function qs(
   basePath: string,
@@ -58,7 +62,8 @@ export function qs(
   for (const [key, value] of Object.entries({ ...current, ...overrides })) {
     if (value === undefined || value === null) continue;
     const asString = String(value);
-    if (asString === '' || asString === 'all') continue;
+    if (asString === '') continue;
+    if (asString === 'all' && key !== 'q') continue;
     params.set(key, asString);
   }
   const query = params.toString();

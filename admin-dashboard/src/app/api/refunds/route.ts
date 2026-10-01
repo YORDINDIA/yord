@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { getNextId } from '@/lib/utils/ids';
 import { requireAdmin } from '@/lib/utils/admin';
+import type { ServerClient } from '@/lib/supabase/server';
 
 // Ordering (a DB trace always exists before money moves):
 //   1. validate + fetch txn
@@ -15,15 +16,233 @@ import { requireAdmin } from '@/lib/utils/admin';
 // A concurrent or replayed submit fails in step 2 (row lock / ALREADY_REFUNDED)
 // without touching money. Partial refunds are allowed until the cumulative
 // amount reaches the transaction total.
+//
+// Idempotency: there is no dedicated key column, so the key travels inside
+// `refunds.note` as `idem:<key>` (accepted in the JSON body as
+// `idempotencyKey` or via the `Idempotency-Key` header, then stamped onto the
+// reservation before the gateway call). A retry with the same key returns the
+// existing reservation instead of reserving again — without this, two partial
+// refunds of the same amount both fit under the remaining balance and the
+// customer is refunded twice.
+//
+// Unknown gateway outcomes (timeout / 5xx / dropped connection) NEVER release
+// the reservation: the refund may already exist at Razorpay. The row is marked
+// `unknown … reconcile required` and later retries reconcile via
+// `fetchMultipleRefund` before any new gateway call. Only definite gateway
+// rejections (4xx validation) release the reservation.
+
+const IDEM_PREFIX = 'idem:';
+const PENDING_NOTE = 'pending reservation - gateway refund not yet issued';
+const UNKNOWN_NOTE = 'unknown reservation - gateway outcome uncertain, reconcile required';
+
+function normalizeKey(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const key = raw.trim();
+  if (!key || key.length > 128) return undefined;
+  return key;
+}
+
+function noteFor(key: string | undefined, base: string): string {
+  return key ? `${base} | ${IDEM_PREFIX}${key}` : base;
+}
+
+function noteHasKey(note: string | null | undefined, key: string): boolean {
+  return typeof note === 'string' && note.includes(`${IDEM_PREFIX}${key}`);
+}
+
+function gatewayIdFromNote(note: string | null | undefined): string | null {
+  if (!note) return null;
+  const match = note.match(/Razorpay refund (\S+)/);
+  return match ? match[1] : null;
+}
+
+function isPendingNote(note: string | null | undefined): boolean {
+  return typeof note === 'string' && note.includes('pending reservation');
+}
+
+function isUnknownNote(note: string | null | undefined): boolean {
+  return typeof note === 'string' && note.includes('unknown reservation');
+}
+
+interface ReservationRow {
+  id: number;
+  order_id: number;
+  note: string | null;
+  amount: number | null;
+  processed_at: string | null;
+  created_at: string | null;
+}
+
+/** Every reservation for an order, newest last. Small per order; filtered in JS. */
+async function listReservations(
+  service: ServerClient,
+  orderId: number,
+): Promise<ReservationRow[]> {
+  const { data } = await service
+    .from('refunds')
+    .select('id, order_id, note, amount, processed_at, created_at')
+    .eq('order_id', orderId)
+    .order('id', { ascending: true });
+  return (data ?? []) as ReservationRow[];
+}
+
+async function linkedTransactionIds(
+  service: ServerClient,
+  refundIds: number[],
+): Promise<Map<number, number[]>> {
+  if (refundIds.length === 0) return new Map();
+  const { data } = await service
+    .from('refund_transactions')
+    .select('refund_id, transaction_id')
+    .in('refund_id', refundIds);
+  const byRefund = new Map<number, number[]>();
+  for (const row of (data ?? []) as { refund_id: number; transaction_id: number }[]) {
+    const list = byRefund.get(row.refund_id) ?? [];
+    list.push(row.transaction_id);
+    byRefund.set(row.refund_id, list);
+  }
+  return byRefund;
+}
+
+function razorpayClient(): Razorpay | null {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) return null;
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
+
+interface GatewayRefundItem {
+  id: string;
+  amount?: number;
+  status?: string;
+}
+
+/** Best-effort fetch of the refunds Razorpay knows about for a payment. */
+async function fetchGatewayRefunds(
+  razorpay: Razorpay,
+  paymentId: string,
+): Promise<GatewayRefundItem[] | null> {
+  try {
+    const result = (await (
+      razorpay.payments as unknown as {
+        fetchMultipleRefund: (
+          paymentId: string,
+        ) => Promise<{ items?: GatewayRefundItem[] }>;
+      }
+    ).fetchMultipleRefund(paymentId)) as { items?: GatewayRefundItem[] };
+    return result?.items ?? [];
+  } catch {
+    return null;
+  }
+}
+
+/** A gateway failure that may still have moved money (never release on these). */
+function isUnknownGatewayError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return true;
+  const err = error as { statusCode?: number; status?: number; code?: unknown; message?: string };
+  const status = err.statusCode ?? err.status;
+  if (typeof status === 'number') return status >= 500;
+  const code = String(err.code ?? '').toUpperCase();
+  if (/TIMEOUT|ECONN|ENOTFOUND|EAI_AGAIN|ABORT|502|503|504/.test(code)) return true;
+  const message = String(err.message ?? '').toLowerCase();
+  if (/timeout|timed out|network|socket|econn|502|503|504|try again/.test(message)) return true;
+  return false;
+}
+
+/**
+ * Idempotent finalization: records the gateway id on the reservation (kept
+ * across retries via note) and sets the order status. Safe to call twice —
+ * both writes converge on the same values.
+ */
+async function finalizeRefund(
+  service: ServerClient,
+  args: {
+    refundDbId: number;
+    orderId: number;
+    gatewayRefundId: string;
+    isPartial: boolean;
+    idemKey?: string;
+  },
+): Promise<{ ok: true } | { ok: false; step: 'refund' | 'order'; error: unknown }> {
+  const completedAt = new Date().toISOString();
+  const { data: current } = await service
+    .from('refunds')
+    .select('note')
+    .eq('id', args.refundDbId)
+    .maybeSingle();
+  const currentNote =
+    (current as { note?: string | null } | null)?.note ?? '';
+  const note = gatewayIdFromNote(currentNote)
+    ? currentNote
+    : noteFor(args.idemKey, `${currentNote} | Razorpay refund ${args.gatewayRefundId}`.replace(/^ \| /, ''));
+  const { error: completeError } = await service
+    .from('refunds')
+    .update({ note, processed_at: completedAt })
+    .eq('id', args.refundDbId);
+  if (completeError) {
+    console.error(
+      'Refund record completion failed after gateway refund',
+      args.gatewayRefundId,
+      completeError,
+    );
+    return { ok: false, step: 'refund', error: completeError };
+  }
+  const { error: orderError } = await service
+    .from('orders')
+    .update({ financial_status: args.isPartial ? 'partially_refunded' : 'refunded' })
+    .eq('id', args.orderId);
+  if (orderError) {
+    console.error('Order status update failed after refund', args.refundDbId, orderError);
+    return { ok: false, step: 'order', error: orderError };
+  }
+  return { ok: true };
+}
+
 export async function POST(req: Request) {
   try {
     const auth = await requireAdmin();
     if ('error' in auth) return auth.error;
     const { service } = auth;
 
-    const { orderId, transactionId, amount } = await req.json();
-    if (!orderId || !transactionId) {
+    const body = (await req.json().catch(() => null)) as {
+      orderId?: unknown;
+      transactionId?: unknown;
+      amount?: unknown;
+      idempotencyKey?: unknown;
+      reconcileRefundId?: unknown;
+    } | null;
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+    const { orderId, transactionId, amount } = body;
+    // Coerce once: every query below needs real integers, and unknown-typed
+    // JSON must never reach PostgREST as `{}`.
+    const orderIdNum = Number(orderId);
+    const transactionIdNum = Number(transactionId);
+    if (!Number.isInteger(orderIdNum) || orderIdNum <= 0) {
       return NextResponse.json({ error: 'orderId and transactionId are required' }, { status: 400 });
+    }
+    if (!Number.isInteger(transactionIdNum) || transactionIdNum <= 0) {
+      return NextResponse.json({ error: 'orderId and transactionId are required' }, { status: 400 });
+    }
+
+    const idemKey =
+      normalizeKey(body.idempotencyKey) ?? normalizeKey(req.headers.get('idempotency-key'));
+
+    // Reconcile path (no money moves): finish a reservation whose gateway
+    // refund already exists but whose local rows never completed (crash or DB
+    // failure after gateway success). Retried with the DB refund id.
+    if (body.reconcileRefundId !== undefined && body.reconcileRefundId !== null) {
+      const reconcileId = Number(body.reconcileRefundId);
+      if (!Number.isInteger(reconcileId) || reconcileId <= 0) {
+        return NextResponse.json({ error: 'Invalid reconcileRefundId' }, { status: 400 });
+      }
+      return reconcileReservation(service, {
+        refundDbId: reconcileId,
+        orderId: orderIdNum,
+        transactionId: transactionIdNum,
+      });
     }
 
     let refundAmount: number | undefined;
@@ -38,8 +257,8 @@ export async function POST(req: Request) {
     const { data: txn, error: txnError } = await service
       .from('transactions')
       .select('amount, payment_id')
-      .eq('id', transactionId)
-      .eq('order_id', orderId)
+      .eq('id', transactionIdNum)
+      .eq('order_id', orderIdNum)
       .single();
     if (txnError || !txn?.payment_id) {
       return NextResponse.json({ error: 'Transaction not found for this order' }, { status: 404 });
@@ -47,6 +266,69 @@ export async function POST(req: Request) {
 
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       return NextResponse.json({ error: 'Refund service not configured' }, { status: 500 });
+    }
+
+    // Step 1.5: idempotency lookup BEFORE reserving. A retry carrying the same
+    // key returns the existing reservation (completed → success, pending →
+    // reused for the gateway call below) instead of reserving a second refund.
+    if (idemKey) {
+      const reservations = await listReservations(service, orderIdNum);
+      const links = await linkedTransactionIds(
+        service,
+        reservations.map((r) => r.id),
+      );
+      const existing = reservations.find(
+        (r) =>
+          noteHasKey(r.note, idemKey) &&
+          (links.get(r.id) ?? []).includes(transactionIdNum),
+      );
+      if (existing) {
+        const gatewayId = gatewayIdFromNote(existing.note);
+        if (gatewayId && existing.processed_at) {
+          return NextResponse.json(
+            { success: true, refundId: gatewayId, amount: existing.amount, deduplicated: true },
+          );
+        }
+        // Pending/unknown reservation with the same key: reuse it for the
+        // gateway call below rather than reserving a second refund.
+        const reused = await continueWithReservation(service, {
+          refundDbId: existing.id,
+          orderId: orderIdNum,
+          transactionId: transactionIdNum,
+          paymentId: txn.payment_id as string,
+          txnAmount: txn.amount as number | null,
+          idemKey,
+          deduplicated: true,
+        });
+        if (reused) return reused;
+      }
+    } else {
+      // Keyless rapid double-submit guard: a pending reservation for the same
+      // transaction + amount created in the last 10 minutes is the first
+      // click still in flight — report it instead of issuing a second refund.
+      const reservations = await listReservations(service, orderIdNum);
+      const links = await linkedTransactionIds(
+        service,
+        reservations.map((r) => r.id),
+      );
+      const recent = Date.now() - 10 * 60 * 1000;
+      const inFlight = reservations.find((r) => {
+        if (!isPendingNote(r.note) && !isUnknownNote(r.note)) return false;
+        if ((links.get(r.id) ?? []).includes(transactionIdNum) === false) return false;
+        if (refundAmount !== undefined && r.amount !== refundAmount) return false;
+        const created = r.created_at ? Date.parse(r.created_at) : NaN;
+        return Number.isFinite(created) && created >= recent;
+      });
+      if (inFlight) {
+        return NextResponse.json(
+          {
+            error: 'A refund for this transaction is already in progress.',
+            refundId: inFlight.id,
+            code: 'REFUND_IN_PROGRESS',
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Step 2: atomic reservation BEFORE any gateway call. A crash from here on
@@ -61,7 +343,7 @@ export async function POST(req: Request) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const attemptResult = await service.rpc('reserve_refund', {
         p_refund_id: refundId,
-        p_transaction_id: transactionId,
+        p_transaction_id: transactionIdNum,
         p_amount: refundAmount ?? null,
       });
       reserved = attemptResult.data;
@@ -79,6 +361,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Transaction not found for this order' }, { status: 404 });
       }
       if (message.includes('ALREADY_REFUNDED')) {
+        // A pending reservation from an earlier attempt may never have been
+        // finalized (gateway success + DB failure). Reconcile it before
+        // reporting "already refunded", so a completed gateway refund always
+        // ends with a complete local record.
+        const reconciled = await reconcilePendingForTransaction(service, {
+          orderId: orderIdNum,
+          transactionId: transactionIdNum,
+        });
+        if (reconciled) return reconciled;
         return NextResponse.json({ error: 'Transaction already refunded' }, { status: 409 });
       }
       if (message.includes('EXCEEDS_REMAINING')) {
@@ -113,7 +404,7 @@ export async function POST(req: Request) {
         .from('refund_transactions')
         .delete()
         .eq('refund_id', refundId)
-        .eq('transaction_id', transactionId);
+        .eq('transaction_id', transactionIdNum);
       await service.from('refunds').delete().eq('id', refundId);
       console.error('Reserve refund returned an unexpected payload', refundId, reserved);
       return NextResponse.json(
@@ -122,70 +413,336 @@ export async function POST(req: Request) {
       );
     }
 
-    // Order status reflects the cumulative total, so a final partial refund
-    // still marks the order fully refunded.
-    const txnPaise = Math.round(Number(txn.amount) * 100);
-    const isPartial = Number.isFinite(txnPaise) && txnPaise > 0 ? cumulativePaise < txnPaise : false;
-
-    // Step 3: gateway call. Reserved rows exist, so a failure here is safe to retry.
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
-    let gatewayRefundId: string;
-    try {
-      const refund = (await razorpay.payments.refund(txn.payment_id, {
-        amount: amountPaise,
-      })) as unknown as { id: string };
-      gatewayRefundId = refund.id;
-    } catch (gatewayError) {
-      // Release the reservation so a retry starts clean; nothing was refunded.
-      await service
-        .from('refund_transactions')
-        .delete()
-        .eq('refund_id', refundId)
-        .eq('transaction_id', transactionId);
+    // Stamp the idempotency key before the gateway call so a retry that lands
+    // while this request is in flight finds the reservation.
+    if (idemKey) {
       await service
         .from('refunds')
-        .update({ note: 'failed reservation - gateway error, no money moved' })
+        .update({ note: noteFor(idemKey, PENDING_NOTE) })
         .eq('id', refundId);
-      console.error('Razorpay refund failed after reservation', refundId, gatewayError);
-      return NextResponse.json(
-        { error: 'Refund gateway failed. No money moved; safe to retry.', refundId },
-        { status: 502 }
-      );
     }
 
-    // Step 4a: mark the reservation complete.
-    const completedAt = new Date().toISOString();
-    const { error: completeError } = await service
-      .from('refunds')
-      .update({ note: `Razorpay refund ${gatewayRefundId}`, processed_at: completedAt })
-      .eq('id', refundId);
-    if (completeError) {
-      console.error('Refund record completion failed after gateway refund', gatewayRefundId, completeError);
-      return NextResponse.json(
-        { error: 'Refund issued but record failed. Contact support with refund id.', refundId: gatewayRefundId },
-        { status: 500 }
-      );
-    }
-
-    // Step 4b: order status. Link row already exists from the reservation.
-    const { error: orderError } = await service
-      .from('orders')
-      .update({ financial_status: isPartial ? 'partially_refunded' : 'refunded' })
-      .eq('id', orderId);
-    if (orderError) {
-      console.error('Order status update failed after refund', refundId, orderError);
-      return NextResponse.json(
-        { error: 'Refund issued but order status update failed. Manual reconciliation required.', refundId: gatewayRefundId },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true, refundId: gatewayRefundId, amount: amountPaise });
+    const continued = await continueWithReservation(service, {
+      refundDbId: refundId,
+      orderId: orderIdNum,
+      transactionId: transactionIdNum,
+      paymentId: txn.payment_id as string,
+      txnAmount: txn.amount as number | null,
+      amountPaise,
+      cumulativePaise,
+      idemKey,
+    });
+    if (continued) return continued;
+    return NextResponse.json({ error: 'Refund failed' }, { status: 500 });
   } catch (error: unknown) {
     console.error('Refund failed', error);
     return NextResponse.json({ error: 'Refund failed' }, { status: 500 });
   }
+}
+
+/**
+ * Gateway call + finalization for an already-reserved refund (fresh or
+ * reused). Returns the HTTP response; null only when the caller must fall
+ * through (unreachable in the current flows, kept for exhaustiveness).
+ */
+async function continueWithReservation(
+  service: ServerClient,
+  args: {
+    refundDbId: number;
+    orderId: number;
+    transactionId: number;
+    paymentId: string;
+    txnAmount: number | null;
+    amountPaise?: number;
+    cumulativePaise?: number;
+    idemKey?: string;
+    deduplicated?: boolean;
+  },
+): Promise<NextResponse | null> {
+  // Resolve amounts when reusing a reservation created by an earlier attempt.
+  let amountPaise = args.amountPaise;
+  let cumulativePaise = args.cumulativePaise;
+  if (amountPaise === undefined) {
+    const { data } = await service
+      .from('refunds')
+      .select('amount')
+      .eq('id', args.refundDbId)
+      .maybeSingle();
+    amountPaise = Number((data as { amount?: unknown } | null)?.amount);
+    if (!Number.isFinite(amountPaise)) {
+      return NextResponse.json(
+        { error: 'Existing reservation has no usable amount. Contact support.', refundId: args.refundDbId },
+        { status: 500 },
+      );
+    }
+  }
+
+  // Order status reflects the cumulative total, so a final partial refund
+  // still marks the order fully refunded. For a reused (retried) reservation
+  // the cumulative is recomputed from sibling rows.
+  const txnPaise = Math.round(Number(args.txnAmount) * 100);
+  if (cumulativePaise === undefined) {
+    cumulativePaise = Number(amountPaise) || 0;
+    const { data: siblings } = await service
+      .from('refund_transactions')
+      .select('refund_id')
+      .eq('transaction_id', args.transactionId);
+    const siblingIds = ((siblings ?? []) as { refund_id: number }[])
+      .map((s) => s.refund_id)
+      .filter((id) => id !== args.refundDbId);
+    if (siblingIds.length > 0) {
+      const { data: others } = await service
+        .from('refunds')
+        .select('amount')
+        .in('id', siblingIds);
+      for (const other of (others ?? []) as { amount: number | null }[]) {
+        cumulativePaise += Number(other.amount) || 0;
+      }
+    }
+  }
+  const isPartial =
+    Number.isFinite(txnPaise) && txnPaise > 0
+      ? (cumulativePaise as number) < txnPaise
+      : false;
+
+  // Step 3: gateway call. Reserved rows exist, so a failure here is safe to retry.
+  const razorpay = razorpayClient();
+  if (!razorpay) {
+    return NextResponse.json({ error: 'Refund service not configured' }, { status: 500 });
+  }
+  let gatewayRefundId: string;
+  try {
+    const refund = (await razorpay.payments.refund(args.paymentId, {
+      amount: amountPaise,
+    })) as unknown as { id: string };
+    gatewayRefundId = refund.id;
+  } catch (gatewayError) {
+    if (isUnknownGatewayError(gatewayError)) {
+      // Money may have moved: preserve the reservation and reconcile on
+      // retry instead of releasing it for a duplicate refund.
+      const gatewayRefunds = await fetchGatewayRefunds(razorpay, args.paymentId);
+      const match = (gatewayRefunds ?? []).find((r) => r.amount === amountPaise);
+      if (match) {
+        const finalized = await finalizeRefund(service, {
+          refundDbId: args.refundDbId,
+          orderId: args.orderId,
+          gatewayRefundId: match.id,
+          isPartial,
+          idemKey: args.idemKey,
+        });
+        if (finalized.ok) {
+          return NextResponse.json({
+            success: true,
+            refundId: match.id,
+            amount: amountPaise,
+            deduplicated: args.deduplicated,
+            reconciled: true,
+          });
+        }
+        return NextResponse.json(
+          {
+            error: 'Refund issued but record failed. Reconcile with refund id.',
+            refundId: match.id,
+            reconcileRefundId: args.refundDbId,
+            reconcileRequired: true,
+          },
+          { status: 500 },
+        );
+      }
+      await service
+        .from('refunds')
+        .update({ note: noteFor(args.idemKey, UNKNOWN_NOTE) })
+        .eq('id', args.refundDbId);
+      console.error(
+        'Razorpay refund outcome unknown after reservation; preserved for reconcile',
+        args.refundDbId,
+        gatewayError,
+      );
+      return NextResponse.json(
+        {
+          error:
+            'Refund outcome unknown: the gateway may have processed it. Do not retry blindly — reconcile first.',
+          refundId: args.refundDbId,
+          reconcileRefundId: args.refundDbId,
+          reconcileRequired: true,
+        },
+        { status: 503 },
+      );
+    }
+    // Definite gateway rejection: nothing was refunded, release the
+    // reservation so a corrected retry starts clean.
+    await service
+      .from('refund_transactions')
+      .delete()
+      .eq('refund_id', args.refundDbId)
+      .eq('transaction_id', args.transactionId);
+    await service
+      .from('refunds')
+      .update({ note: noteFor(args.idemKey, 'failed reservation - gateway error, no money moved') })
+      .eq('id', args.refundDbId);
+    console.error('Razorpay refund failed after reservation', args.refundDbId, gatewayError);
+    return NextResponse.json(
+      { error: 'Refund gateway failed. No money moved; safe to retry.', refundId: args.refundDbId },
+      { status: 502 }
+    );
+  }
+
+  // Step 4: idempotent finalize. A failure here preserves the gateway id on
+  // the reservation (never releases it), so a retry reconciles instead of
+  // refunding again.
+  const finalized = await finalizeRefund(service, {
+    refundDbId: args.refundDbId,
+    orderId: args.orderId,
+    gatewayRefundId,
+    isPartial,
+    idemKey: args.idemKey,
+  });
+  if (!finalized.ok) {
+    return NextResponse.json(
+      {
+        error:
+          finalized.step === 'order'
+            ? 'Refund issued but order status update failed. Reconcile with refund id.'
+            : 'Refund issued but record failed. Reconcile with refund id.',
+        refundId: gatewayRefundId,
+        reconcileRefundId: args.refundDbId,
+        reconcileRequired: true,
+      },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    refundId: gatewayRefundId,
+    amount: amountPaise,
+    deduplicated: args.deduplicated,
+  });
+}
+
+/**
+ * Explicit reconcile: no gateway call. Confirms the gateway refund for a
+ * pending/unknown reservation via `fetchMultipleRefund`, then finalizes the
+ * local rows. Powers the `reconcileRefundId` retry path.
+ */
+async function reconcileReservation(
+  service: ServerClient,
+  args: { refundDbId: number; orderId: number; transactionId: number },
+): Promise<NextResponse> {
+  const { data: reservation } = await service
+    .from('refunds')
+    .select('id, order_id, note, amount, processed_at')
+    .eq('id', args.refundDbId)
+    .maybeSingle();
+  const row = reservation as ReservationRow | null;
+  if (!row || row.order_id !== args.orderId) {
+    return NextResponse.json({ error: 'Reservation not found for this order' }, { status: 404 });
+  }
+  const links = await linkedTransactionIds(service, [row.id]);
+  if ((links.get(row.id) ?? []).includes(args.transactionId) === false) {
+    return NextResponse.json({ error: 'Reservation not found for this transaction' }, { status: 404 });
+  }
+  const knownGatewayId = gatewayIdFromNote(row.note);
+  if (knownGatewayId && row.processed_at) {
+    return NextResponse.json({ success: true, refundId: knownGatewayId, amount: row.amount });
+  }
+
+  const { data: txn } = await service
+    .from('transactions')
+    .select('amount, payment_id')
+    .eq('id', args.transactionId)
+    .maybeSingle();
+  const paymentId = (txn as { payment_id?: string } | null)?.payment_id;
+  if (!paymentId) {
+    return NextResponse.json({ error: 'Transaction not found for this order' }, { status: 404 });
+  }
+  const razorpay = razorpayClient();
+  if (!razorpay) {
+    return NextResponse.json({ error: 'Refund service not configured' }, { status: 500 });
+  }
+  const gatewayRefunds = await fetchGatewayRefunds(razorpay, paymentId);
+  if (!gatewayRefunds) {
+    return NextResponse.json(
+      {
+        error: 'Could not reach the gateway to reconcile. Try again.',
+        reconcileRefundId: row.id,
+        reconcileRequired: true,
+      },
+      { status: 503 },
+    );
+  }
+  const match =
+    (knownGatewayId && gatewayRefunds.find((r) => r.id === knownGatewayId)) ||
+    gatewayRefunds.find((r) => r.amount === Number(row.amount));
+  if (!match) {
+    return NextResponse.json(
+      {
+        error: 'No matching gateway refund found. It is safe to retry the refund.',
+        reconcileRefundId: row.id,
+      },
+      { status: 404 },
+    );
+  }
+  const txnPaise = Math.round(Number((txn as { amount?: unknown } | null)?.amount) * 100);
+  const { data: siblings } = await service
+    .from('refund_transactions')
+    .select('refund_id')
+    .eq('transaction_id', args.transactionId);
+  const siblingIds = ((siblings ?? []) as { refund_id: number }[]).map((s) => s.refund_id);
+  let cumulative = Number(row.amount) || 0;
+  if (siblingIds.length > 1) {
+    const { data: others } = await service
+      .from('refunds')
+      .select('amount')
+      .in('id', siblingIds.filter((id) => id !== row.id));
+    for (const other of (others ?? []) as { amount: number | null }[]) {
+      cumulative += Number(other.amount) || 0;
+    }
+  }
+  const finalized = await finalizeRefund(service, {
+    refundDbId: row.id,
+    orderId: args.orderId,
+    gatewayRefundId: match.id,
+    isPartial: Number.isFinite(txnPaise) && txnPaise > 0 ? cumulative < txnPaise : false,
+  });
+  if (!finalized.ok) {
+    return NextResponse.json(
+      {
+        error: 'Gateway refund confirmed but local record failed. Reconcile again.',
+        refundId: match.id,
+        reconcileRefundId: row.id,
+        reconcileRequired: true,
+      },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ success: true, refundId: match.id, amount: row.amount, reconciled: true });
+}
+
+/**
+ * ALREADY_REFUNDED follow-up: a pending/unknown reservation may still need
+ * its local rows completed even though the cap blocks a new reserve. Finalize
+ * the matching one when the gateway confirms it; otherwise report 409.
+ */
+async function reconcilePendingForTransaction(
+  service: ServerClient,
+  args: { orderId: number; transactionId: number },
+): Promise<NextResponse | null> {
+  const reservations = await listReservations(service, args.orderId);
+  const links = await linkedTransactionIds(
+    service,
+    reservations.map((r) => r.id),
+  );
+  const pending = reservations.find(
+    (r) =>
+      (links.get(r.id) ?? []).includes(args.transactionId) &&
+      (isPendingNote(r.note) || isUnknownNote(r.note)) &&
+      !r.processed_at,
+  );
+  if (!pending) return null;
+  return reconcileReservation(service, {
+    refundDbId: pending.id,
+    orderId: args.orderId,
+    transactionId: args.transactionId,
+  }).then((response) => (response.status === 404 ? null : response));
 }

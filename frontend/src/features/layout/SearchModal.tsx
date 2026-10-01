@@ -181,16 +181,16 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Search products">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-noir-950/90 backdrop-blur-sm"
+        className="absolute inset-0 bg-surface-page/90 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div className="relative max-w-3xl mx-auto mt-20 px-4">
-        <div className="bg-noir-900 border border-noir-800 shadow-2xl">
+        <div className="bg-surface-card border border-border-default shadow-2xl">
           {/* Search Input */}
-          <div className="flex items-center border-b border-noir-800">
-            <Search className="w-5 h-5 text-ivory-500 ml-6" />
+          <div className="flex items-center border-b border-border-default">
+            <Search className="w-5 h-5 text-text-muted ml-6" />
             <input
               ref={inputRef}
               type="text"
@@ -201,15 +201,15 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               role="combobox"
               aria-expanded={results.length > 0}
               aria-controls="search-results-list"
-              className="flex-1 px-4 py-5 bg-transparent text-ivory-100 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500"
+              className="flex-1 px-4 py-5 bg-transparent text-text-secondary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted"
             />
             {isLoading && (
-              <Loader2 className="w-5 h-5 text-gold-200 animate-spin mr-4" aria-label="Searching" />
+              <Loader2 className="w-5 h-5 text-accent animate-spin mr-4" aria-label="Searching" />
             )}
             <button
               onClick={onClose}
               aria-label="Close search"
-              className="p-4 text-ivory-500 hover:text-ivory-100 transition-colors"
+              className="p-4 text-text-muted hover:text-text-secondary transition-colors"
             >
               <X size={20} />
             </button>
@@ -219,7 +219,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           <div className="max-h-[60vh] overflow-y-auto">
             {!hasSearched && query.length < 2 && (
               <div className="p-8 text-center">
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500">
+                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                   Start typing to search for products
                 </p>
               </div>
@@ -227,10 +227,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
             {hasSearched && results.length === 0 && !isLoading && (
               <div className="p-8 text-center">
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                   No products found for &quot;{query}&quot;
                 </p>
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 mt-2">
+                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-2">
                   Try searching for an artist name or product type
                 </p>
               </div>
@@ -238,7 +238,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
             {results.length > 0 && (
               <>
-                <div id="search-results-list" role="listbox" aria-label="Search results" className="divide-y divide-noir-800">
+                <div id="search-results-list" role="listbox" aria-label="Search results" className="divide-y divide-border-default">
                   {results.map((product) => {
                     const image = getFirstByPosition(product.product_images);
                     const imageUrl = image?.supabase_url || image?.src;
@@ -248,11 +248,11 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     return (
                       <button
                         key={product.id}
-                        onClick={() => handleProductClick(product.handle)}
-                        className="w-full flex items-center gap-4 p-4 hover:bg-noir-800/50 transition-colors text-left"
+                        onClick={() => handleProductClick(product.handle ?? '')}
+                        className="w-full flex items-center gap-4 p-4 hover:bg-surface-raised/50 transition-colors text-left"
                       >
                         {/* Image */}
-                        <div className="relative w-16 h-16 bg-noir-800 flex-shrink-0">
+                        <div className="relative w-16 h-16 bg-surface-raised flex-shrink-0">
                           {imageUrl ? (
                             <Image
                               src={imageUrl}
@@ -261,7 +261,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                               className="object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-ivory-600">
+                            <div className="w-full h-full flex items-center justify-center text-text-muted">
                               <Search size={20} />
                             </div>
                           )}
@@ -270,31 +270,31 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           {product.vendor && (
-                            <p className="font-[family-name:var(--font-jakarta)] text-xs text-gold-200 uppercase tracking-wider">
+                            <p className="font-[family-name:var(--font-jakarta)] text-xs text-accent uppercase tracking-wider">
                               {product.vendor}
                             </p>
                           )}
-                          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-100 truncate">
+                          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary truncate">
                             {product.title}
                           </p>
-                          <p className="font-[family-name:var(--font-bebas)] text-sm text-ivory-400 mt-1">
+                          <p className="font-[family-name:var(--font-bebas)] text-sm text-text-muted mt-1">
                             {formatPrice(price)}
                           </p>
                         </div>
 
                         {/* Arrow */}
-                        <ArrowRight className="w-4 h-4 text-ivory-500" />
+                        <ArrowRight className="w-4 h-4 text-text-muted" />
                       </button>
                     );
                   })}
                 </div>
 
                 {/* View All Results Link */}
-                <div className="p-4 border-t border-noir-800">
+                <div className="p-4 border-t border-border-default">
                   <Link
                     href={`/search?q=${encodeURIComponent(query)}`}
                     onClick={onClose}
-                    className="flex items-center justify-center gap-2 py-3 text-gold-200 font-[family-name:var(--font-bebas)] text-sm tracking-wider hover:text-gold-300 transition-colors"
+                    className="flex items-center justify-center gap-2 py-3 text-accent font-[family-name:var(--font-bebas)] text-sm tracking-wider hover:text-accent-hover transition-colors"
                   >
                     VIEW ALL RESULTS
                     <ArrowRight size={16} />
@@ -305,8 +305,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
 
           {/* Quick Links */}
-          <div className="border-t border-noir-800 p-4">
-            <p className="font-[family-name:var(--font-jakarta)] text-xs text-ivory-500 uppercase tracking-wider mb-3">
+          <div className="border-t border-border-default p-4">
+            <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted uppercase tracking-wider mb-3">
               Popular Searches
             </p>
             <div className="flex flex-wrap gap-2">
@@ -318,7 +318,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     'px-3 py-1.5 text-xs font-[family-name:var(--font-jakarta)] transition-colors',
                     item.type === 'artist' && item.accentColor
                       ? 'hover:opacity-80'
-                      : 'bg-noir-800 text-ivory-300 hover:bg-noir-700'
+                      : 'bg-surface-raised text-text-muted hover:bg-surface-inset'
                   )}
                   style={
                     item.type === 'artist' && item.accentColor

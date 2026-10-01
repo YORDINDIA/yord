@@ -15,7 +15,7 @@ interface ConcertDetailProps {
 /** Presentational body for `/concerts/[slug]`; data + metadata stay in the route. */
 export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relatedConcerts }: ConcertDetailProps) {
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="min-h-screen bg-surface-page pt-20">
       <JsonLd data={eventSchema(concert)} />
       <JsonLd
         data={breadcrumbSchema([
@@ -29,7 +29,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-6">
         <Link
           href="/concerts"
-          className="inline-flex items-center gap-2 text-ivory-400 hover:text-gold-200 transition-colors"
+          className="inline-flex items-center gap-2 text-text-muted hover:text-accent transition-colors"
         >
           <ArrowLeft size={16} />
           <span className="font-[family-name:var(--font-bebas)] tracking-wider text-sm">
@@ -40,35 +40,35 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
 
       {/* Concert Hero */}
       <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-12">
-        <div className="bg-noir-900 border border-noir-800 p-8 md:p-12 lg:p-16">
+        <div className="bg-surface-card border border-border-default p-8 md:p-12 lg:p-16">
           <div className="flex items-center gap-3 mb-4">
             <span
               className={`px-3 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider ${
                 concert.status === 'completed'
-                  ? 'bg-noir-800 text-ivory-400'
+                  ? 'bg-surface-raised text-text-muted'
                   : concert.status === 'upcoming'
-                    ? 'bg-gold-200/20 text-gold-200'
+                    ? 'bg-accent-tint-strong text-accent'
                     : 'bg-emerald-900/30 text-emerald-400'
               }`}
             >
               {concert.status.toUpperCase()}
             </span>
-            <span className="text-sm text-ivory-400 font-[family-name:var(--font-jakarta)]">
+            <span className="text-sm text-text-muted font-[family-name:var(--font-jakarta)]">
               {concert.genre}
             </span>
           </div>
 
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-3">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-3">
             {concert.artist}
           </h1>
           <p
             className="font-[family-name:var(--font-cormorant)] text-2xl md:text-3xl mb-6"
-            style={{ color: accentColor }}
+            style={{ color: 'var(--accent)' }}
           >
             {concert.tourName}
           </p>
 
-          <div className="flex flex-wrap gap-6 text-ivory-300 mb-8">
+          <div className="flex flex-wrap gap-6 text-text-muted mb-8">
             <div className="flex items-center gap-2">
               <MapPin size={18} style={{ color: accentColor }} />
               <span className="font-[family-name:var(--font-jakarta)]">
@@ -88,7 +88,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
             </div>
           </div>
 
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-300 text-lg leading-relaxed max-w-3xl">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-lg leading-relaxed max-w-3xl">
             {concert.description}
           </p>
 
@@ -97,7 +97,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
             {hasMerchLink && (
               <Link
                 href={`/artist/${concert.artistHandle}`}
-                className="inline-flex items-center gap-2 px-8 py-3 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-3 text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors"
                 style={{ backgroundColor: accentColor }}
               >
                 <ShoppingBag size={16} />
@@ -106,7 +106,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
             )}
             <Link
               href="/products"
-              className="inline-flex items-center gap-2 px-8 py-3 border border-noir-600 text-ivory-300 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-gold-200 hover:text-gold-200 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-3 border border-border-strong text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
             >
               BROWSE ALL PRODUCTS
             </Link>
@@ -116,11 +116,11 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
 
       {/* Concert Merch Guide */}
       <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-12">
-        <div className="bg-noir-900/50 border border-noir-800 p-8 md:p-12">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-6">
+        <div className="bg-surface-card/50 border border-border-default p-8 md:p-12">
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
             {concert.artist} Concert Merchandise Guide
           </h2>
-          <div className="font-[family-name:var(--font-jakarta)] text-ivory-300 space-y-4 text-sm leading-relaxed">
+          <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
             <p>
               Looking for {concert.artist} merchandise for the {concert.tourName}? YORD India offers exclusive, premium fan-made designs that let you commemorate your concert experience. Our {concert.artist} collection features t-shirts, hoodies, and accessories inspired by the artist&apos;s iconic aesthetic.
             </p>
@@ -141,7 +141,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
       {/* Related Concerts */}
       {relatedConcerts.length > 0 && (
         <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-6">
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
             More {concert.artist} Concerts in India
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -149,12 +149,12 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
               <Link
                 key={rc.slug}
                 href={`/concerts/${rc.slug}`}
-                className="group block bg-noir-900 border border-noir-800 p-6 hover:border-gold-200/40 transition-all"
+                className="group block bg-surface-card border border-border-default p-6 hover:border-accent/40 transition-all"
               >
-                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-ivory-100 group-hover:text-gold-200 transition-colors">
+                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
                   {rc.tourName}
                 </h3>
-                <div className="flex items-center gap-3 mt-2 text-sm text-ivory-400">
+                <div className="flex items-center gap-3 mt-2 text-sm text-text-muted">
                   <span className="flex items-center gap-1">
                     <MapPin size={12} /> {rc.city}
                   </span>
@@ -173,15 +173,15 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
       )}
 
       {/* Browse by City */}
-      <section className="bg-noir-900 border-t border-noir-800 py-12">
+      <section className="bg-surface-card border-t border-border-default py-12">
         <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-          <h2 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-ivory-400 mb-4">
+          <h2 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-muted mb-4">
             CONCERTS IN OTHER CITIES
           </h2>
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/concerts/city/${getCitySlugByName(concert.city)}`}
-              className="px-4 py-2 bg-gold-200/20 border border-gold-200/40 text-gold-200 text-sm font-[family-name:var(--font-jakarta)]"
+              className="px-4 py-2 bg-accent-tint-strong border border-accent/40 text-accent text-sm font-[family-name:var(--font-jakarta)]"
             >
               {concert.city}
             </Link>
@@ -191,7 +191,7 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
                 <Link
                   key={city}
                   href={`/concerts/city/${getCitySlugByName(city)}`}
-                  className="px-4 py-2 bg-noir-800 border border-noir-700 text-ivory-300 text-sm font-[family-name:var(--font-jakarta)] hover:border-gold-200 hover:text-gold-200 transition-colors"
+                  className="px-4 py-2 bg-surface-raised border border-border-default text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:border-accent hover:text-accent transition-colors"
                 >
                   {city}
                 </Link>

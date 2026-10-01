@@ -108,7 +108,7 @@ export default async function BlogsPage({
         />
         <Pagination
           basePath="/blogs"
-          params={params}
+          params={{ q: params.q, article_page: articlePage > 1 ? String(articlePage) : undefined }}
           page={blogs.page}
           pageSize={blogs.pageSize}
           total={blogs.count}
@@ -139,7 +139,7 @@ export default async function BlogsPage({
         />
         <Pagination
           basePath="/blogs"
-          params={{}}
+          params={{ q: params.q, blog_page: blogPage > 1 ? String(blogPage) : undefined }}
           page={articles.page}
           pageSize={articles.pageSize}
           total={articles.count}

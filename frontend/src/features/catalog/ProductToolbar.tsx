@@ -38,7 +38,7 @@ export function ProductToolbar({
       {/* Active Filters */}
       {hasFilters && (
         <div className="flex flex-wrap items-center gap-2 mb-6">
-          <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-500">
+          <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted">
             ACTIVE FILTERS:
           </span>
           {artistFilter && currentArtist && (
@@ -58,7 +58,7 @@ export function ProductToolbar({
           {typeFilter && (
             <Link
               href={buildFilterUrl(baseFilters, { type: null })}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-noir-800 border border-noir-600 text-ivory-300 text-sm font-[family-name:var(--font-jakarta)] hover:border-ivory-500 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-surface-raised border border-border-strong text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:border-text-muted transition-colors"
             >
               {typeFilter}
               <X size={14} />
@@ -66,7 +66,7 @@ export function ProductToolbar({
           )}
           <Link
             href="/products"
-            className="px-3 py-1.5 text-ivory-500 text-sm font-[family-name:var(--font-jakarta)] hover:text-ivory-300 transition-colors"
+            className="px-3 py-1.5 text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:text-text-muted transition-colors"
           >
             Clear all
           </Link>
@@ -78,7 +78,7 @@ export function ProductToolbar({
         {/* Artist Filters */}
         <div className="flex-1">
           <div className="flex flex-wrap gap-2">
-            <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 py-2 mr-2">
+            <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted py-2 mr-2">
               ARTISTS:
             </span>
             {artists.map((artist) => {
@@ -97,9 +97,9 @@ export function ProductToolbar({
                     color: artist.accentColor,
                     border: '1px solid',
                   } : {
-                    backgroundColor: 'rgb(23, 23, 23)',
-                    borderColor: 'rgb(55, 55, 55)',
-                    color: 'rgb(214, 211, 209)',
+                    backgroundColor: 'var(--surface-input)',
+                    borderColor: 'var(--border-strong)',
+                    color: 'var(--text-secondary)',
                     border: '1px solid',
                   }}
                 >
@@ -120,7 +120,7 @@ export function ProductToolbar({
       {/* Category Filters */}
       {productTypes.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-8">
-          <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 py-2 mr-2">
+          <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted py-2 mr-2">
             CATEGORIES:
           </span>
           {productTypes.map((type) => {
@@ -134,8 +134,8 @@ export function ProductToolbar({
                 }
                 className={`px-4 py-2 border text-sm font-[family-name:var(--font-jakarta)] transition-colors ${
                   isActive
-                    ? 'bg-gold-200/20 border-gold-200 text-gold-200'
-                    : 'bg-noir-900 border-noir-700 text-ivory-300 hover:border-gold-200'
+                    ? 'bg-accent-tint-strong border-accent text-accent'
+                    : 'bg-surface-card border-border-default text-text-muted hover:border-accent'
                 }`}
               >
                 {type}

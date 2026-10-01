@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { CollectionHeader } from '@/features/collection/CollectionHeader';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { getCollectionsStatic, getCollectionByHandleStatic, getProductsByCollectionHandle } from '@/lib/supabase/queries';
@@ -60,18 +61,22 @@ export default async function CollectionPage({ params, searchParams }: Collectio
     ? stripHtml(collection.body_html)
     : `Explore our ${collectionTitle} collection.`;
 
-  // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products. Unknown
-  // handle renders the header with an empty grid, as before.
+  // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products.
+  // getProductsByCollectionHandle returns null only when no published
+  // collection matches the handle, so a null result is an unknown handle and
+  // renders the route's not-found page. A known-but-empty collection returns
+  // { data: [], count: 0 } and still renders the grid below.
   const result = await getProductsByCollectionHandle(
     handle,
     { sort, page, pageSize },
     { publishedOnly: true, useStatic: true },
   );
-  const products = result?.data ?? [];
-  const count = result?.count ?? 0;
+  if (!result) notFound();
+  const products = result.data;
+  const count = result.count;
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="min-h-screen bg-surface-page pt-20">
       <JsonLd
         data={collectionPageSchema({
           title: collectionTitle,

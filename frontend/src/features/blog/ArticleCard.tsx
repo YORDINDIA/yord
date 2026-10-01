@@ -32,7 +32,7 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
       >
         <Link href={`/blog/${article.handle}`} className="block">
           {/* Image */}
-          <div className="relative aspect-[16/9] overflow-hidden bg-noir-900 border border-noir-800 group-hover:border-noir-700 transition-colors">
+          <div className="relative aspect-[16/9] overflow-hidden bg-surface-card border border-border-default group-hover:border-border-default transition-colors">
             {imageUrl ? (
               <Image
                 src={imageUrl}
@@ -46,13 +46,13 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
                 priority={priority}
               />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-noir-800">
-                <span className="text-ivory-400 text-sm">No Image</span>
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-raised">
+                <span className="text-text-muted text-sm">No Image</span>
               </div>
             )}
 
             {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-noir-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
 
           {/* Content */}
@@ -60,14 +60,14 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
             {/* Meta */}
             <div className="flex items-center gap-2 text-sm">
               {article.author && (
-                <span className="text-gold-200 font-[family-name:var(--font-bebas)] tracking-wider text-xs uppercase">
+                <span className="text-accent font-[family-name:var(--font-bebas)] tracking-wider text-xs uppercase">
                   {article.author}
                 </span>
               )}
               {article.published_at && (
                 <>
-                  <span className="text-ivory-500">•</span>
-                  <span className="text-ivory-400 text-xs">
+                  <span className="text-text-muted">•</span>
+                  <span className="text-text-muted text-xs">
                     {formatDate(article.published_at)}
                   </span>
                 </>
@@ -75,13 +75,13 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
             </div>
 
             {/* Title */}
-            <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-ivory-50 group-hover:text-gold-200 transition-colors duration-300 line-clamp-2">
+            <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-primary group-hover:text-accent transition-colors duration-300 line-clamp-2">
               {article.title}
             </h3>
 
             {/* Summary (plain text — no innerHTML needed) */}
             {article.summary_html && (
-              <p className="text-ivory-300 text-sm line-clamp-2">
+              <p className="text-text-muted text-sm line-clamp-2">
                 {stripHtml(article.summary_html).slice(0, 120) + '...'}
               </p>
             )}

@@ -16,7 +16,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
     return (
       <div ref={ref} className={`relative h-px overflow-hidden ${className}`}>
         <motion.div
-          className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-transparent via-gold-200/50 to-transparent"
+          className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-transparent via-accent/50 to-transparent"
           initial={{ scaleX: 0 }}
           animate={isInView ? { scaleX: 1 } : {}}
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
@@ -30,7 +30,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
       <div ref={ref} className={`relative py-8 flex items-center justify-center ${className}`}>
         {/* Left Line */}
         <motion.div
-          className="absolute left-0 right-1/2 h-px bg-gradient-to-r from-transparent to-gold-200/30 mr-8"
+          className="absolute left-0 right-1/2 h-px bg-gradient-to-r from-transparent to-accent/30 mr-8"
           initial={{ scaleX: 0, originX: 1 }}
           animate={isInView ? { scaleX: 1 } : {}}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -44,7 +44,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
           transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
           {/* Diamond shape */}
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-gold-200">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-accent">
             <motion.path
               d="M12 2L22 12L12 22L2 12L12 2Z"
               stroke="currentColor"
@@ -59,7 +59,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
 
         {/* Right Line */}
         <motion.div
-          className="absolute left-1/2 right-0 h-px bg-gradient-to-l from-transparent to-gold-200/30 ml-8"
+          className="absolute left-1/2 right-0 h-px bg-gradient-to-l from-transparent to-accent/30 ml-8"
           initial={{ scaleX: 0, originX: 0 }}
           animate={isInView ? { scaleX: 1 } : {}}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -72,7 +72,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
     return (
       <div ref={ref} className={`relative h-24 overflow-hidden ${className}`}>
         <motion.div
-          className="absolute inset-0 bg-gradient-to-b from-noir-950 via-noir-900 to-noir-950"
+          className="absolute inset-0 bg-gradient-to-b from-surface-page via-surface-card to-surface-page"
           initial={{ opacity: 0 }}
           animate={isInView ? { opacity: 1 } : {}}
           transition={{ duration: 0.8 }}
@@ -84,7 +84,7 @@ export function SectionDivider({ variant = 'line', className = '' }: SectionDivi
           animate={isInView ? { opacity: 1 } : {}}
           transition={{ duration: 1, delay: 0.3 }}
         >
-          <div className="w-64 h-1 bg-gradient-to-r from-transparent via-gold-200/20 to-transparent blur-sm" />
+          <div className="w-64 h-1 bg-gradient-to-r from-transparent via-accent/20 to-transparent blur-sm" />
         </motion.div>
       </div>
     );
