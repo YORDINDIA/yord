@@ -27,7 +27,7 @@ const FAQ_DATA: FAQCategory[] = [
       },
       {
         question: 'Do you sell merchandise for upcoming concerts in India?',
-        answer: 'Yes! We stock merchandise ahead of major concerts and tours in India. Whether it\'s Kanye West\'s India debut in Delhi, Calvin Harris\'s first India shows, Karan Aujla\'s P-Pop Culture World Tour, Def Leppard\'s India Tour, or festivals like Lollapalooza India and Sunburn, we have you covered with exclusive designs.',
+        answer: 'Yes! We stock merchandise ahead of major concerts and tours in India. Whether it\'s Diljit Dosanjh\'s Aura Tour in Ahmedabad, Guns N\' Roses in Bengaluru and Guwahati, Fred again..\'s debut tour, Khalid\'s first India shows, The Chainsmokers\' December return, or festivals like Sunburn in Goa, we have you covered with exclusive designs.',
       },
       {
         question: 'What is the best website to buy concert merch in India?',

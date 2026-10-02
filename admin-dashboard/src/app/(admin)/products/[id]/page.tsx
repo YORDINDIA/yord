@@ -1,12 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { ArrowLeft, Package } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import StatusBadge from '@/components/ui/StatusBadge';
 import ProductEditor from '@/components/products/ProductEditor';
 import VariantEditor from '@/components/products/VariantEditor';
 import ImageGrid from '@/components/products/ImageGrid';
 import AddImageForm from '@/components/products/AddImageForm';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { getProduct } from '@/lib/data/products';
+import ProductPreviewCard from '@/components/products/ProductPreviewCard';
+import ProductStockCard from '@/components/products/ProductStockCard';
+import ProductMetaCard from '@/components/products/ProductMetaCard';
+import { getProduct, listProductCollections } from '@/lib/data/products';
 import { formatDate } from '@/lib/utils/format';
 
 type Params = Promise<{ id: string }>;
@@ -22,9 +27,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
  *
  * This file used to hold six inline `'use server'` mutations, each of which
  * returned `undefined` on any failure, so a rejected save was indistinguishable
- * from a successful one. The reads now go through `getProduct()` and the writes
- * through the actions in `src/server/actions/products.ts`, which return
- * `ActionState` and audit every committed change.
+ * from a successful one. The reads now go through `getProduct()` and
+ * `listProductCollections()`, the writes through the actions in
+ * `src/server/actions/products.ts`, which return `ActionState` and audit every
+ * committed change.
+ *
+ * Layout: `PageHeader` for identity and status, then `.layout-split` — the
+ * editor/variant/image column on the left, a sticky rail on the right with the
+ * storefront preview, the stock summary, and the product's provenance.
  */
 export default async function ProductDetailPage({ params }: { params: Params }) {
   const { id } = await params;
@@ -35,46 +45,72 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   if (!detail) notFound();
 
   const { product, variants, images } = detail;
+  const collections = await listProductCollections(numericId);
+
+  const firstVariant = variants[0];
+  const cover = images[0];
 
   return (
-    <div className="grid gap-4">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="section-title">Product Detail</div>
-            <div className="helper">
-              Last updated {formatDate(product.updated_at)} · <StatusBadge value={product.status} />
-            </div>
-          </div>
-          <Link className="button" href="/products">
-            Back
-          </Link>
-        </div>
-        <ProductEditor product={product} />
-      </div>
+    <>
+      <PageHeader
+        icon={Package}
+        tone="indigo"
+        title={product.title}
+        description={`Product #${product.id} · updated ${formatDate(product.updated_at)}`}
+        actions={
+          <>
+            <StatusBadge value={product.status} size="md" />
+            <Link className="button" href="/products">
+              <ArrowLeft size={14} aria-hidden />
+              Back to catalog
+            </Link>
+          </>
+        }
+      />
 
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="section-title">Variants</div>
-            <div className="helper">Edit all rows, then save once. Saving is atomic.</div>
-          </div>
-        </div>
-        <VariantEditor variants={variants} productId={product.id} />
-      </div>
-
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="section-title">Images</div>
-            <div className="helper">
-              The first image is the cover. Hover an image for copy, set-cover, and delete.
+      <div className="layout-split">
+        <div className="stack">
+          <section className="card">
+            <div className="card-header">
+              <div className="section-title">Product</div>
+              <span className="helper">Title, handle, status, tags, and the description.</span>
             </div>
-          </div>
+            <ProductEditor product={product} />
+          </section>
+
+          <section className="card">
+            <div className="card-header">
+              <div className="section-title">Variants</div>
+              <span className="helper">
+                Edit any row, then save once. Saving is atomic; only changed rows are sent.
+              </span>
+            </div>
+            <VariantEditor variants={variants} productId={product.id} />
+          </section>
+
+          <section className="card">
+            <div className="card-header">
+              <div className="section-title">Images</div>
+              <span className="helper">
+                The first image is the cover. Hover a tile for actions, click it to preview.
+              </span>
+            </div>
+            <ImageGrid images={images} />
+            <AddImageForm productId={product.id} />
+          </section>
         </div>
-        <ImageGrid images={images} />
-        <AddImageForm productId={product.id} />
+
+        <aside className="side-rail">
+          <ProductPreviewCard
+            product={product}
+            imageUrl={cover ? cover.storage_url ?? cover.src : null}
+            price={Number(firstVariant?.price ?? 0)}
+            compareAtPrice={firstVariant?.compare_at_price ?? null}
+          />
+          <ProductStockCard variants={variants} />
+          <ProductMetaCard product={product} collections={collections} />
+        </aside>
       </div>
-    </div>
+    </>
   );
 }

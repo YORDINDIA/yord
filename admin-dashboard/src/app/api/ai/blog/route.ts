@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
-import { openai, textModel } from '@/lib/ai/openai';
-import { extractJson, getOutputText } from '@/lib/ai/parse';
+import { generateText } from '@/lib/ai/agnes';
+import { extractJson } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, clampText, failJson, okJson, xmlBlock } from '@/lib/utils/prompt';
@@ -28,14 +28,9 @@ ${UNTRUSTED_DATA_GUARD}
 ${xmlBlock('topic', clampText(topic))}
 ${xmlBlock('keywords', clampText(keywords))}`;
 
-    const response = await openai.responses.create({
-      model: textModel,
-      input: prompt,
-    });
-
     let output: unknown;
     try {
-      output = extractJson(getOutputText(response) || '');
+      output = extractJson(await generateText(prompt));
     } catch {
       return failJson('UPSTREAM_INVALID', 'Model returned invalid JSON', 502);
     }

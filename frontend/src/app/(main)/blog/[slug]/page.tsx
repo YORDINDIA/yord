@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
   if (!article) {
     return {
-      title: 'Article Not Found | YORD India',
+      title: 'Article Not Found',
     };
   }
 
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
     : `Read ${article.title} on the YORD India blog.`;
 
   return {
-    title: `${article.title} | YORD India Blog`,
+    title: article.title,
     description,
     openGraph: {
       title: article.title,
@@ -45,8 +45,8 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
       type: 'article',
       publishedTime: article.published_at || undefined,
       authors: article.author ? [article.author] : undefined,
-      images: article.supabase_image_url || article.image_src
-        ? [{ url: article.supabase_image_url || article.image_src! }]
+      images: article.storage_image_url || article.image_src
+        ? [{ url: article.storage_image_url || article.image_src! }]
         : undefined,
     },
   };
@@ -61,7 +61,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   }
 
   const relatedArticles = await getRelatedArticles(article.id, 3);
-  const imageUrl = article.supabase_image_url || article.image_src;
+  const imageUrl = article.storage_image_url || article.image_src;
   const readTime = estimateReadTime(article.body_html || '');
 
   return (
@@ -185,10 +185,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                   className="group"
                 >
                   <article className="space-y-3">
-                    {(related.supabase_image_url || related.image_src) && (
+                    {(related.storage_image_url || related.image_src) && (
                       <div className="relative aspect-[16/9] overflow-hidden bg-surface-raised">
                         <Image
-                          src={related.supabase_image_url || related.image_src!}
+                          src={related.storage_image_url || related.image_src!}
                           alt={related.image_alt || related.title}
                           fill
                           sizes="(max-width: 768px) 100vw, 33vw"

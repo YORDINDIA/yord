@@ -1,43 +1,16 @@
 export const runtime = 'nodejs';
 
-import { imageModel } from '@/lib/ai/openai';
+import { agnesBaseUrl, buildImageEditBody } from '@/lib/ai/agnes';
 import { assertAiAllowed } from '@/lib/ai/guard';
+import { isAllowedImportUrl } from '@/lib/ai/import-hosts';
+import { isStorageConfigured, uploadImageBuffer } from '@/lib/r2';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/utils/admin';
 import { clampText, failJson, okJson } from '@/lib/utils/prompt';
 
-const MAX_IMAGE_BYTES = 10_000_000;
-const MAX_IMPORT_REDIRECTS = 5;
-
-// Imports are limited to the Shopify CDN hosts the migration itself pulls
-// media from. fetch() follows redirects, so the host check is re-applied to
-// every hop — otherwise an approved URL could 302 the server-side fetch at an
-// internal service (cloud metadata, localhost admin ports, RFC1918 targets).
-const ALLOWED_IMPORT_HOSTS = [
-  'cdn.shopify.com',
-  'shopifycdn.com',
-  'cdn.shopifycdn.net',
-];
-
-function isAllowedImportHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  return ALLOWED_IMPORT_HOSTS.some(
-    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
-  );
-}
-
 /** Reject URLs that are not approved public CDN images or smuggle credentials. */
 function isBlockedImportUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol !== 'https:' ||
-      Boolean(url.username || url.password) ||
-      !isAllowedImportHost(url.hostname)
-    );
-  } catch {
-    return true;
-  }
+  return !isAllowedImportUrl(value);
 }
 
 export async function POST(req: Request) {
@@ -49,87 +22,41 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.AGNES_AI_API_KEY) {
       return failJson('NOT_CONFIGURED', 'Image service not configured', 500);
+    }
+    if (!isStorageConfigured()) {
+      return failJson('NOT_CONFIGURED', 'Image storage not configured', 500);
     }
 
     const { imageUrl, prompt } = await req.json();
-    // Accept the cover URL as stored: migrated products carry the Shopify CDN
-    // `src`, and rejecting those made image generation fail for every
-    // product. The fetch below is still guarded — approved CDN hosts only,
-    // re-validated on every redirect hop, https-only, image content-type, and
-    // a 10 MB cap enforced while streaming (never buffering the full body).
+    // Accept the cover URL as stored, which is one of three things: the
+    // Shopify CDN `src`, an R2 upload, or a legacy Supabase asset from before
+    // the storage switch. Rejecting any of them made image generation fail for
+    // those products. The URL is passed to Agnes, which fetches it, so this
+    // allowlist is what keeps a non-public or credential-bearing URL from
+    // leaving the server; there is no server-side fetch left to redirect.
     if (!imageUrl || typeof imageUrl !== 'string' || isBlockedImportUrl(imageUrl)) {
       return failJson('BAD_REQUEST', 'imageUrl must be an approved https image URL', 400);
     }
     // Admin-typed prompt is still untrusted model input: truncate to 4k chars.
     const safePrompt = clampText(prompt) || 'Enhance the product image for premium ecommerce.';
 
-    // Manual redirect handling: every hop must pass the same host check, so a
-    // CDN URL cannot redirect the server-side fetch at an internal service.
-    let target = imageUrl;
-    let imageResponse: Response | null = null;
-    for (let hop = 0; hop <= MAX_IMPORT_REDIRECTS; hop += 1) {
-      if (isBlockedImportUrl(target)) {
-        return failJson('BAD_REQUEST', 'Redirect target is not an approved image host', 400);
-      }
-      imageResponse = await fetch(target, { redirect: 'manual' });
-      if (imageResponse.status >= 300 && imageResponse.status < 400) {
-        const location = imageResponse.headers.get('location');
-        if (location) {
-          target = new URL(location, target).toString();
-          continue;
-        }
-      }
-      break;
-    }
-    if (!imageResponse || !imageResponse.ok) {
-      return failJson('BAD_REQUEST', 'Unable to fetch source image', 400);
-    }
-    const contentType = imageResponse.headers.get('content-type') || 'image/png';
-    if (!contentType.startsWith('image/')) {
-      return failJson('BAD_REQUEST', 'Source URL is not an image', 400);
-    }
-    // Enforce the size cap while streaming: `arrayBuffer()` would buffer the
-    // whole body before the check and let a huge response exhaust the server.
-    const reader = imageResponse.body?.getReader();
-    if (!reader) {
-      return failJson('BAD_REQUEST', 'Source URL is not readable', 400);
-    }
-    const chunks: Uint8Array[] = [];
-    let received = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      if (received > MAX_IMAGE_BYTES) {
-        await reader.cancel();
-        return failJson('BAD_REQUEST', 'Source image too large', 413);
-      }
-      chunks.push(value);
-    }
-    const blob = new Blob(chunks as BlobPart[], { type: contentType });
-
-    const form = new FormData();
-    form.append('model', imageModel);
-    form.append('prompt', safePrompt);
-    form.append('image', blob, 'reference.png');
-    // `response_format` is DALL·E-only; gpt-image-1 always returns b64_json and
-    // rejects the parameter.
-    if (imageModel.startsWith('dall-e')) {
-      form.append('response_format', 'b64_json');
-    }
-
-    const aiResponse = await fetch('https://api.openai.com/v1/images/edits', {
+    const aiResponse = await fetch(`${agnesBaseUrl}/images/generations`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.AGNES_AI_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      body: form,
+      body: JSON.stringify(buildImageEditBody(safePrompt, imageUrl)),
+      // Agnes recommends a 60-360s client timeout; generations completed well
+      // under a minute in testing, and without a cap a hung upstream would
+      // hold the request (and the Worker) open.
+      signal: AbortSignal.timeout(300_000),
     });
 
     if (!aiResponse.ok) {
-      console.error('OpenAI image edit failed', aiResponse.status);
+      console.error('Agnes image edit failed', aiResponse.status);
       return failJson('UPSTREAM_INVALID', 'Image generation failed', 502);
     }
 
@@ -141,14 +68,17 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(b64, 'base64');
     const supabase = service ?? createServiceClient();
-    const path = `ai/${Date.now()}.png`;
-    const { error } = await supabase.storage
-      .from('products')
-      .upload(path, buffer, { contentType: 'image/png', upsert: true });
-    if (error) {
+    // Agnes returns PNG at 1024px (1K / 1:1); the storefront's variant policy
+    // does not apply here (no browser canvas on the server), so the PNG is
+    // stored as-is and flagged in the media docs.
+    const key = `ai/${Date.now()}`;
+    let uploaded: { url: string; key: string };
+    try {
+      uploaded = await uploadImageBuffer(buffer, { key, contentType: 'image/png' });
+    } catch (error) {
+      console.error('R2 upload failed', error);
       return failJson('INTERNAL', 'Image upload failed', 500);
     }
-    const { data: urlData } = supabase.storage.from('products').getPublicUrl(path);
 
     const { data: job, error: jobError } = await supabase
       .from('ai_jobs')
@@ -158,15 +88,15 @@ export async function POST(req: Request) {
     if (jobError) {
       console.error('ai_jobs insert failed', jobError);
       return okJson(
-        { previewUrl: urlData.publicUrl, storagePath: path },
-        { previewUrl: urlData.publicUrl, storagePath: path }
+        { previewUrl: uploaded.url, storagePath: uploaded.key },
+        { previewUrl: uploaded.url, storagePath: uploaded.key }
       );
     }
 
     const { error: assetError } = await supabase.from('ai_assets').insert({
       job_id: job?.id || null,
-      storage_path: path,
-      preview_url: urlData.publicUrl,
+      storage_path: uploaded.key,
+      preview_url: uploaded.url,
       metadata: { prompt: safePrompt || null },
     });
     if (assetError) {
@@ -174,8 +104,8 @@ export async function POST(req: Request) {
     }
 
     return okJson(
-      { previewUrl: urlData.publicUrl, storagePath: path },
-      { previewUrl: urlData.publicUrl, storagePath: path }
+      { previewUrl: uploaded.url, storagePath: uploaded.key },
+      { previewUrl: uploaded.url, storagePath: uploaded.key }
     );
   } catch (error: unknown) {
     console.error('Image route failed', error);

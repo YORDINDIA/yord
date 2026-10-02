@@ -17,7 +17,7 @@ const ArticleCard = forwardRef<HTMLElement, ArticleCardProps>(
   ({ article, priority = false, className }, ref) => {
     const [isHovered, setIsHovered] = useState(false);
 
-    const imageUrl = article.supabase_image_url || article.image_src;
+    const imageUrl = article.storage_image_url || article.image_src;
 
     return (
       <motion.article

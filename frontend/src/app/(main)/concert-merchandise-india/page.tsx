@@ -1,11 +1,12 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ShoppingBag, Music, Truck, Shield, ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@yord/db-types';
+import { getArtistsWithMetadata } from '@/lib/supabase/queries';
+import { degrade } from '@/lib/result';
 import { JsonLd, organizationSchema, breadcrumbSchema, faqSchema } from '@/lib/seo/jsonld';
 
 export const metadata: Metadata = {
-  title: 'Buy Concert Merchandise Online in India | YORD India',
+  title: 'Buy Concert Merchandise Online in India',
   description:
     "India's #1 premium concert merchandise store. Buy fan-made t-shirts, hoodies & accessories for Coldplay, Diljit Dosanjh, Karan Aujla, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto & 65+ artists. Free shipping above ₹1,999.",
   openGraph: {
@@ -45,8 +46,18 @@ const LANDING_FAQS = [
   },
 ];
 
-export default function ConcertMerchandiseIndiaPage() {
-  const artistEntries = Object.values(ARTISTS).slice(0, 20);
+export default async function ConcertMerchandiseIndiaPage() {
+  // "Shop by Artist" links are resolved against the database: the static
+  // ARTISTS record has 71 handles but only the ones with a published,
+  // non-empty collection have an artist page, so 20 static entries meant
+  // mostly links to "Artist not found". A failed read hides the grid.
+  const artistsResult = await degrade(
+    getArtistsWithMetadata(true),
+    [],
+    'landing:artists',
+    'collections',
+  );
+  const artistEntries = artistsResult.ok ? artistsResult.value.slice(0, 20) : [];
 
   return (
     <main className="min-h-screen bg-surface-page pt-24 pb-16">
@@ -124,40 +135,43 @@ export default function ConcertMerchandiseIndiaPage() {
           ))}
         </div>
 
-        {/* Artists Grid */}
-        <section className="mb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
-            Shop by Artist
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {artistEntries.map((artist) => (
+        {/* Artists Grid — hidden when the artist read fails, never a grid of
+            dead links */}
+        {artistEntries.length > 0 && (
+          <section className="mb-16">
+            <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
+              Shop by Artist
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {artistEntries.map((artist) => (
+                <Link
+                  key={artist.handle}
+                  href={`/artist/${artist.handle}`}
+                  className="group block p-4 bg-surface-card border border-border-default text-center hover:border-accent/40 transition-all"
+                >
+                  <span
+                    className="w-3 h-3 rounded-full inline-block mb-2"
+                    style={{ backgroundColor: artist.accentColor }}
+                  />
+                  <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
+                    {artist.name}
+                  </h3>
+                  <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-1">
+                    {artist.tagline}
+                  </p>
+                </Link>
+              ))}
+            </div>
+            <div className="text-center mt-6">
               <Link
-                key={artist.handle}
-                href={`/artist/${artist.handle}`}
-                className="group block p-4 bg-surface-card border border-border-default text-center hover:border-accent/40 transition-all"
+                href="/artists"
+                className="inline-flex items-center gap-2 text-accent font-[family-name:var(--font-bebas)] tracking-wider text-sm hover:underline"
               >
-                <span
-                  className="w-3 h-3 rounded-full inline-block mb-2"
-                  style={{ backgroundColor: artist.accentColor }}
-                />
-                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
-                  {artist.name}
-                </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-1">
-                  {artist.tagline}
-                </p>
+                VIEW ALL ARTISTS <ArrowRight size={14} />
               </Link>
-            ))}
-          </div>
-          <div className="text-center mt-6">
-            <Link
-              href="/artists"
-              className="inline-flex items-center gap-2 text-accent font-[family-name:var(--font-bebas)] tracking-wider text-sm hover:underline"
-            >
-              VIEW ALL ARTISTS <ArrowRight size={14} />
-            </Link>
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
 
         {/* FAQ Section */}
         <section className="mb-16">
@@ -188,10 +202,10 @@ export default function ConcertMerchandiseIndiaPage() {
           </h2>
           <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
             <p>
-              YORD India is India&apos;s premier online destination for premium concert merchandise. Founded with a passion for live music and fashion, YORD India bridges the gap between concert experiences and everyday style. We offer an extensive catalog of fan-made, artist-inspired designs for over 65 artists — both Indian and international — who have performed or are performing in India in 2024, 2025, and 2026.
+              YORD India is India&apos;s premier online destination for premium concert merchandise. Founded with a passion for live music and fashion, YORD India bridges the gap between concert experiences and everyday style. We offer an extensive catalog of fan-made, artist-inspired designs for over 65 artists — both Indian and international — performing in India in 2026 and 2027.
             </p>
             <p>
-              Our collection spans global superstars including Coldplay (Music of the Spheres World Tour), Kanye West (India Debut 2026), Calvin Harris (India Debut 2026), DJ Snake (India Tour 2026), Linkin Park (Lollapalooza India 2026), Tiësto (India Tour 2026), Def Leppard (India Tour 2026), Dream Theater (40th Anniversary), The Lumineers (Automatic World Tour), John Mayer (India Solo Debut), Ed Sheeran, Dua Lipa, Bryan Adams, Green Day, Maroon 5, and Imagine Dragons. Indian music icons are equally represented: Diljit Dosanjh (Dil-Luminati Tour), Karan Aujla (P-Pop Culture World Tour 2026), AP Dhillon (The Brownprint Tour), Arijit Singh, Yo Yo Honey Singh, DIVINE, Hanumankind, KRSNA, Seedhe Maut, King, Badshah, Raftaar, Prateek Kuhad, and Anuv Jain.
+              Our collection spans the biggest upcoming shows in India: Diljit Dosanjh (Aura World Tour), Guns N&apos; Roses (India Tour 2026), Anyma (ÆDEN World Tour), Fred again.. (India Tour 2026), Khalid (India debut), The Chainsmokers (India Tour 2026), Gorillaz (India Tour 2027), and Foo Fighters (India Debut 2027) — alongside catalogue favourites including Coldplay, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto, Def Leppard, Ed Sheeran, Dua Lipa, Imagine Dragons, and Taylor Swift. Indian music icons are equally represented: Karan Aujla, AP Dhillon, Arijit Singh, Yo Yo Honey Singh, DIVINE, Hanumankind, KRSNA, Seedhe Maut, King, Badshah, Raftaar, Prateek Kuhad, and Anuv Jain.
             </p>
             <p>
               We also offer exclusive merchandise for India&apos;s biggest music festivals: Lollapalooza India in Mumbai, Sunburn Festival in Goa, and NH7 Weekender in Pune. Every piece in our collection is designed by fans who share your passion, printed on premium-quality fabric, and shipped across India with free delivery on orders above ₹1,999.

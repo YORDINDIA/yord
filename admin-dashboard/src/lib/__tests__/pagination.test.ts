@@ -93,10 +93,29 @@ describe('sanitizeSearch', () => {
     expect(sanitizeSearch('say "hi"')).toBe('say hi');
   });
 
+  it('strips LIKE wildcards too, so the typed text matches itself', () => {
+    // `_` and `*` are not filter grammar, but they are LIKE wildcards: `*` is
+    // PostgREST's alias for `%` and a bare `_` matches any character (both
+    // verified against the live endpoint). Left in, `t_shirt` matched `t-shirt`
+    // and `tXshirt` — a silently wider result set, not an error.
+    expect(sanitizeSearch('t_shirt')).toBe('tshirt');
+    expect(sanitizeSearch('50*off')).toBe('50off');
+    expect(sanitizeSearch('a_b*c')).toBe('abc');
+  });
+
+  it('strips a mixed query down to its literal text', () => {
+    expect(sanitizeSearch('100%_x')).toBe('100x');
+    expect(sanitizeSearch('a_b%c,d*e')).toBe('abcde');
+    // Characters that are not PostgREST syntax or wildcards survive untouched.
+    expect(sanitizeSearch('t-shirt 2025')).toBe('t-shirt 2025');
+    expect(sanitizeSearch("honey singh's tour")).toBe("honey singh's tour");
+  });
+
   it('collapses to empty when nothing survives', () => {
     expect(sanitizeSearch('%%%')).toBe('');
     expect(sanitizeSearch('   ')).toBe('');
     expect(sanitizeSearch('')).toBe('');
+    expect(sanitizeSearch('_*')).toBe('');
   });
 
   it('ignores non-strings', () => {

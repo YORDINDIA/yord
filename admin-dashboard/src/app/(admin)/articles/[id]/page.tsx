@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { ArrowLeft, ExternalLink, FileText } from 'lucide-react';
 import ArticleEditor from '@/components/blogs/ArticleEditor';
-import { getArticle } from '@/lib/data/blogs';
+import { articlePath, formatRelative } from '@/components/blogs/display';
+import PageHeader from '@/components/ui/PageHeader';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { getArticle, getBlogRef } from '@/lib/data/blogs';
 import { formatDate } from '@/lib/utils/format';
 
 type Params = Promise<{ id: string }>;
@@ -14,12 +18,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * Article detail.
+ * Article editor.
  *
- * The inline `updateArticle` here wrote `body_html` and `summary_html` without
- * sanitizing them, even though both are rendered with `dangerouslySetInnerHTML`
- * on the storefront, and it dropped the database error on failure. The write now
- * goes through `updateArticleAction`: sanitized, audited, and reported.
+ * The inline `updateArticle` this page used to own wrote `body_html` and
+ * `summary_html` without sanitizing them — even though both are rendered with
+ * `dangerouslySetInnerHTML` on the storefront — and dropped the database error
+ * on failure. The write now goes through `updateArticleAction`: validated by
+ * `articleSchema`, sanitized, audited, and reported through `ActionState`.
+ *
+ * The editor itself is a client component because the preview follows typing;
+ * it renders the form and the preview rail side by side.
  */
 export default async function ArticleDetailPage({ params }: { params: Params }) {
   const { id } = await params;
@@ -29,18 +37,55 @@ export default async function ArticleDetailPage({ params }: { params: Params }) 
   const article = await getArticle(numericId);
   if (!article) notFound();
 
+  const blogRef = await getBlogRef(article.blog_id);
+  const path = articlePath(article.handle);
+  const storefrontBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ?? '';
+  const liveHref = article.published && storefrontBase && path ? `${storefrontBase}${path}` : null;
+
   return (
-    <div className="card">
-      <div className="card-header">
-        <div>
-          <div className="section-title">Article</div>
-          <div className="helper">Last updated {formatDate(article.updated_at)}</div>
-        </div>
-        <Link className="button" href="/blogs">
-          Back
-        </Link>
+    <>
+      <PageHeader
+        icon={FileText}
+        title={article.title || 'Untitled article'}
+        description={`${blogRef?.title ?? `Blog #${article.blog_id}`} · ${path ?? 'no handle'} · updated ${formatRelative(article.updated_at)}`}
+        actions={
+          <>
+            {liveHref && (
+              <a
+                className="button"
+                href={liveHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open the published article on the storefront"
+              >
+                <ExternalLink size={13} aria-hidden />
+                View live
+              </a>
+            )}
+            <Link className="button" href={`/blogs/${article.blog_id}`}>
+              <ArrowLeft size={13} aria-hidden />
+              Back to blog
+            </Link>
+          </>
+        }
+      />
+
+      <div className="row" style={{ gap: 10 }}>
+        <StatusBadge
+          value={article.published ? 'published' : 'draft'}
+          label={article.published ? 'Published' : 'Draft'}
+          dot
+          size="md"
+        />
+        <span className="chip">Article #{article.id}</span>
+        <span className="helper">
+          {article.published_at
+            ? `First published ${formatDate(article.published_at)}`
+            : 'Never published — the storefront does not serve it'}
+        </span>
       </div>
+
       <ArticleEditor article={article} />
-    </div>
+    </>
   );
 }

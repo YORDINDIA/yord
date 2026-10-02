@@ -1,0 +1,233 @@
+/*
+  Orders-only styles. globals.css is the design system and is not editable from
+  here, so the pieces this domain needs that it does not define — an aligned
+  totals block, an address block, the refund panel's selection rows — live
+  beside the components that use them.
+
+  Colours come from tokens only (no raw hex), and every number is tabular so a
+  column of amounts lines up.
+*/
+
+/* ── Totals ───────────────────────────────────────────────────────────────── */
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.totalRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.totalRow:last-child {
+  border-bottom: none;
+}
+
+.totalLabel {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.totalValue {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.totalRowGrand {
+  padding-top: 9px;
+  margin-top: 3px;
+  border-top: 1px solid var(--border-default);
+}
+
+.totalRowGrand .totalLabel {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.totalRowGrand .totalValue {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* Deductions (discounts) and money still owed read in a semantic tone; both
+   ramps are text-safe on the card surface in either theme. */
+.totalDeduction {
+  color: var(--tone-rose);
+}
+
+.totalAttention {
+  color: var(--tone-amber);
+}
+
+/* ── Address block ────────────────────────────────────────────────────────── */
+
+.address {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.addressBody {
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.addressName {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.addressLine {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.addressMeta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* ── Fulfillment timeline extras ──────────────────────────────────────────── */
+
+.itemList {
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itemListEntry {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timelineBlock {
+  margin-bottom: 12px;
+}
+
+/* ── Refund panel ─────────────────────────────────────────────────────────── */
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-inset);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.pickRow:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.pickRow[aria-pressed='true'] {
+  border-color: var(--tone-line, var(--accent-line));
+  background: var(--tone-soft, var(--accent-soft));
+  color: var(--text-strong);
+}
+
+/* Column layout, not inline: the row's inner spans are `<span>`s (a button may
+   only contain phrasing content), so they need blockifying to stack. */
+.pickBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pickTitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.pickSub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.quickFills {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.amountError {
+  font-size: 10.5px;
+  color: var(--tone-rose);
+  margin-top: 4px;
+}
+
+/* Success state after a refund is accepted by the gateway. */
+.successBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--tone-emerald-line);
+  background: var(--tone-emerald-soft);
+}
+
+.successTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tone-emerald);
+}
+
+.refundIdRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Detail: summary strip under the page header ──────────────────────────── */
+
+.metaStrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.monoCell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}

@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * types.
  *
  * Key material is passed in as arguments — never read from `process.env` in
- * here — so the service-role key cannot leak into a client bundle through
+ * here — so the secret key cannot leak into a client bundle through
  * this module. The env-bound convenience entry lives in `./server`, which
  * starts with `import 'server-only'` and fails the build if ever pulled into
  * `'use client'` code.
@@ -34,29 +34,29 @@ const noPersistentSession = {
 /** Cookie-aware SSR client (reads/writes auth cookies via the adapter). */
 export function createServerSupabase<Database>(
   supabaseUrl: string,
-  supabaseAnonKey: string,
+  publishableKey: string,
   cookies: CookieMethods,
 ): SupabaseClient<Database> {
-  return createServerClient<Database>(supabaseUrl, supabaseAnonKey, { cookies });
+  return createServerClient<Database>(supabaseUrl, publishableKey, { cookies });
 }
 
-/** Service-role client for admin/mutation work. Server-side only. */
+/** Secret-key client for admin/mutation work. Server-side only. */
 export function createServiceSupabase<Database>(
   supabaseUrl: string,
-  serviceRoleKey: string,
+  secretKey: string,
 ): SupabaseClient<Database> {
-  return createServerClient<Database>(supabaseUrl, serviceRoleKey, {
+  return createServerClient<Database>(supabaseUrl, secretKey, {
     cookies: noopCookies,
     auth: { ...noPersistentSession },
   });
 }
 
-/** Anonymous client for static generation / public reads. No cookies. */
+/** Publishable-key client for static generation / public reads. No cookies. */
 export function createStaticSupabase<Database>(
   supabaseUrl: string,
-  supabaseAnonKey: string,
+  publishableKey: string,
 ): SupabaseClient<Database> {
-  return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
+  return createServerClient<Database>(supabaseUrl, publishableKey, {
     cookies: noopCookies,
     auth: { ...noPersistentSession },
   });
@@ -65,7 +65,7 @@ export function createStaticSupabase<Database>(
 /** Browser client. The single place `@supabase/ssr` browser code is constructed. */
 export function createBrowserSupabase<Database>(
   supabaseUrl: string,
-  supabaseAnonKey: string,
+  publishableKey: string,
 ): SupabaseClient<Database> {
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient<Database>(supabaseUrl, publishableKey);
 }

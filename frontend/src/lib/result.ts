@@ -32,7 +32,7 @@ export function err<E extends AppError>(error: E): Result<never, E> {
 type QueryRun = () => PromiseLike<{ data: unknown; error: unknown }>;
 
 /**
- * True when Supabase is not configured (no URL/anon key in env), e.g. a
+ * True when Supabase is not configured (no URL/publishable key in env), e.g. a
  * backend-less `npm run build` or CI greenness check. Reads then degrade to
  * `null`/empty instead of throwing: prerendered pages build with empty
  * sections and self-heal at the next `revalidate` once configured. A
@@ -40,7 +40,7 @@ type QueryRun = () => PromiseLike<{ data: unknown; error: unknown }>;
  * boundaries fire at runtime.
  */
 export function isSupabaseUnconfigured(): boolean {
-  return !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 }
 
 /**

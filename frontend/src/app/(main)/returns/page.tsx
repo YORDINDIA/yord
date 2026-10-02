@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { RefreshCw, Package, Clock, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 
 export const metadata = {
-  title: 'Returns & Exchanges | YORD India',
+  title: 'Returns & Exchanges',
   description: 'Learn about our hassle-free return and exchange policy for merchandise purchased from YORD India.',
 };
 

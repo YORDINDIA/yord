@@ -4,8 +4,7 @@ import { sanitizeHtml, slugify } from '@/lib/utils/sanitize';
 /**
  * Admin-authored and model-generated HTML, before it is stored.
  *
- * `body_html` and `summary_html` are written by admins and by the OpenAI
- * responses, and are later rendered with `dangerouslySetInnerHTML` in the AI
+ * `body_html` and `summary_html` are written by admins and by the AI studio, and are later rendered with `dangerouslySetInnerHTML` in the AI
  * previews and on the storefront. Two of the three article writers stored the
  * value unsanitized.
  *

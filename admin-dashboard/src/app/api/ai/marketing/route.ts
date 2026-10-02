@@ -1,7 +1,6 @@
 export const runtime = 'nodejs';
 
-import { openai, textModel } from '@/lib/ai/openai';
-import { getOutputText } from '@/lib/ai/parse';
+import { generateText } from '@/lib/ai/agnes';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, clampText, failJson, okJson, xmlBlock } from '@/lib/utils/prompt';
@@ -25,12 +24,7 @@ export async function POST(req: Request) {
 ${UNTRUSTED_DATA_GUARD}
 ${xmlBlock('brief', safeBrief)}`;
 
-    const response = await openai.responses.create({
-      model: textModel,
-      input: prompt,
-    });
-
-    const output = getOutputText(response) || '';
+    const output = await generateText(prompt);
     if (!output) {
       return failJson('UPSTREAM_EMPTY', 'Model returned an empty plan', 502);
     }

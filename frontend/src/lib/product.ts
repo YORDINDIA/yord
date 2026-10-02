@@ -16,12 +16,23 @@ import { ARTISTS } from '@yord/db-types';
 /**
  * The single catalog sort vocabulary. There is no `featured` value and no
  * ranking column behind it — every historical `featured` branch fell through
- * to `published_at DESC`, i.e. `newest` (verified 2026-10-01). Callers that
- * need a curated order pass explicit id lists instead.
+ * to `published_at DESC`, i.e. `newest` (verified 2026-10-01).
+ *
+ * `manual` is the admin-writable "picker order" (`collections.sort_order`), a
+ * curated order over `collects.position` that `sql/005_positional_collection_products.sql`
+ * persists on write. It never appears in the shopper sort dropdown, and it is
+ * not expressible as a products-table `ORDER BY`: the id-list fetch resolves it
+ * by the caller's id order (see `fetchProductsByIds`).
  */
-export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'title';
+export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'title' | 'manual';
 
-const SORT_VALUES: readonly string[] = ['newest', 'price-asc', 'price-desc', 'title'];
+const SORT_VALUES: readonly string[] = [
+  'newest',
+  'price-asc',
+  'price-desc',
+  'title',
+  'manual',
+];
 
 /** Validate a raw `?sort=` param; unknown values fall back to `newest`. */
 export function parseSortParam(value: unknown): SortOption {
@@ -36,10 +47,29 @@ export function parsePageParam(value: unknown): number {
   return Number.isFinite(page) && page > 0 ? Math.min(page, 100) : 1;
 }
 
-/** Primary image URL (prefer Supabase URL, fallback to Shopify CDN). */
+/**
+ * Effective catalog order for a collection page.
+ *
+ * The shopper's `?sort=` always wins; with no `?sort=` the collection's own
+ * `collections.sort_order` is the default. NULL (every collection created
+ * before the field existed) or an unknown value resolves to `newest`.
+ *
+ * Both halves must be resolved through this one function: the page needs the
+ * resolved value to seed `CatalogGrid`, and `GET /api/products` needs the same
+ * value when the shopper passes no sort — a divergence would make page 1 and
+ * page 2 of the same URL show different orders.
+ */
+export function resolveSort(
+  requested: unknown,
+  collectionDefault?: string | null,
+): SortOption {
+  return parseSortParam(requested ?? collectionDefault ?? undefined);
+}
+
+/** Primary image URL (prefer the stored `storage_url`, fall back to the original `src`). */
 export function getImageUrl(image: ProductImage | null | undefined): string {
-  if (!image) return '/placeholder-product.jpg';
-  return image.supabase_url || image.src;
+  if (!image) return '/placeholder-product.png';
+  return image.storage_url || image.src;
 }
 
 /** Primary product image (lowest position). */
@@ -163,7 +193,7 @@ export function transformProductForCard(
     artist,
     price: variant?.price || 0,
     compareAtPrice: variant?.compare_at_price || null,
-    image: image?.supabase_url || image?.src || null,
+    image: image?.storage_url || image?.src || null,
     badge: getProductBadge(product, variant),
     accentColor: overrides?.accentColor || artistAccentColor(product.vendor),
   };
@@ -214,6 +244,104 @@ export function sortProductsByPrice(
     const priceB = getMinVariantPrice(b);
     return direction === 'asc' ? priceA - priceB : priceB - priceA;
   });
+}
+
+/** One PostgREST `.order()` clause (supabase-js `.order()` options shape). */
+export interface CatalogOrderClause {
+  column: string;
+  ascending: boolean;
+  nullsFirst?: boolean;
+}
+
+/**
+ * The one catalog order, shared by every paged list (auto collections and the
+ * collects/ids path) so two pages of the same sort cannot disagree.
+ *
+ * The final clause is a tie-break on `id`, and it is load-bearing rather than
+ * defensive: OFFSET paging over a non-total order lets Postgres return tied
+ * rows in any order, so consecutive page requests can repeat or skip products.
+ * Ties are the norm here, not an edge case — of the 463 active products, 145
+ * share the ₹900 `min_price`, 140 share ₹1,100, and 122 share a `title` with
+ * another row (measured 2025-10-02). `title` and `price-*` were both
+ * effectively paginated in arbitrary order.
+ *
+ * `nullsFirst: false` on `published_at` is deliberate: Postgres puts NULLs
+ * FIRST on a DESC sort, so an undated product would lead "Newest" — the tidy
+ * script's backfill is what keeps that from being every row.
+ */
+export function catalogOrder(sort: SortOption): CatalogOrderClause[] {
+  const tieBreak: CatalogOrderClause = { column: 'id', ascending: false };
+  if (sort === 'manual') {
+    // Not expressible over the products table — the id-list fetch resolves it
+    // by the caller's id order before SQL runs. Degrade to newest if a stray
+    // caller reaches here, rather than crashing on an unmapped sort.
+    return [{ column: 'published_at', ascending: false, nullsFirst: false }, tieBreak];
+  }
+  if (sort === 'title') {
+    return [{ column: 'title', ascending: true }, tieBreak];
+  }
+  if (sort === 'price-asc' || sort === 'price-desc') {
+    return [
+      { column: 'min_price', ascending: sort === 'price-asc', nullsFirst: false },
+      tieBreak,
+    ];
+  }
+  return [
+    { column: 'published_at', ascending: false, nullsFirst: false },
+    tieBreak,
+  ];
+}
+
+/** DECIMAL/absent-tolerant number for a nullable column read as `unknown`. */
+function nullableNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * `catalogOrder` applied in JS, for paths that merge or re-sort rows after
+ * fetching (the chunked id-list fetch sorts merged chunks itself).
+ *
+ * Same key order, same null placement (nulls always last) and the same
+ * `id desc` tie-break as the SQL clause list, so a JS-sorted page and a
+ * SQL-sorted page of the same list cannot disagree. For price sorts the caller
+ * must only use this when every row carries a usable `min_price`; otherwise
+ * the variant-price fallback (`sortProductsByPrice`) is authoritative.
+ */
+export function compareCatalogProducts(
+  a: ProductWithDetails,
+  b: ProductWithDetails,
+  sort: SortOption
+): number {
+  // Highest id first: ids are increasing over time (Shopify ids, then
+  // `admin_next_id`), so the tie-break reads as newest-created first.
+  const tieBreak = b.id - a.id;
+  if (sort === 'manual') {
+    // The caller preserves its given id order (`collects.position`); a
+    // comparator that reordered rows would corrupt it. 0 keeps `Array.sort`
+    // stable, though `fetchProductsByIds` re-orders explicitly anyway.
+    return 0;
+  }
+  if (sort === 'title') {
+    return a.title.localeCompare(b.title) || tieBreak;
+  }
+  if (sort === 'price-asc' || sort === 'price-desc') {
+    const pa = nullableNumber((a as { min_price?: unknown }).min_price);
+    const pb = nullableNumber((b as { min_price?: unknown }).min_price);
+    if (pa === null && pb === null) return tieBreak;
+    if (pa === null) return 1;
+    if (pb === null) return -1;
+    return (sort === 'price-asc' ? pa - pb : pb - pa) || tieBreak;
+  }
+  const ta = a.published_at ? Date.parse(a.published_at) : NaN;
+  const tb = b.published_at ? Date.parse(b.published_at) : NaN;
+  const na = Number.isNaN(ta) ? null : ta;
+  const nb = Number.isNaN(tb) ? null : tb;
+  if (na === null && nb === null) return tieBreak;
+  if (na === null) return 1;
+  if (nb === null) return -1;
+  return (nb - na) || tieBreak;
 }
 
 /** Sort items by position (ascending). Common for variants and images. */

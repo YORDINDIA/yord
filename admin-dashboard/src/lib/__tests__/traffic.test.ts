@@ -50,7 +50,7 @@ function kpiPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function stubRpcs(overrides: Record<string, { data: unknown; error: null }> = {}) {
+function stubRpcs(overrides: Record<string, { data: unknown; error?: null }> = {}) {
   const byDay = overrides.page_views_by_day?.data ?? [
     // Today-1 and today-3 only; today-2 is missing and must zero-fill.
     { day: '2026-10-02', views: '40', unique_sids: '20' },

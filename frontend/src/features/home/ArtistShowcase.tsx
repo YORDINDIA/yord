@@ -5,13 +5,25 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@yord/db-types';
+import type { ArtistData } from '@yord/db-types';
 
-export function ArtistShowcase() {
+/**
+ * Featured Artists rail.
+ *
+ * The tiles are the artists the database can actually serve — the caller passes
+ * `getArtistsWithMetadata()`, which only returns artist handles whose published
+ * collection has products. Rendering the static `ARTISTS` record instead (71
+ * handles, 61 with no collection row at all) produced 61 links to the
+ * "Artist not found" page. Display name, accent and hero still come from the
+ * static metadata, merged into `ArtistData` by the query layer.
+ */
+export function ArtistShowcase({ artists }: { artists: ArtistData[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef, { once: true, margin: '-100px' });
 
-  const artists = Object.values(ARTISTS);
+  // No artist data (backend hiccup or none published yet): hide the rail
+  // rather than render a header over an empty scroll strip.
+  if (artists.length === 0) return null;
 
   return (
     <section ref={containerRef} className="py-24 bg-surface-page overflow-hidden">
@@ -79,7 +91,7 @@ export function ArtistShowcase() {
   );
 }
 
-function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS] }) {
+function ArtistCard({ artist }: { artist: ArtistData }) {
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
   const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });

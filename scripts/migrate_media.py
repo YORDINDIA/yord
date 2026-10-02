@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Media Migration Script (REST API Version)
-Downloads product images from Shopify and uploads to Supabase Storage.
+Downloads product images from Shopify and uploads to Cloudflare R2.
 Uses Supabase REST API instead of direct database connection.
 """
 
@@ -19,16 +19,21 @@ from supabase import Client
 
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.supabase_helpers import get_supabase_client
-from utils.config import resolve_supabase_url
+from utils.config import (
+    resolve_r2_bucket,
+    resolve_supabase_secret_key,
+    resolve_supabase_url,
+)
+from utils.r2_helpers import upload_image
 
 # Load environment variables
 load_dotenv()
 
 # Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
-# see root .env.example)
+# see root .env.example). Cloudflare R2 holds the uploaded media.
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
+R2_BUCKET = resolve_r2_bucket()
 
 # Migration settings
 MAX_WORKERS = 5  # Parallel downloads
@@ -51,30 +56,6 @@ class MediaMigrator:
         }
         print(f"Temporary directory: {self.temp_dir}")
 
-    def ensure_bucket_exists(self):
-        """Create storage bucket if it doesn't exist."""
-        try:
-            # List buckets to check if ours exists
-            buckets = self.supabase.storage.list_buckets()
-            bucket_names = [b.name for b in buckets]
-
-            if STORAGE_BUCKET not in bucket_names:
-                print(f"Creating storage bucket: {STORAGE_BUCKET}")
-                self.supabase.storage.create_bucket(
-                    STORAGE_BUCKET,
-                    options={
-                        'public': True,
-                        'file_size_limit': 52428800,  # 50MB
-                        'allowed_mime_types': ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
-                    }
-                )
-                print(f"Bucket '{STORAGE_BUCKET}' created successfully")
-            else:
-                print(f"Bucket '{STORAGE_BUCKET}' already exists")
-        except Exception as e:
-            print(f"Note: Bucket operation returned: {e}")
-            # Bucket might already exist, continue anyway
-
     def get_images_to_migrate(self) -> list:
         """Get all product images that haven't been migrated yet using REST API."""
         images = []
@@ -82,10 +63,10 @@ class MediaMigrator:
         limit = 1000
 
         while True:
-            # Query images without supabase_url
+            # Query images without storage_url
             response = self.supabase.table('product_images').select(
                 'id, product_id, src, alt, position'
-            ).is_('supabase_url', 'null').not_.is_('src', 'null').range(offset, offset + limit - 1).execute()
+            ).is_('storage_url', 'null').not_.is_('src', 'null').range(offset, offset + limit - 1).execute()
 
             if not response.data:
                 break
@@ -96,12 +77,12 @@ class MediaMigrator:
             if len(response.data) < limit:
                 break
 
-        # Also get images with empty supabase_url
+        # Also get images with empty storage_url
         offset = 0
         while True:
             response = self.supabase.table('product_images').select(
                 'id, product_id, src, alt, position'
-            ).eq('supabase_url', '').not_.is_('src', 'null').range(offset, offset + limit - 1).execute()
+            ).eq('storage_url', '').not_.is_('src', 'null').range(offset, offset + limit - 1).execute()
 
             if not response.data:
                 break
@@ -116,10 +97,10 @@ class MediaMigrator:
 
     def get_already_migrated_count(self) -> int:
         """Get count of already migrated images using REST API."""
-        # Count images where supabase_url is not null and not empty
+        # Count images where storage_url is not null and not empty
         response = self.supabase.table('product_images').select(
             'id', count='exact'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').execute()
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').execute()
 
         return response.count if response.count else 0
 
@@ -172,41 +153,21 @@ class MediaMigrator:
 
         return None, None, "Max retries exceeded"
 
-    def upload_to_supabase(self, local_path: str, product_id: int, image_id: int, content_type: str) -> tuple:
-        """Upload image to Supabase Storage."""
-        try:
-            # Get file extension
-            _, ext = os.path.splitext(local_path)
+    def upload_to_r2(self, local_path: str, product_id: int, image_id: int, content_type: str) -> tuple:
+        """Upload image to Cloudflare R2."""
+        # Object key: products/{product_id}/{image_id} (stored as a WebP variant)
+        key = f"products/{product_id}/{image_id}"
 
-            # Create storage path: products/{product_id}/{image_id}.ext
-            storage_path = f"{product_id}/{image_id}{ext}"
+        # Read file
+        with open(local_path, 'rb') as f:
+            file_data = f.read()
 
-            # Read file
-            with open(local_path, 'rb') as f:
-                file_data = f.read()
+        return upload_image(key, file_data, content_type)
 
-            # Upload to Supabase Storage
-            result = self.supabase.storage.from_(STORAGE_BUCKET).upload(
-                storage_path,
-                file_data,
-                file_options={
-                    'content-type': content_type,
-                    'upsert': 'true'
-                }
-            )
-
-            # Get public URL
-            public_url = self.supabase.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
-
-            return public_url, None
-
-        except Exception as e:
-            return None, str(e)
-
-    def update_image_url(self, image_id: int, supabase_url: str):
-        """Update the product_images table with the new Supabase URL using REST API."""
+    def update_image_url(self, image_id: int, storage_url: str):
+        """Update the product_images table with the new storage URL using REST API."""
         self.supabase.table('product_images').update({
-            'supabase_url': supabase_url
+            'storage_url': storage_url
         }).eq('id', image_id).execute()
 
     def migrate_single_image(self, image: dict) -> dict:
@@ -220,7 +181,7 @@ class MediaMigrator:
             'product_id': product_id,
             'success': False,
             'error': None,
-            'supabase_url': None
+            'storage_url': None
         }
 
         # Download image
@@ -229,8 +190,8 @@ class MediaMigrator:
             result['error'] = f"Download failed: {error}"
             return result
 
-        # Upload to Supabase
-        supabase_url, error = self.upload_to_supabase(local_path, product_id, image_id, content_type)
+        # Upload to R2
+        storage_url, error = self.upload_to_r2(local_path, product_id, image_id, content_type)
         if error:
             result['error'] = f"Upload failed: {error}"
             # Clean up local file
@@ -240,9 +201,9 @@ class MediaMigrator:
 
         # Update database
         try:
-            self.update_image_url(image_id, supabase_url)
+            self.update_image_url(image_id, storage_url)
             result['success'] = True
-            result['supabase_url'] = supabase_url
+            result['storage_url'] = storage_url
         except Exception as e:
             result['error'] = f"DB update failed: {str(e)}"
 
@@ -255,11 +216,8 @@ class MediaMigrator:
     def migrate_images(self):
         """Main migration function."""
         print("\n" + "=" * 60)
-        print("MEDIA MIGRATION: Shopify CDN -> Supabase Storage")
+        print("MEDIA MIGRATION: Shopify CDN -> Cloudflare R2")
         print("=" * 60)
-
-        # Ensure bucket exists
-        self.ensure_bucket_exists()
 
         # Get already migrated count
         self.stats['already_migrated'] = self.get_already_migrated_count()
@@ -296,7 +254,7 @@ class MediaMigrator:
 
                     if result['success']:
                         self.stats['uploaded'] += 1
-                        url_preview = result['supabase_url'][:60] if result['supabase_url'] else ''
+                        url_preview = result['storage_url'][:60] if result['storage_url'] else ''
                         print(f"  [OK] Image {result['image_id']} -> {url_preview}...")
                     else:
                         self.stats['failed'] += 1
@@ -348,7 +306,7 @@ class MediaMigrator:
 
 
 def migrate_collection_images():
-    """Migrate collection images to Supabase Storage using REST API."""
+    """Migrate collection images to Cloudflare R2 using REST API."""
     print("\n" + "=" * 60)
     print("COLLECTION IMAGE MIGRATION")
     print("=" * 60)
@@ -393,25 +351,18 @@ def migrate_collection_images():
                 f.write(response.content)
             print(f"  [BACKUP] {handle} -> {local_backup_path}")
 
-            # Upload to Supabase
-            storage_path = f"collections/{coll_id}{ext}"
+            # Upload to R2
+            key = f"collections/{coll_id}"
             content_type = response.headers.get('content-type', 'image/jpeg')
 
-            supabase.storage.from_(STORAGE_BUCKET).upload(
-                storage_path,
-                response.content,
-                file_options={
-                    'content-type': content_type,
-                    'upsert': 'true'
-                }
-            )
+            public_url, error = upload_image(key, response.content, content_type)
+            if error:
+                raise RuntimeError(error)
 
-            # Get public URL
-            public_url = supabase.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
-
-            # Update the collections table - replace image_src with the Supabase URL
+            # Track the migrated URL in storage_image_url; image_src keeps the
+            # original Shopify URL (same shape as product_images / articles).
             supabase.table('collections').update({
-                'image_src': public_url
+                'storage_image_url': public_url
             }).eq('id', coll_id).execute()
 
             migrated += 1
@@ -429,14 +380,16 @@ def main():
     # TODO: adopt utils.cli.create_parser() for shared
     # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose flags.
     print("=" * 60)
-    print("SHOPIFY TO SUPABASE MEDIA MIGRATION")
+    print("SHOPIFY TO R2 MEDIA MIGRATION")
     print("=" * 60)
 
     # Validate environment
-    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SECRET_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
     if not SUPABASE_URL:
         missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')
+    if not R2_BUCKET:
+        missing.append('R2_BUCKET')
 
     if missing:
         print(f"\nError: Missing required environment variables: {', '.join(missing)}")

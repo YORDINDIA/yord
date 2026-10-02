@@ -7,6 +7,7 @@ import {
   handleSchema,
   htmlSchema,
   newProductSchema,
+  newCollectionSchema,
   orderStatusSchema,
   parseVariantRows,
   productSchema,
@@ -141,6 +142,20 @@ describe('productIdsSchema', () => {
     expect(productIdsSchema.parse('')).toEqual([]);
     expect(productIdsSchema.parse('   ')).toEqual([]);
   });
+
+  it('never fails, so a throwing parse cannot turn a bulk submit into a generic error', () => {
+    // `bulkUpdateCollectionStatusAction` reads repeated `ids` fields with
+    // `getAll('ids').join(',')` and parses the result with `.parse()`. The schema
+    // has no refinements, so that call is total: junk entries are dropped, the
+    // action's own empty-target guard handles the rest, and `withAdmin` never
+    // sees a ZodError it would report as "Something went wrong. Nothing was
+    // saved." Keep it that way if refinements are ever added here.
+    for (const input of ['', ',,,', 'abc', '0,-4', 'NaN,Infinity', '1e3', '1.5']) {
+      expect(productIdsSchema.safeParse(input).success).toBe(true);
+    }
+    expect(productIdsSchema.parse('NaN,Infinity,abc')).toEqual([]);
+    expect(productIdsSchema.parse('1e3,0x10')).toEqual([1000, 16]);
+  });
 });
 
 describe('collectionSchema', () => {
@@ -155,6 +170,112 @@ describe('collectionSchema', () => {
     });
     expect(parsed.published).toBe(true);
     expect(parsed.product_ids).toEqual([1, 2]);
+  });
+
+  it('accepts exactly what the editor form submits', () => {
+    // The editor renders: title, handle, collection_type, sort_order,
+    // image_src, published, body_html and the picker's hidden product_ids.
+    // `disjunctive` is rendered only for smart collections, so it must be
+    // optional — a custom collection's form omits it entirely.
+    const parsed = collectionSchema.parse({
+      id: '7',
+      title: 'Coldplay',
+      handle: 'coldplay',
+      collection_type: 'custom',
+      published: 'on',
+      body_html: '',
+      product_ids: '1,2',
+      image_src: 'https://cdn.example.com/coldplay.jpg',
+      sort_order: 'price-asc',
+    });
+    expect(parsed.collection_type).toBe('custom');
+    expect(parsed.sort_order).toBe('price-asc');
+    expect(parsed.disjunctive).toBe(false);
+    expect(parsed.image_src).toBe('https://cdn.example.com/coldplay.jpg');
+  });
+
+  it('accepts an empty image and a site-relative path', () => {
+    const base = { id: '7', title: 'T', handle: 't', body_html: '', product_ids: '' };
+    expect(collectionSchema.parse(base).image_src).toBe('');
+    expect(collectionSchema.parse({ ...base, image_src: '/images/hero.png' }).image_src).toBe(
+      '/images/hero.png',
+    );
+  });
+
+  it('rejects a javascript: image URL', () => {
+    // image_src ends up in an <Image src> on the admin and storefront.
+    const result = collectionSchema.safeParse({
+      id: '7',
+      title: 'T',
+      handle: 't',
+      body_html: '',
+      product_ids: '',
+      image_src: 'javascript:alert(1)',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts the manual (picker order) sort and rejects one outside the vocabulary', () => {
+    const manual = collectionSchema.safeParse({
+      id: '7',
+      title: 'T',
+      handle: 't',
+      body_html: '',
+      product_ids: '',
+      sort_order: 'manual',
+    });
+    expect(manual.success).toBe(true);
+
+    // Not a storefront sort value (and not `''`, which means "newest").
+    const result = collectionSchema.safeParse({
+      id: '7',
+      title: 'T',
+      handle: 't',
+      body_html: '',
+      product_ids: '',
+      sort_order: 'cheapest',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('newCollectionSchema', () => {
+  /**
+   * Exactly the fields NewCollectionForm renders for a smart collection. The
+   * product picker is rendered only for the custom type, so a smart submission
+   * carries no `product_ids` field at all — a schema that requires the string
+   * rejected the form with an error for a control that is not on the page, and
+   * creating a smart collection was impossible.
+   */
+  const SMART_CREATE = {
+    title: 'Coldplay',
+    handle: 'coldplay',
+    collection_type: 'smart',
+    published: 'on',
+    body_html: '',
+    image_src: '',
+    sort_order: '',
+  };
+
+  it('accepts a smart collection with no product_ids field', () => {
+    const result = newCollectionSchema.safeParse(SMART_CREATE);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.product_ids).toEqual([]);
+    expect(result.data.published).toBe(true);
+  });
+
+  it('accepts the custom submission with the picker hidden input', () => {
+    const result = newCollectionSchema.parse({ ...SMART_CREATE, product_ids: '12,34' });
+    expect(result.product_ids).toEqual([12, 34]);
+  });
+
+  it('accepts an empty picker value', () => {
+    expect(newCollectionSchema.parse({ ...SMART_CREATE, product_ids: '' }).product_ids).toEqual([]);
+  });
+
+  it('still rejects a non-string product_ids payload', () => {
+    expect(newCollectionSchema.safeParse({ ...SMART_CREATE, product_ids: 12 }).success).toBe(false);
   });
 });
 

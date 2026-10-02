@@ -221,7 +221,7 @@ export async function addProductImageAction(
       // only thing that puts an image at 0.
       position: 1,
       src: input.image_url,
-      supabase_url: input.image_url,
+      storage_url: input.image_url,
       alt: input.alt || null,
       created_at: now,
       updated_at: now,
@@ -254,7 +254,7 @@ export async function deleteProductImageAction(
 
     const { data: image, error: readError } = await context.service
       .from('product_images')
-      .select('id, product_id, supabase_url, alt')
+      .select('id, product_id, storage_url, alt')
       .eq('id', imageId)
       .maybeSingle();
     if (readError) return actionError('Could not load that image.');

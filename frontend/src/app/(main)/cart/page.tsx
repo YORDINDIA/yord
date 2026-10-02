@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { CartContent } from '@/features/cart/CartContent';
 
 export const metadata: Metadata = {
-  title: 'Shopping Bag | YORD India',
+  title: 'Shopping Bag',
   description: 'Review your cart and proceed to checkout. Premium artist-inspired fan merchandise.',
 };
 

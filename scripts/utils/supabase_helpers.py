@@ -1,7 +1,6 @@
 """Supabase helper functions for migration scripts."""
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence, TypedDict
 
@@ -9,7 +8,7 @@ from dotenv import load_dotenv
 from supabase import Client, create_client
 
 from .checkpoint import append_error
-from .config import resolve_supabase_url
+from .config import resolve_supabase_secret_key, resolve_supabase_url
 
 load_dotenv()
 
@@ -61,12 +60,12 @@ def get_supabase_client() -> Client:
         ValueError: If required environment variables are not set
     """
     supabase_url = resolve_supabase_url()
-    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    supabase_key = resolve_supabase_secret_key()
 
     if not supabase_url or not supabase_key:
         raise ValueError(
             "SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and "
-            "SUPABASE_SERVICE_ROLE_KEY environment variables must be set"
+            "SUPABASE_SECRET_KEY environment variables must be set"
         )
 
     return create_client(supabase_url, supabase_key)

@@ -28,7 +28,8 @@
 
 ## Media
 - Upload and reorder images; enforce alt text prompts.
-- Store in Supabase Storage and set `supabase_url`.
+- New uploads go to Cloudflare R2 and set `storage_url`; legacy Supabase Storage
+  URLs remain valid.
 
 ## Validation Rules
 - Unique `handle` per product.

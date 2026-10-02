@@ -2,13 +2,13 @@
 """
 Comprehensive Media Migration Script
 
-Migrates all Shopify media to Supabase Storage:
+Migrates all Shopify media to Cloudflare R2:
 - Article featured images
 - Article body HTML embedded images
 - Metafield file references
 
 Features:
-- WebP conversion with compression
+- One web-optimized WebP variant per image (max 1600px)
 - Local backup before upload
 - Checkpoint/resume capability
 - Dry-run mode
@@ -45,9 +45,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.image_processor import (
     ImageProcessor,
     BackupManager,
-    StorageUploader,
+    R2Uploader,
     is_shopify_cdn_url,
-    is_supabase_url,
     get_url_hash,
 )
 from utils.html_parser import (
@@ -72,7 +71,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
 MAX_WORKERS = 5
 BATCH_SIZE = 50
 
@@ -83,14 +81,14 @@ METAFIELDS_STORAGE_PATH = 'metafields'
 
 
 class ArticleFeaturedImageMigrator:
-    """Migrates article featured images to Supabase Storage."""
+    """Migrates article featured images to Cloudflare R2."""
 
     def __init__(
         self,
         supabase: Client,
         processor: ImageProcessor,
         backup_manager: BackupManager,
-        uploader: StorageUploader,
+        uploader: R2Uploader,
         dry_run: bool = False
     ):
         self.supabase = supabase
@@ -106,13 +104,13 @@ class ArticleFeaturedImageMigrator:
         limit = 1000
 
         while True:
-            # Query articles with Shopify CDN images and no supabase_image_url
+            # Query articles with Shopify CDN images and no storage_image_url
             response = self.supabase.table('articles').select(
                 'id, blog_id, title, image_src, image_alt'
             ).like(
                 'image_src', '%cdn.shopify.com%'
             ).or_(
-                'supabase_image_url.is.null,supabase_image_url.eq.'
+                'storage_image_url.is.null,storage_image_url.eq.'
             ).range(offset, offset + limit - 1).execute()
 
             if not response.data:
@@ -174,8 +172,8 @@ class ArticleFeaturedImageMigrator:
                 result['actions'].append('dry_run_skipped')
                 return result
 
-            # Upload to Supabase
-            storage_path = f'{ARTICLES_STORAGE_PATH}/{article["id"]}.webp'
+            # Upload to R2
+            storage_path = f'{ARTICLES_STORAGE_PATH}/{article["id"]}'
             public_url, error = self.uploader.upload_image(
                 storage_path,
                 webp_data,
@@ -186,12 +184,12 @@ class ArticleFeaturedImageMigrator:
                 result['error'] = f'Upload failed: {error}'
                 return result
 
-            result['supabase_url'] = public_url
-            result['actions'].append('uploaded_to_supabase')
+            result['storage_url'] = public_url
+            result['actions'].append('uploaded_to_r2')
 
             # Update database
             self.supabase.table('articles').update({
-                'supabase_image_url': public_url
+                'storage_image_url': public_url
             }).eq('id', article['id']).execute()
 
             result['actions'].append('database_updated')
@@ -211,7 +209,7 @@ class ArticleBodyImageMigrator:
         supabase: Client,
         processor: ImageProcessor,
         backup_manager: BackupManager,
-        uploader: StorageUploader,
+        uploader: R2Uploader,
         dry_run: bool = False
     ):
         self.supabase = supabase
@@ -346,7 +344,7 @@ class ArticleBodyImageMigrator:
                 return f'[DRY_RUN]{ARTICLE_CONTENT_STORAGE_PATH}/{article_id}/{url_hash}.webp'
 
             # Upload
-            storage_path = f'{ARTICLE_CONTENT_STORAGE_PATH}/{article_id}/{url_hash}.webp'
+            storage_path = f'{ARTICLE_CONTENT_STORAGE_PATH}/{article_id}/{url_hash}'
             public_url, error = self.uploader.upload_image(
                 storage_path,
                 webp_data,
@@ -374,7 +372,7 @@ class MetafieldFileMigrator:
         supabase: Client,
         processor: ImageProcessor,
         backup_manager: BackupManager,
-        uploader: StorageUploader,
+        uploader: R2Uploader,
         dry_run: bool = False
     ):
         self.supabase = supabase
@@ -392,7 +390,8 @@ class MetafieldFileMigrator:
         while True:
             try:
                 # Query metafields with file types and Shopify URLs
-                # Note: supabase_url column may not exist, so we query without it
+                # Note: the storage_url tracking column is not read here, so we
+                # query without it
                 response = self.supabase.table('metafields').select(
                     'id, owner_id, owner_resource, namespace, key, value, type'
                 ).in_(
@@ -467,7 +466,8 @@ class MetafieldFileMigrator:
             for old_url, new_url in url_map.items():
                 new_value = new_value.replace(old_url, new_url)
 
-            # Update only the value column (supabase_url column may not exist)
+            # Update only the value column (the storage_url tracking column is
+            # not written here)
             self.supabase.table('metafields').update({
                 'value': new_value
             }).eq('id', metafield['id']).execute()
@@ -578,7 +578,7 @@ class MediaMigrationOrchestrator:
         self.supabase = get_supabase_client()
         self.processor = ImageProcessor()
         self.backup = BackupManager()
-        self.uploader = StorageUploader(self.supabase, STORAGE_BUCKET)
+        self.uploader = R2Uploader()
         self.dry_run = dry_run
 
         # Initialize migrators
@@ -869,7 +869,7 @@ def main():
     # TODO: adopt utils.cli.create_parser() for shared
     # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose flags.
     parser = argparse.ArgumentParser(
-        description='Comprehensive Shopify media migration to Supabase',
+        description='Comprehensive Shopify media migration to Cloudflare R2',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -923,7 +923,8 @@ Examples:
     args = parser.parse_args()
 
     # Validate environment
-    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SECRET_KEY', 'R2_BUCKET', 'R2_ACCESS_KEY_ID',
+                     'R2_SECRET_ACCESS_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
     if not (os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')):
         missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')

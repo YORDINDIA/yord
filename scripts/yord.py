@@ -57,7 +57,16 @@ PIPELINE = [
 
 SUPABASE_ENV = [
     "SUPABASE_URL",
-    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SECRET_KEY",
+]
+
+# Media upload steps (migrate_media, optimize_images) write to Cloudflare R2.
+R2_ENV = [
+    "R2_BUCKET",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    # R2_ACCOUNT_ID is required too, but R2_ENDPOINT can replace it, so the
+    # pair is checked in r2_helpers.configure_r2() with one actionable message.
 ]
 
 SHOPIFY_ENV = [
@@ -111,7 +120,7 @@ def cmd_migrate(execute: bool, from_step: str) -> int:
         planned = [*args, "--execute"] if accepts_execute and execute else args
         print(f"  {name:12} {script} {' '.join(planned)}")
 
-    missing = missing_env(SUPABASE_ENV + SHOPIFY_ENV)
+    missing = missing_env(SUPABASE_ENV + R2_ENV + SHOPIFY_ENV)
     if missing:
         print(f"\nMissing env vars: {', '.join(missing)} (see root .env.example)")
     if not execute:
@@ -181,7 +190,7 @@ def main() -> int:
     if args.command == "blogs":
         return cmd_run("migrate_blogs.py", passthrough, SUPABASE_ENV + SHOPIFY_ENV)
     if args.command == "media":
-        return cmd_run("migrate_media.py", passthrough, SUPABASE_ENV + SHOPIFY_ENV)
+        return cmd_run("migrate_media.py", passthrough, SUPABASE_ENV + R2_ENV + SHOPIFY_ENV)
     if args.command == "collections":
         base = ["--mode=keyword"]
         return cmd_run(
@@ -190,7 +199,11 @@ def main() -> int:
             SUPABASE_ENV + SHOPIFY_ENV,
         )
     if args.command == "optimize":
-        return cmd_run("optimize_images.py", (["--resume"] if args.resume else []) + passthrough, SUPABASE_ENV)
+        return cmd_run(
+            "optimize_images.py",
+            (["--resume"] if args.resume else []) + passthrough,
+            SUPABASE_ENV + R2_ENV,
+        )
     return 2
 
 

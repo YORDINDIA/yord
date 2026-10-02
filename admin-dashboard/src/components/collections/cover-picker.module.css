@@ -1,0 +1,131 @@
+/* CoverField + library picker modal. Kept beside CollectionCoverPicker.tsx so
+   the two forms that embed the field share one module and globals.css stays
+   free of collections-specific classes. */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.previewRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.previewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.url {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pickerCard {
+  max-width: 720px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 200px;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.searchBox .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.sourceButtons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sourceActive {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  text-align: left;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.cell:hover,
+.cell:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cellMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 6px 6px;
+  min-width: 0;
+}
+
+.cellName {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellOwner {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

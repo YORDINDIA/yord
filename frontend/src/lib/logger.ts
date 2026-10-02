@@ -28,14 +28,16 @@ function errorDetail(error: unknown): string {
 
 /**
  * Scrub secret material before it reaches log aggregators. Covers the
- * Supabase service_role key name, the Razorpay key-secret env name,
- * Shopify (`shpat_`) and OpenAI (`sk-`) token prefixes, plus any
- * JWT-looking run (the service_role key itself is a JWT).
+ * Supabase service_role key name, opaque secret keys (`sb_secret_…`, which
+ * are not JWTs and so escape the JWT rule below), the Razorpay key-secret env
+ * name, Shopify (`shpat_`) and `sk-`-prefixed API token prefixes, plus any
+ * JWT-looking run (the legacy service_role key itself is a JWT).
  */
 function redactSecrets(value: string): string {
   return value
     .replace(/RAZORPAY_KEY_SECRET/gi, '[REDACTED]')
     .replace(/service_role/gi, '[REDACTED]')
+    .replace(/sb_secret_[A-Za-z0-9_-]+/g, '[REDACTED]')
     .replace(/shpat_[A-Za-z0-9_-]+/g, '[REDACTED]')
     .replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]')
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]');

@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertTriangle, CheckCircle2, Info, type LucideIcon } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 /**
@@ -32,6 +33,13 @@ export const TOAST_DURATION_MS = 4000;
 
 /** Max toasts on screen; older ones are dropped. */
 const MAX_VISIBLE = 3;
+
+/** Tone glyph. `.toast-<tone> svg` in globals.css colours the icon. */
+const TOAST_ICON: Record<ToastTone, LucideIcon> = {
+  success: CheckCircle2,
+  error: AlertTriangle,
+  info: Info,
+};
 
 let nextId = 0;
 
@@ -76,23 +84,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div className="toast-host" role="status" aria-live="polite">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`toast toast-${item.tone}`}
-            onClick={() => dismiss(item.id)}
-            onFocus={() => {
-              focusedRef.current = item.id;
-            }}
-            onBlur={() => {
-              if (focusedRef.current === item.id) focusedRef.current = null;
-            }}
-            aria-label={`Dismiss: ${item.message}`}
-          >
-            {item.message}
-          </button>
-        ))}
+        {items.map((item) => {
+          const Icon = TOAST_ICON[item.tone];
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`toast toast-${item.tone}`}
+              onClick={() => dismiss(item.id)}
+              onFocus={() => {
+                focusedRef.current = item.id;
+              }}
+              onBlur={() => {
+                if (focusedRef.current === item.id) focusedRef.current = null;
+              }}
+              aria-label={`Dismiss: ${item.message}`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              {item.message}
+            </button>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

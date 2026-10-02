@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "dist/**"],
-      "env": ["NEXT_PUBLIC_*", "SUPABASE_*", "RAZORPAY_*", "OPENAI_*"]
+      "env": ["NEXT_PUBLIC_*", "SUPABASE_*", "RAZORPAY_*", "AGNES_*"]
     },
     "lint": {},
     "typecheck": {},

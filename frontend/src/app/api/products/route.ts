@@ -15,7 +15,13 @@ const QuerySchema = z.object({
   handle: z.string().min(1).max(200).optional(),
   artist: z.string().max(200).optional(),
   type: z.string().max(200).optional(),
-  sort: z.enum(['newest', 'price-asc', 'price-desc', 'title']).default('newest'),
+  // No `.default('newest')`: absent means "the shopper passed no `?sort=`", and
+  // only the query helper knows whether that should fall back to a collection's
+  // own `sort_order`. Defaulting here would silently override it on pages 2+.
+  // `manual` is accepted because a collection whose default order is Manual
+  // seeds the grid with it — page 2+ must request the same order back. It is
+  // not in the shopper sort dropdown; it is just not *secret* either.
+  sort: z.enum(['newest', 'price-asc', 'price-desc', 'title', 'manual']).optional(),
   page: z.coerce.number().int().min(1).max(100).default(1),
   pageSize: z.coerce.number().int().min(1).max(48).default(20),
 });

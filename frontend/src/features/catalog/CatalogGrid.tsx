@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Grid, LayoutGrid, SlidersHorizontal, ChevronDown, Loader2 } from 'lucide-react';
@@ -71,7 +72,9 @@ interface CatalogGridProps {
  * The accumulated list is intentionally NOT written back to `?page=`: SSR
  * treats `page=N` as that page's slice, so a deepest-page URL would drop
  * previously appended products on refresh. Failure surfaces a retry button,
- * never a silent stall or a fake empty.
+ * never a silent stall or a fake empty. An SSR page past the end of the list
+ * shows the page-overflow state (message + link back to page 1) instead of the
+ * empty-collection copy, so it never contradicts the header's product count.
  */
 export function CatalogGrid({
   initialProducts,
@@ -157,6 +160,10 @@ export function CatalogGrid({
   };
 
   if (products.length === 0) {
+    // "This page has nothing" is not "this collection is empty": a deep
+    // `?page=` past the end would otherwise show the empty-collection copy
+    // under a header that says the collection has hundreds of products.
+    const pagePastEnd = initialPage > 1 && totalCount > 0;
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -164,11 +171,24 @@ export function CatalogGrid({
         className="py-24 text-center"
       >
         <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-muted mb-4">
-          {emptyTitle}
+          {pagePastEnd ? 'Nothing on this page' : emptyTitle}
         </p>
         <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-          {emptyMessage}
+          {pagePastEnd
+            ? `Page ${initialPage} is past the end of this list of ${totalCount} products.`
+            : emptyMessage}
         </p>
+        {pagePastEnd && (
+          // `pathname` only: page 1 of this route, dropping `?page=` (and any
+          // other query). `useSearchParams` is deliberately not used — it would
+          // opt the statically prerendered artist route into dynamic rendering.
+          <Link
+            href={pathname}
+            className="mt-8 inline-block px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors"
+          >
+            BACK TO PAGE 1
+          </Link>
+        )}
       </motion.div>
     );
   }
@@ -214,7 +234,10 @@ export function CatalogGrid({
                 >
                   <SlidersHorizontal size={16} className="text-text-muted" />
                   <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
-                    {DEFAULT_SORT_OPTIONS.find((o) => o.value === displaySort)?.label || 'Sort'}
+                    {DEFAULT_SORT_OPTIONS.find((o) => o.value === displaySort)?.label ||
+                      // `manual` is a collection default, not a dropdown choice:
+                      // the grid was seeded with the picker's saved order.
+                      (displaySort === 'manual' ? 'Curated' : 'Sort')}
                   </span>
                   <ChevronDown
                     size={14}

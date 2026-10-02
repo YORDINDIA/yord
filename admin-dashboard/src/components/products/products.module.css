@@ -1,0 +1,266 @@
+/* Product surfaces: stock tones, variant-table inputs, image tiles, lightbox.
+ *
+ * globals.css is the vocabulary; these are the product-only pieces. Compounds
+ * that must beat a global class (`.input`, `.media-tile-badge`) are written
+ * with doubled selectors so the rule cannot lose on stylesheet order, the same
+ * approach `components/data/data.module.css` uses.
+ */
+
+/* ── Stock tones ──────────────────────────────────────────────────────────── */
+
+.stockOk {
+  --tone: var(--text-subtle);
+}
+.stockLow {
+  --tone: var(--tone-amber);
+}
+.stockOut {
+  --tone: var(--tone-rose);
+}
+
+/* Quantity: dot + number, tinted only for low/out. */
+.qty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.qtyDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--tone, var(--text-subtle));
+}
+.qty.stockLow {
+  color: var(--tone-amber);
+}
+.qty.stockOut {
+  color: var(--tone-rose);
+}
+
+/* Compare-at price next to the live price. */
+.was {
+  margin-left: 5px;
+  color: var(--text-subtle);
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Catalog list cells. `.cell-media-title` / `.cell-media-sub` set no leading of
+   their own (`.cell-media-sub` pins 1.3), so the two-line product cell drifted
+   to ~39px and the price comparison line wrapped it to 43px. globals.css
+   documents 1.35 as the two-line target, so the list applies it to its own two
+   lines. Doubled class: it has to beat `.cell-media-sub`'s 1.3 regardless of
+   stylesheet order. */
+.productTitle.productTitle {
+  line-height: 1.35;
+}
+.productMeta.productMeta {
+  line-height: 1.35;
+}
+
+/* ── Variant table ────────────────────────────────────────────────────────── */
+
+/* Single-line variant title and SKU. `DataTable` has no per-column cell class,
+   so the cap lives on the cell's only child: a block with `max-width` caps the
+   column's min-content contribution, which is what keeps a long title from
+   stretching the table. Row height is then set by the 30px inputs below. */
+.variantTitle {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skuText {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.numCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+/* Doubled class: the input also carries the global `.input`, whose
+   `width: 100%` would otherwise win on stylesheet order. */
+.numInput.numInput {
+  width: 94px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Border tint for a low/out row, but never over the focus ring. */
+.stockLow .numInput:not(:focus) {
+  border-color: var(--tone-amber-line);
+}
+.stockOut .numInput:not(:focus) {
+  border-color: var(--tone-rose-line);
+}
+
+/* ── Side-rail text rows ────────────────────────────────────────────────────
+   `.side-rail` is a fixed 320px column: 294px of content inside a card
+   (320 − 2×12 padding − 2×1 border). Flex items default to `min-width: auto`
+   (their min-content width), so a nowrap value or a long word overflows the
+   card instead of truncating. Every text row in the rail composes these. */
+
+.railRow {
+  min-width: 0;
+}
+.railLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.railValue {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.wrapRow {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.iconFixed {
+  flex: none;
+}
+
+/* A chip may not be wider than its card. The ellipsis lives on the inner span
+   because `text-overflow` does not apply to an inline-flex box. */
+.chipCap {
+  max-width: 100%;
+  min-width: 0;
+}
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Stock card: ProgressBar rows ───────────────────────────────────────────
+   `ProgressBar` (a shared component) renders its label line as
+   `.stack-sm > .row-between > .helper + .helper.num`. The label keeps its
+   min-content width and the percentage is unbreakable, so a long variant title
+   pushed the row 8px past the rail (302px of content in a 294px box). Scoped to
+   this card's bar list: the label shrinks and ellipsises, the percentage never
+   shrinks. Descendant `:global()` is required because the spans belong to the
+   shared component; the selector still carries the local `.bars` class, so it
+   is not a top-level global rule. */
+
+.bars {
+  min-width: 0;
+}
+.bars :global(.row-between) {
+  min-width: 0;
+}
+.bars :global(.row-between .helper:first-child) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bars :global(.row-between .helper:last-child) {
+  flex: none;
+}
+
+/* ── Image tiles ──────────────────────────────────────────────────────────── */
+
+.tilePreview {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  cursor: zoom-in;
+}
+.tilePreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Position number: the same chip as `.media-tile-badge`, moved to the
+   top-right. Doubled class so it beats the global `left: 6px` regardless of
+   stylesheet order. */
+.tilePos.tilePos {
+  left: auto;
+  right: 6px;
+}
+
+.tileEmpty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 132px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.addForm {
+  margin-top: 10px;
+}
+
+/* ── Storefront preview ───────────────────────────────────────────────────── */
+
+.previewFrame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+}
+.previewFrame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Image lightbox ───────────────────────────────────────────────────────── */
+
+.lightbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: min(720px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-pop);
+}
+.lightboxImage {
+  align-self: center;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 66vh;
+  border-radius: 8px;
+  object-fit: contain;
+}

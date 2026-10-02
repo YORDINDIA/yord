@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Image Optimization Script for Supabase Storage
+Image Optimization Script for R2-backed media
 
 Features:
 - Compresses images > 500KB while maintaining clarity
@@ -9,6 +9,12 @@ Features:
 - Updates database references
 - Supports resume from checkpoint
 - Parallel processing
+
+Works on any URL stored in `product_images.storage_url`: assets already on R2
+are re-uploaded under the same object key as the optimized WebP, and legacy
+Supabase Storage assets are copied to R2 as part of the optimization. When the
+stored URL points at this bucket, the superseded object is deleted after the
+new variant lands; Supabase originals are left in place.
 
 Usage:
     python optimize_images.py              # Full optimization
@@ -29,6 +35,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Tuple, List, Dict, Any
 from urllib.parse import urlparse, unquote
+import re
 
 import cv2
 import numpy as np
@@ -40,15 +47,20 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.supabase_helpers import get_supabase_client
-from utils.config import resolve_supabase_url
+from utils.config import (
+    resolve_r2_bucket,
+    resolve_supabase_secret_key,
+    resolve_supabase_url,
+)
+from utils.r2_helpers import delete_image, is_r2_url, key_from_public_url, upload_image
 
 # Load environment variables
 load_dotenv()
 
 # Configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example)
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
+R2_BUCKET = resolve_r2_bucket()
 
 # Optimization settings
 TARGET_SIZE_KB = 500
@@ -64,6 +76,12 @@ GREEN_HUE_RANGE = (35, 85)
 GREEN_SAT_MIN = 40
 GREEN_VAL_MIN = 40
 EDGE_GREEN_THRESHOLD = 0.30  # 30% of edges must be green
+
+# URL shapes the object-key derivation understands. Only the endpoint prefix
+# is consumed for Supabase: what follows is the bucket + object
+# path, and the object path itself starts with `products/` for product images
+# (matching the ids new uploads use).
+SUPABASE_PUBLIC_RE = re.compile(r'/storage/v1/object/public/')
 
 
 class ImageProcessor:
@@ -226,38 +244,36 @@ class ImageProcessor:
 
 
 class StorageManager:
-    """Handles Supabase storage operations."""
+    """Handles storage reads/writes: download by URL, upload/delete on R2."""
 
     def __init__(self, supabase: Client):
         self.supabase = supabase
-        self.bucket = STORAGE_BUCKET
 
     def get_all_images_to_process(self) -> List[Dict[str, Any]]:
-        """Get all product images that have been migrated to Supabase."""
+        """Get all product images that have been migrated to storage."""
         images = []
         offset = 0
         limit = 1000
 
         while True:
             response = self.supabase.table('product_images').select(
-                'id, product_id, supabase_url, src'
-            ).not_.is_('supabase_url', 'null').neq(
-                'supabase_url', ''
+                'id, product_id, storage_url, src'
+            ).not_.is_('storage_url', 'null').neq(
+                'storage_url', ''
             ).range(offset, offset + limit - 1).execute()
 
             if not response.data:
                 break
 
             for row in response.data:
-                path = self._extract_path_from_url(row['supabase_url'])
-                if path:
-                    images.append({
-                        'id': row['id'],
-                        'product_id': row['product_id'],
-                        'path': path,
-                        'url': row['supabase_url'],
-                        'original_src': row.get('src', '')
-                    })
+                url = row['storage_url']
+                images.append({
+                    'id': row['id'],
+                    'product_id': row['product_id'],
+                    'key': self._object_key_from_url(url, row),
+                    'url': url,
+                    'original_src': row.get('src', '')
+                })
 
             offset += limit
             if len(response.data) < limit:
@@ -265,61 +281,74 @@ class StorageManager:
 
         return images
 
-    def _extract_path_from_url(self, url: str) -> Optional[str]:
-        """Extract storage path from Supabase public URL."""
-        # URL: https://xxx.supabase.co/storage/v1/object/public/products/123/456.jpg
-        parts = url.split(f'/public/{self.bucket}/')
-        if len(parts) > 1:
-            return parts[1]
-        return None
+    def _object_key_from_url(self, url: str, row: Dict[str, Any]) -> str:
+        """Derive the R2 object key an asset should live under.
 
-    def download_image(self, path: str, max_retries: int = 3) -> bytes:
-        """Download image from Supabase storage with retry logic."""
+        R2 public URLs carry the key directly (`products/<handle>/01.webp`);
+        legacy Supabase URLs map to the same path shape. Anything unrecognized
+        falls back to `products/<product_id>/<image_id>` so the upload still
+        has a deterministic, collision-free key.
+        """
+        path = urlparse(url).path
+
+        if is_r2_url(url):
+            path = key_from_public_url(url)
+        elif 'supabase.co/storage' in url.lower():
+            parts = SUPABASE_PUBLIC_RE.split(unquote(path), maxsplit=1)
+            path = parts[1] if len(parts) > 1 else path.lstrip('/')
+        else:
+            path = unquote(path).lstrip('/')
+
+        # Drop the extension: `upload_image` re-derives it from the variant.
+        root, _ext = os.path.splitext(path)
+        if not root:
+            return f"products/{row['product_id']}/{row['id']}"
+        return root
+
+    def download_image(self, url: str, max_retries: int = 3) -> bytes:
+        """Download an image from any storage URL with retry logic."""
         # TODO: route this loop through utils.retry.retry_with_backoff
         # (adds Retry-After + jitter); left as-is to avoid behavior change
         # in the threaded optimize path without test cover.
         last_error = None
         for attempt in range(max_retries):
             try:
-                response = self.supabase.storage.from_(self.bucket).download(path)
-                return response
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                return response.content
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
         raise last_error
 
-    def upload_image(self, path: str, data: bytes, content_type: str = 'image/webp', max_retries: int = 3) -> str:
-        """Upload image to Supabase storage and return public URL with retry logic."""
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                self.supabase.storage.from_(self.bucket).upload(
-                    path,
-                    data,
-                    file_options={
-                        'content-type': content_type,
-                        'upsert': 'true'
-                    }
-                )
-                return self.supabase.storage.from_(self.bucket).get_public_url(path)
-            except Exception as e:
-                last_error = e
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-        raise last_error
+    def upload_image(self, key: str, data: bytes, content_type: str = 'image/webp',
+                     max_retries: int = 3, previous_url: str = '') -> str:
+        """Upload optimized bytes to R2 and return the public URL.
 
-    def delete_image(self, path: str) -> bool:
-        """Delete image from Supabase storage."""
-        try:
-            self.supabase.storage.from_(self.bucket).remove([path])
-            return True
-        except Exception:
-            return False
+        Uploading under the same key overwrites the previous object, so there
+        is no separate "replace" step. The variant policy rewrites the key's
+        extension to `.webp`; when that changes the key, the superseded object
+        from this bucket is deleted best-effort so orphans do not accumulate.
+        """
+        new_url, error = upload_image(key, data, content_type, max_retries=max_retries)
+        if error:
+            raise RuntimeError(error)
 
-    def get_file_size(self, path: str) -> int:
-        """Get file size in bytes by downloading (Supabase doesn't have metadata API)."""
-        data = self.download_image(path)
+        if previous_url and previous_url != new_url and is_r2_url(previous_url):
+            previous_key = key_from_public_url(previous_url)
+            if previous_key and previous_key != key_from_public_url(new_url):
+                delete_image(previous_key)
+
+        return new_url
+
+    def delete_image(self, key: str) -> bool:
+        """Delete an object from R2."""
+        return delete_image(key)
+
+    def get_file_size(self, url: str) -> int:
+        """Get file size in bytes by downloading."""
+        data = self.download_image(url)
         return len(data)
 
 
@@ -330,9 +359,9 @@ class DatabaseManager:
         self.supabase = supabase
 
     def update_product_image_url(self, image_id: int, new_url: str):
-        """Update product_images.supabase_url with new WebP URL."""
+        """Update product_images.storage_url with the new WebP URL."""
         self.supabase.table('product_images').update({
-            'supabase_url': new_url
+            'storage_url': new_url
         }).eq('id', image_id).execute()
 
 
@@ -359,13 +388,6 @@ class OptimizationOrchestrator:
             'errors': []
         }
 
-    def _change_extension(self, path: str, new_ext: str) -> str:
-        """Change file extension to new_ext (e.g., '.webp')."""
-        parts = path.rsplit('.', 1)
-        if len(parts) == 2:
-            return f"{parts[0]}{new_ext}"
-        return f"{path}{new_ext}"
-
     def save_checkpoint(self, processed_ids: set, failed_ids: set):
         """Save progress for recovery."""
         with open(self.checkpoint_file, 'w') as f:
@@ -390,20 +412,20 @@ class OptimizationOrchestrator:
         result = {
             'id': image_info['id'],
             'product_id': image_info['product_id'],
-            'original_path': image_info['path'],
+            'original_key': image_info['key'],
             'success': False,
             'actions': [],
             'error': None
         }
 
         try:
-            # Step 1: Download image
-            file_data = self.storage.download_image(image_info['path'])
+            # Step 1: Download image (R2 or legacy Supabase URL)
+            file_data = self.storage.download_image(image_info['url'])
             original_size = len(file_data)
             result['original_size_kb'] = round(original_size / 1024, 2)
 
             # Skip if already WebP and under target size (already optimized)
-            if image_info['path'].lower().endswith('.webp') and original_size <= TARGET_SIZE_KB * 1024:
+            if image_info['url'].lower().endswith('.webp') and original_size <= TARGET_SIZE_KB * 1024:
                 # Still check for green background
                 image_array = self.processor.bytes_to_cv2(file_data)
                 has_green, green_mask = self.processor.detect_green_background(image_array)
@@ -449,20 +471,19 @@ class OptimizationOrchestrator:
                 result['actions'].append('dry_run_skipped')
                 return result
 
-            # Step 6: Upload new WebP version
-            old_path = image_info['path']
-            new_path = self._change_extension(old_path, '.webp')
-
-            new_url = self.storage.upload_image(new_path, compressed_data, 'image/webp')
-            result['new_path'] = new_path
+            # Step 6: Upload the optimized WebP to R2 under the same key
+            # (overwrites the previous variant; a legacy Supabase original
+            # stays where it is).
+            new_url = self.storage.upload_image(
+                image_info['key'],
+                compressed_data,
+                'image/webp',
+                previous_url=image_info['url'],
+            )
+            result['new_key'] = image_info['key']
             result['new_url'] = new_url
 
-            # Step 7: Delete old file if extension changed
-            if old_path.lower() != new_path.lower():
-                self.storage.delete_image(old_path)
-                result['actions'].append('deleted_original')
-
-            # Step 8: Update database
+            # Step 7: Update database
             self.db.update_product_image_url(image_info['id'], new_url)
             result['actions'].append('db_updated')
 
@@ -482,7 +503,7 @@ class OptimizationOrchestrator:
     ):
         """Main optimization function with parallel processing."""
         print("\n" + "=" * 60)
-        print("IMAGE OPTIMIZATION: Supabase Storage")
+        print("IMAGE OPTIMIZATION: Cloudflare R2 (legacy Supabase assets included)")
         print("=" * 60)
 
         if self.dry_run:
@@ -592,7 +613,7 @@ def main():
     # --dry-run/--execute/--checkpoint-file/--batch-size/--verbose surface
     # (kept bespoke for now: --sample/--workers have no shared equivalent).
     parser = argparse.ArgumentParser(
-        description='Optimize images in Supabase storage',
+        description='Optimize images in Cloudflare R2 storage',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -629,10 +650,12 @@ Examples:
     args = parser.parse_args()
 
     # Validate environment
-    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SECRET_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
     if not SUPABASE_URL:
         missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')
+    if not R2_BUCKET:
+        missing.append('R2_BUCKET')
 
     if missing:
         print(f"\nError: Missing required environment variables: {', '.join(missing)}")

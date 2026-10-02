@@ -35,14 +35,26 @@ export function pageRange(
 /**
  * Build a search term safe to interpolate into a PostgREST `.or()` filter.
  *
- * `%`, `(`, `)`, `,` and `"` are the characters PostgREST uses as filter
- * syntax. Stripping them keeps a hostile query string from changing the shape
- * of the filter, then clamp the length so a 10k-character query cannot become
- * a slow query.
+ * Shared by every admin list search — products, orders, customers, blogs,
+ * media, discounts, settings, inventory, collections and the global search —
+ * so what it strips is the contract for all of them.
+ *
+ * Two groups, for two different reasons:
+ *
+ *  - `%`, `(`, `)`, `,` and `"` are PostgREST filter syntax. Stripping them
+ *    keeps a hostile query string from changing the shape of the filter.
+ *  - `_` and `*` are LIKE wildcards, which silently widen a match instead of
+ *    breaking it: `*` is PostgREST's alias for `%`, and a bare `_` matches any
+ *    single character (both verified against the live endpoint). Searching
+ *    `t_shirt` therefore matched `t-shirt` and `tXshirt`. Stripping them makes
+ *    the typed text match itself, the same way `%` already does. The trade-off
+ *    is deliberate: a query that used `_`/`*` as a wildcard no longer does.
+ *
+ * The length is clamped so a 10k-character query cannot become a slow query.
  */
 export function sanitizeSearch(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.replace(/[%(),"]/g, '').trim().slice(0, MAX_SEARCH_LENGTH);
+  return value.replace(/[%(),"_*]/g, '').trim().slice(0, MAX_SEARCH_LENGTH);
 }
 
 /**

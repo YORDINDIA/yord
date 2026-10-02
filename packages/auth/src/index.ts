@@ -10,27 +10,27 @@ const noopCookies: CookieMethods = {
   setAll: () => {},
 };
 
-export function createBrowserSupabase(supabaseUrl: string, supabaseAnonKey: string) {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+export function createBrowserSupabase(supabaseUrl: string, publishableKey: string) {
+  return createBrowserClient(supabaseUrl, publishableKey);
 }
 
 export function createServerSupabase(
   supabaseUrl: string,
-  supabaseAnonKey: string,
+  publishableKey: string,
   cookies: CookieMethods
 ) {
-  return createServerClient(supabaseUrl, supabaseAnonKey, { cookies });
+  return createServerClient(supabaseUrl, publishableKey, { cookies });
 }
 
-export function createStaticSupabase(supabaseUrl: string, supabaseAnonKey: string) {
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+export function createStaticSupabase(supabaseUrl: string, publishableKey: string) {
+  return createServerClient(supabaseUrl, publishableKey, {
     cookies: noopCookies,
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
-export function createServiceSupabase(supabaseUrl: string, serviceRoleKey: string) {
-  return createServerClient(supabaseUrl, serviceRoleKey, {
+export function createServiceSupabase(supabaseUrl: string, secretKey: string) {
+  return createServerClient(supabaseUrl, secretKey, {
     cookies: noopCookies,
     auth: { autoRefreshToken: false, persistSession: false },
   });

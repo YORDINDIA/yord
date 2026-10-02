@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { playfairDisplay, cormorantGaramond, plusJakartaSans, bebasNeue } from "@/lib/fonts";
 import { ClientProviders } from "@/providers/ClientProviders";
+
+// Both are env-gated: unset means no tag is rendered, which is what keeps
+// local dev and CI clean (see .env.example → ANALYTICS & MONITORING).
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yordindia.com"),
@@ -82,6 +88,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://yordindia.com",
   },
+  // Google Search Console meta-tag verification; omitted entirely when unset.
+  verification: googleSiteVerification ? { google: googleSiteVerification } : undefined,
   category: "E-Commerce",
 };
 
@@ -105,6 +113,8 @@ export default function RootLayout({
           <div className="noise-overlay" aria-hidden="true" />
           {children}
         </ClientProviders>
+        {/* GA4: pageviews (including SPA route changes) are automatic. */}
+        {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
       </body>
     </html>
   );

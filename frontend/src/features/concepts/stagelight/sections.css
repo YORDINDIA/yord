@@ -1,0 +1,330 @@
+/* Chapters 02-06. Shared atoms and tokens live in stagelight.css. */
+
+/* ---------- 02 tonight ---------- */
+
+.sl-tonight {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(32px, 4vw, 56px);
+}
+
+.sl-tonight__list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(48px, 6vw, 88px);
+}
+
+.sl-show__stage {
+  position: relative;
+  display: grid;
+  gap: clamp(24px, 3vw, 48px);
+  padding: clamp(24px, 3.4vw, 52px);
+  overflow: clip;
+  background-image: linear-gradient(
+    to left,
+    color-mix(in srgb, var(--sl-gold) 9%, transparent) 0%,
+    color-mix(in srgb, var(--sl-gold) 6.75%, transparent) 25%,
+    color-mix(in srgb, var(--sl-gold) 4.5%, transparent) 50%,
+    color-mix(in srgb, var(--sl-gold) 2.25%, transparent) 75%,
+    transparent 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sl-gold) 24%, transparent);
+}
+
+.sl-show__stage > * { position: relative; z-index: 1; }
+
+/* One band of light crosses the panel on hover or focus. Transform only. */
+.sl-show__stage::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  pointer-events: none;
+  transform: translateX(-130%) skewX(-18deg);
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    color-mix(in srgb, var(--sl-gold) 3%, transparent) 25%,
+    color-mix(in srgb, var(--sl-gold) 11%, transparent) 55%,
+    color-mix(in srgb, var(--sl-gold) 3%, transparent) 80%,
+    transparent 100%
+  );
+}
+
+.sl-show__stage:hover::after,
+.sl-show__stage:focus-within::after {
+  animation: sl-pass 1.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sl-pass {
+  from { transform: translateX(-130%) skewX(-18deg); }
+  to { transform: translateX(300%) skewX(-18deg); }
+}
+
+.sl-show__info {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sl-show__when { margin: 0; font-weight: 600; font-size: 0.95rem; }
+
+.sl-show__city {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(2.6rem, 14cqw, 6.4rem);
+  line-height: 0.92;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.sl-show__venue { margin: 0; font-size: 1rem; }
+
+.sl-show__artist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 12px;
+  font-size: 0.9rem;
+}
+
+.sl-show__artist > span:first-child { font-size: 1.3rem; font-weight: 600; }
+
+.sl-show__photo {
+  --c: 30px;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 4 / 5;
+  justify-self: center;
+}
+
+.sl-show__photo .sl-chamfer__in { isolation: isolate; }
+.sl-show__photo img { filter: grayscale(1) contrast(1.08); transition: filter 0.6s ease; }
+.sl-show__photo .sl-chamfer__in::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sl-duo);
+  mix-blend-mode: multiply;
+  transition: opacity 0.6s ease;
+}
+.sl-show__stage:hover .sl-show__photo img,
+.sl-show__stage:focus-within .sl-show__photo img { filter: none; }
+.sl-show__stage:hover .sl-show__photo .sl-chamfer__in::after,
+.sl-show__stage:focus-within .sl-show__photo .sl-chamfer__in::after { opacity: 0; }
+
+.sl-show__rack { padding: clamp(16px, 2.4vw, 32px); }
+
+@media (min-width: 768px) {
+  .sl-show__stage {
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 32%, 400px);
+    align-items: center;
+  }
+  .sl-show[data-flip='true'] .sl-show__stage { grid-template-columns: clamp(240px, 32%, 400px) minmax(0, 1fr); }
+  .sl-show[data-flip='true'] .sl-show__photo { order: -1; }
+}
+
+/* ---------- 03 the lineup ---------- */
+
+.sl-lineup { display: flex; flex-direction: column; gap: clamp(28px, 4vw, 48px); }
+
+.sl-lineup__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px clamp(20px, 3vw, 40px);
+}
+
+.sl-lineup__count { display: flex; align-items: baseline; gap: 10px; margin: 0; font-size: 1rem; }
+.sl-lineup__num { font-weight: 800; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 1; }
+
+/* The strip bleeds to the right edge of the page so the next artist peeks in. */
+.sl-strips {
+  margin-inline: calc(var(--sl-pad-l) * -1) calc(var(--sl-pad-r) * -1);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--sl-pad-l);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--sl-gold) 55%, var(--scrim)) transparent;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--sl-pad-l), #000 calc(100% - var(--sl-pad-r)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--sl-pad-l), #000 calc(100% - var(--sl-pad-r)), transparent 100%);
+}
+
+.sl-strips__track {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(14px, 1.8vw, 28px);
+  width: max-content;
+  margin: 0;
+  padding: 0 var(--sl-pad-r) 36px var(--sl-pad-l);
+  list-style: none;
+}
+
+.sl-strip {
+  flex: none;
+  width: clamp(172px, 22vw, 280px);
+  scroll-snap-align: start;
+}
+
+.sl-strip:nth-child(even) { margin-top: clamp(20px, 3vw, 44px); }
+
+.sl-strip__link { display: block; }
+
+.sl-strip__photo {
+  position: relative;
+  display: block;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--scrim);
+}
+
+.sl-strip__img {
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.08);
+  transition: filter 0.5s ease;
+}
+
+/* Rest state is a gold duotone: grayscale image under a multiplied gold layer. */
+.sl-strip__photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sl-duo);
+  mix-blend-mode: multiply;
+  transition: opacity 0.5s ease;
+}
+
+.sl-strip__link:hover .sl-strip__img,
+.sl-strip__link:focus-visible .sl-strip__img { filter: none; }
+.sl-strip__link:hover .sl-strip__photo::after,
+.sl-strip__link:focus-visible .sl-strip__photo::after { opacity: 0; }
+
+@supports (animation-timeline: view()) {
+  .sl-strip__img {
+    animation: sl-shift linear both;
+    animation-timeline: view(inline);
+  }
+}
+
+@keyframes sl-shift {
+  from { transform: translateX(-9%) scale(1.22); }
+  to { transform: translateX(9%) scale(1.22); }
+}
+
+.sl-strip__name {
+  display: block;
+  margin-top: 14px;
+  font-weight: 600;
+  font-size: 1.3rem;
+  line-height: 1.1;
+  text-wrap: balance;
+  transition: color 0.2s ease;
+}
+
+.sl-strip__link:hover .sl-strip__name { color: var(--accent-on-media); }
+
+.sl-strip__tag { display: block; margin-top: 4px; font-size: 0.82rem; line-height: 1.35; }
+
+/* ---------- 04 the collection ---------- */
+
+.sl-collection { display: flex; flex-direction: column; gap: clamp(28px, 4vw, 48px); }
+
+.sl-collection__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px clamp(20px, 3vw, 40px);
+}
+
+/* ---------- 05 backstage ---------- */
+
+.sl-backstage__rails {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(56px, 8vw, 112px);
+}
+
+.sl-rail {
+  --rail: var(--accent);
+  container-type: inline-size;
+  position: relative;
+  padding-top: clamp(24px, 3vw, 40px);
+}
+
+/* Light from the avatar side: linear falloff, 12% at the edge to nothing. */
+.sl-rail__light {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sl-pad-l) * -1);
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--rail) 12%, transparent) 0%,
+    color-mix(in srgb, var(--rail) 9%, transparent) 25%,
+    color-mix(in srgb, var(--rail) 6%, transparent) 50%,
+    color-mix(in srgb, var(--rail) 3%, transparent) 75%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .sl-rail__light { left: calc((var(--sl-gutter) + var(--sl-pad-l)) * -1); }
+}
+
+.sl-rail > :not(.sl-rail__light) { position: relative; z-index: 1; }
+
+.sl-rail__giant {
+  margin: 0;
+  padding-inline: 4%;
+  font-weight: 800;
+  /* ~0.38em per glyph: --chars keeps long names inside the padded track. */
+  font-size: min(15cqw, 11rem, calc(226cqw / var(--chars, 12)));
+  line-height: 1.05;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in srgb, var(--text-primary) 24%, transparent);
+  pointer-events: none;
+  user-select: none;
+}
+
+.sl-rail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin: calc(min(14cqw, 11rem) * -0.12) 0 clamp(20px, 2.4vw, 32px);
+}
+
+@media (min-width: 768px) {
+  .sl-rail__head { margin-top: calc(min(14cqw, 11rem) * -0.34); }
+}
+
+.sl-rail__avatar { --c: 18px; flex: none; width: 88px; height: 88px; }
+
+.sl-rail__id { flex: 1 1 14rem; min-width: 0; }
+.sl-rail__id h3 { margin: 0; font-weight: 700; font-size: clamp(1.4rem, 2.4vw, 2rem); line-height: 1.1; }
+.sl-rail__id p { margin: 4px 0 0; font-size: 0.9rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-rail__giant { transform: none !important; }
+  .sl-show__stage:hover::after,
+  .sl-show__stage:focus-within::after { animation: none; }
+  .sl-strip__img { animation: none !important; transform: scale(1.1); }
+  .sl-strip__img,
+  .sl-show__photo img,
+  .sl-show__photo .sl-chamfer__in::after,
+  .sl-strip__photo::after,
+  .sl-strip__name { transition: none; }
+}

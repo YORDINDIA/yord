@@ -1,53 +1,85 @@
-"use client";
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LayoutDashboard, Package, FolderKanban, Warehouse, ShoppingBag, Users, Tags, NotebookPen, Image, Sparkles, BarChart3, Settings, ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react';
 import clsx from 'clsx';
+import BrandShimmer from '@/components/reactbits/BrandShimmer';
+import { SECTIONS, SECTION_GROUPS, sectionKeyForPath, type SectionKey } from '@/lib/sections';
+import styles from './layout.module.css';
 
-const navGroups = [
-  {
-    label: 'Sell',
-    items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/orders', label: 'Orders', icon: ShoppingBag },
-      { href: '/customers', label: 'Customers', icon: Users },
-      { href: '/discounts', label: 'Discounts', icon: Tags },
-    ],
-  },
-  {
-    label: 'Catalog',
-    items: [
-      { href: '/products', label: 'Catalog', icon: Package },
-      { href: '/collections', label: 'Collections', icon: FolderKanban },
-      { href: '/inventory', label: 'Inventory', icon: Warehouse },
-      { href: '/media', label: 'Media', icon: Image },
-    ],
-  },
-  {
-    label: 'Create',
-    items: [
-      { href: '/blogs', label: 'Content', icon: NotebookPen },
-      { href: '/ai', label: 'AI Studio', icon: Sparkles },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/settings', label: 'Settings', icon: Settings },
-    ],
-  },
-];
+/**
+ * The admin rail: 232px expanded, 60px collapsed (`.app-shell:has(.sidebar-collapsed)`
+ * re-points the grid column in globals.css), 250px as a fixed overlay at ≤980px.
+ *
+ * Nav data comes from `@/lib/sections` — the same map the breadcrumbs, the page
+ * headers, and the per-section accent hue read. `data-section` on each link is
+ * what gives the entry its own colour, active or not.
+ */
 
-export default function Sidebar() {
+/** localStorage key holding the rail's collapsed/expanded choice. */
+const COLLAPSE_KEY = 'yord-admin-sidebar';
+
+/** Which entries carry a live count, and in which tone. */
+const BADGE_TONES: Partial<Record<SectionKey, string>> = {
+  orders: 'tone-blue',
+  inventory: 'tone-amber',
+};
+
+const BADGE_LABELS: Partial<Record<SectionKey, string>> = {
+  orders: 'awaiting fulfillment',
+  inventory: 'low on stock',
+};
+
+/** Collapsed rail tooltip: the label, plus the count the hidden badge carries. */
+function navTitle(key: SectionKey, count: number): string {
+  const label = SECTIONS[key].label;
+  const badge = count > 0 ? BADGE_LABELS[key] : undefined;
+  return badge ? `${label} — ${count} ${badge}` : label;
+}
+
+/**
+ * Read the stored collapse choice once, lazily (the ThemeToggle pattern). SSR
+ * renders expanded; a stored choice flips the class on the first client render.
+ * No structural mismatch: the labels are always rendered and hidden in CSS.
+ */
+function readCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
+  } catch {
+    return false; // storage unavailable (private mode): stay expanded
+  }
+}
+
+export default function Sidebar({
+  badges,
+}: {
+  badges: { fulfillmentQueue: number; lowStock: number };
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  function isActive(href: string) {
-    return pathname === href || pathname.startsWith(href + '/');
+  // `/articles/*` resolves to the Content section, unknown paths to Dashboard,
+  // so exactly one entry is ever active.
+  const activeKey = sectionKeyForPath(pathname);
+
+  function countFor(key: SectionKey): number {
+    if (key === 'orders') return badges.fulfillmentQueue;
+    if (key === 'inventory') return badges.lowStock;
+    return 0;
+  }
+
+  function toggleCollapsed() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, next ? 'collapsed' : 'expanded');
+    } catch {
+      // The choice just does not survive a reload.
+    }
   }
 
   return (
@@ -55,33 +87,65 @@ export default function Sidebar() {
       <button
         type="button"
         className="button icon-button sidebar-fab"
-        aria-label="Toggle navigation"
-        onClick={() => setMobileOpen((v) => !v)}
+        aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen((open) => !open)}
       >
         {mobileOpen ? <X size={18} /> : <Menu size={18} />}
       </button>
-      <aside className={clsx('sidebar', collapsed && 'sidebar-collapsed', mobileOpen && 'sidebar-open')}>
+
+      <aside
+        className={clsx(
+          'sidebar',
+          collapsed && 'sidebar-collapsed',
+          collapsed && styles.collapsed,
+          mobileOpen && 'sidebar-open',
+        )}
+        aria-label="Admin sections"
+      >
         <div className="brand">
-          <span className="brand-sub">YORD INDIA</span>
-          {!collapsed && <span className="brand-title">Control Room</span>}
+          <span className="brand-mark" aria-hidden="true">
+            Y
+          </span>
+          <span className="brand-text">
+            {/* The shimmer sweep is the brand's only motion in the
+                chrome: the wordmark catches the accent light as it
+                passes, and goes perfectly still under reduced motion. */}
+            <BrandShimmer text="Control Room" className="brand-title" />
+            <span className="brand-sub">YORD India</span>
+          </span>
         </div>
+
         <nav className="nav-groups">
-          {navGroups.map((group) => (
+          {SECTION_GROUPS.map((group) => (
             <div key={group.label} className="nav-section">
-              {!collapsed && <div className="nav-section-label">{group.label}</div>}
+              <div className="nav-section-label">{group.label}</div>
               <div className="nav-group">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
+                {group.keys.map((key) => {
+                  const section = SECTIONS[key];
+                  const Icon = section.icon;
+                  const count = countFor(key);
+                  const tone = BADGE_TONES[key];
                   return (
                     <Link
-                      key={item.href}
-                      className={clsx('nav-link', isActive(item.href) && 'active')}
-                      href={item.href}
-                      title={collapsed ? item.label : undefined}
+                      key={key}
+                      href={section.href}
+                      data-section={key}
+                      className={clsx('nav-link', activeKey === key && 'active')}
+                      aria-current={activeKey === key ? 'page' : undefined}
+                      title={collapsed ? navTitle(key, count) : undefined}
                       onClick={() => setMobileOpen(false)}
                     >
-                      <Icon size={18} />
-                      {!collapsed && <span>{item.label}</span>}
+                      <Icon size={15} />
+                      <span className="nav-label">{section.label}</span>
+                      {count > 0 && tone && (
+                        <span
+                          className={clsx('nav-badge', tone)}
+                          title={`${count} ${BADGE_LABELS[key] ?? ''}`.trim()}
+                        >
+                          {count > 99 ? '99+' : count}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -89,13 +153,17 @@ export default function Sidebar() {
             </div>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          {!collapsed && <div className="helper">Netlify-ready · Supabase-native</div>}
+
+        <div className={clsx('sidebar-footer', styles.sidebarFooter)}>
+          <span className={clsx('helper', styles.sidebarHint)}>
+            Press <kbd className="kbd">⌘K</kbd> to search
+          </span>
           <button
             type="button"
             className="button icon-button sidebar-collapse"
-            onClick={() => setCollapsed((v) => !v)}
+            onClick={toggleCollapsed}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
           </button>

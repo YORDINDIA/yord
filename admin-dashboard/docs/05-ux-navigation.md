@@ -1,19 +1,20 @@
 # UX and Navigation
 
 ## Global Navigation
-Primary sections:
-- Dashboard
-- Catalog
-- Collections
-- Inventory
-- Orders
-- Customers
-- Discounts
-- Content (Blogs)
-- Media Library
-- AI + Automations
-- Analytics
-- Settings
+The sidebar groups sections by the way the work flows; `src/lib/sections.ts` is the
+single source for labels, icons, descriptions and the per-section accent hue.
+
+| Group | Sections |
+| --- | --- |
+| Sell | Dashboard, Orders, Customers, Discounts |
+| Catalog | Catalog (products), Collections, Inventory, Media |
+| Create | Content (blogs + articles), AI Studio |
+| System | Analytics, Settings |
+
+- The sidebar collapses to icons and remembers the choice (`yord-admin-sidebar`); below 1024px it becomes an overlay drawer.
+- `Cmd`/`Ctrl` + `K` opens the command palette: pages plus live products, orders, customers and collections (`/api/search`).
+- The topbar carries breadcrumbs, the palette trigger, and the theme toggle.
+- Density, palette, component vocabulary and the QA harness are specified in `06-ui-system.md`.
 
 ## Global UX Patterns
 - Powerful search + filters on every list view.

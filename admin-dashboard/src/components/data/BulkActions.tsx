@@ -9,6 +9,10 @@ import type { ReactNode } from 'react';
  * never wraps the table. `products/page.tsx` previously wrapped the whole table
  * in one form, which pushed the submit button far below the fold on a phone.
  * Selection is client state; the ticked ids go into hidden inputs.
+ *
+ * Renders as `.toolbar.bulk-actions` — the tinted accent bar in globals.css —
+ * with the count as a `.badge` pill and the caller's controls pushed to the far
+ * edge by `.spacer`.
  */
 export default function BulkActions({
   action,
@@ -28,12 +32,14 @@ export default function BulkActions({
   const count = selected.length;
   return (
     <form action={action} className="toolbar bulk-actions" onSubmit={onSubmit}>
-      <span className="helper" aria-live="polite">
-        {count === 0 ? `${label} tick rows to select` : `${label} ${count} selected`}
-      </span>
       {selected.map((id) => (
         <input key={id} type="hidden" name="ids" value={id} />
       ))}
+      <span className="helper">{label}</span>
+      <span className="badge" aria-live="polite">
+        {count === 0 ? 'Tick rows to select' : `${count} selected`}
+      </span>
+      <span className="spacer" />
       {children}
     </form>
   );

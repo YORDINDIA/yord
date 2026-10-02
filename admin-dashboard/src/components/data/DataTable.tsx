@@ -1,4 +1,6 @@
+import clsx from 'clsx';
 import EmptyState from '@/components/ui/EmptyState';
+import styles from './data.module.css';
 
 /**
  * The one table every admin list renders.
@@ -11,11 +13,21 @@ import EmptyState from '@/components/ui/EmptyState';
  * No `'use client'`: server pages pass `render` functions in `columns`, which a
  * client component cannot receive. Only the `selectable` checkboxes need a
  * client, and the one caller that uses them (products-client) is one.
+ *
+ * Density comes from globals.css (12px type, 34px rows). The two density
+ * opt-ins the design system does not define — the comfortable row height and
+ * the 34px row-lead cell — live in `data.module.css` beside this component.
  */
 export interface DataTableColumn<T> {
   key: string;
   header: string;
-  /** Renders the cell. Returning null renders an em dash placeholder. */
+  /**
+   * Renders the cell. Returning null renders an em dash placeholder.
+   *
+   * The cell is a plain `<td>`, so a media cell composes its own markers:
+   * `.cell-media` (flex row) with `.thumb` + `.cell-media-title` /
+   * `.cell-media-sub`, and numbers get `.table-num` for tabular figures.
+   */
   render: (row: T) => React.ReactNode;
   /** Hide this column below the `md` breakpoint. */
   hideOnMobile?: boolean;
@@ -42,11 +54,15 @@ export default function DataTable<T>({
   emptyTitle = 'Nothing here yet',
   emptyHint,
   emptyIcon,
+  leading,
+  dense = true,
+  stickyHeader = false,
+  rowClassName,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
   rowKey: (row: T, index: number) => string | number;
-  /** Accessible table name. Also used as the empty-state heading prefix. */
+  /** Accessible table name. */
   caption: string;
   /** Enables the leading checkbox column; requires `selected` + `onSelectionChange`. */
   selectable?: BulkColumn<T>;
@@ -55,6 +71,19 @@ export default function DataTable<T>({
   emptyTitle?: string;
   emptyHint?: string;
   emptyIcon?: React.ReactNode;
+  /**
+   * Leading cell rendered before the columns, in a 34px column. Pass a
+   * thumbnail (`<Thumb size="sm" />`, 26px — a 34px `md` thumb grows the dense
+   * row to 42px) or an avatar (`<Avatar size="sm" />`, 22px). This is the
+   * non-interactive twin of the checkbox column, so a row can carry both.
+   */
+  leading?: (row: T, index: number) => React.ReactNode;
+  /** Dense 34px rows unless `false`, which adds `table-comfortable`. */
+  dense?: boolean;
+  /** Adds `sticky` to `.table-wrap`: capped scroll area with a pinned header. */
+  stickyHeader?: boolean;
+  /** Extra classes for a row, e.g. a tone on a refunded order. */
+  rowClassName?: (row: T) => string | undefined;
 }) {
   if (rows.length === 0) {
     return <EmptyState title={emptyTitle} hint={emptyHint} icon={emptyIcon} />;
@@ -89,8 +118,8 @@ export default function DataTable<T>({
   }
 
   return (
-    <div className="table-wrap">
-      <table className="table">
+    <div className={clsx('table-wrap', stickyHeader && 'sticky')}>
+      <table className={clsx('table', !dense && [styles.comfortable, 'table-comfortable'])}>
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
@@ -104,6 +133,7 @@ export default function DataTable<T>({
                 />
               </th>
             )}
+            {leading && <th scope="col" className={clsx('table-leading', styles.leading)} />}
             {columns.map((column) => {
               const classes = [
                 column.hideOnMobile ? 'hide-mobile' : '',
@@ -123,8 +153,9 @@ export default function DataTable<T>({
         <tbody>
           {rows.map((row, index) => {
             const key = rowKey(row, index);
+            const extraRowClass = rowClassName?.(row);
             return (
-              <tr key={key}>
+              <tr key={key} className={extraRowClass || undefined}>
                 {selectable && (
                   <td className="table-select">
                     <input
@@ -134,6 +165,9 @@ export default function DataTable<T>({
                       aria-label={selectable.label(row)}
                     />
                   </td>
+                )}
+                {leading && (
+                  <td className={clsx('table-leading', styles.leading)}>{leading(row, index)}</td>
                 )}
                 {columns.map((column) => {
                   const content = column.render(row);

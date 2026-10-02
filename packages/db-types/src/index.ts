@@ -404,7 +404,7 @@ export type ProductImage = {
   alt: string | null;
   width: number | null;
   height: number | null;
-  supabase_url: string | null;
+  storage_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -431,6 +431,7 @@ export type Collection = {
   disjunctive: boolean | null;
   image_src: string | null;
   image_alt: string | null;
+  storage_image_url: string | null;
   updated_at: string;
 }
 
@@ -515,6 +516,7 @@ export const ARTIST_COLLECTION_HANDLES = [
   'alan-walker',
   'akon',
   'anuv-jain',
+  'anyma',
   'ap-dhillon',
   'arijit-singh',
   'badshah',
@@ -532,9 +534,11 @@ export const ARTIST_COLLECTION_HANDLES = [
   'dream-theater',
   'dua-lipa',
   'ed-sheeran',
+  'foo-fighters',
   'fred-again',
   'fujii-kaze',
   'glass-animals',
+  'gorillaz',
   'green-day',
   'guns-and-roses',
   'hanumankind',
@@ -547,6 +551,7 @@ export const ARTIST_COLLECTION_HANDLES = [
   'karan-aujla',
   'kehlani',
   'keinemusik',
+  'khalid',
   'king',
   'krsna',
   'lana-del-rey',
@@ -573,6 +578,7 @@ export const ARTIST_COLLECTION_HANDLES = [
   'sunburn-festival',
   'talwiinder',
   'taylor-swift',
+  'the-chainsmokers',
   'the-lumineers',
   'the-weeknd',
   'tiesto',
@@ -594,6 +600,8 @@ export interface ArtistData {
   tagline?: string;
   bio?: string;
   heroImage?: string;
+  /** Photo credit shown under large artist imagery, e.g. 'Wikimedia Commons (CC BY 2.0)'. */
+  imageCredit?: string;
   logoImage?: string;
   accentColor?: string;
   secondaryColor?: string;
@@ -1271,6 +1279,61 @@ export const ARTISTS: Record<string, ArtistData> = {
     accentColor: '#FF69B4',
     secondaryColor: '#0D0D0D',
   },
+  anyma: {
+    handle: 'anyma',
+    name: 'Anyma',
+    vendorName: 'Anyma',
+    tagline: 'ÆDEN World Tour',
+    bio: 'Melodic techno visionary Anyma. Premium merch inspired by the ÆDEN audiovisual show, Genesys, and his immersive Mumbai performance at Mahalaxmi Racecourse.',
+    heroImage: '/artists/anyma-hero.png',
+    imageCredit: 'AI-generated artwork',
+    accentColor: '#7B61FF',
+    secondaryColor: '#0B0B12',
+  },
+  khalid: {
+    handle: 'khalid',
+    name: 'Khalid',
+    vendorName: 'Khalid',
+    tagline: 'India Debut 2026',
+    bio: "American R&B superstar Khalid. Premium merch celebrating his India debut on the It's Always Summer Somewhere tour — Young, Dumb & Broke, Location, and Better.",
+    heroImage: '/artists/khalid-hero.png',
+    imageCredit: 'AI-generated artwork',
+    accentColor: '#4FC3F7',
+    secondaryColor: '#101820',
+  },
+  'the-chainsmokers': {
+    handle: 'the-chainsmokers',
+    name: 'The Chainsmokers',
+    vendorName: 'The Chainsmokers',
+    tagline: 'India Tour 2026',
+    bio: 'Grammy-winning duo The Chainsmokers. Premium merch for fans of Closer, Something Just Like This, and their Sunburn-headlining India return.',
+    heroImage: '/artists/the-chainsmokers-hero.png',
+    imageCredit: 'AI-generated artwork',
+    accentColor: '#FF4D6D',
+    secondaryColor: '#141414',
+  },
+  gorillaz: {
+    handle: 'gorillaz',
+    name: 'Gorillaz',
+    vendorName: 'Gorillaz',
+    tagline: 'India Tour 2027',
+    bio: "Damon Albarn's virtual band Gorillaz. Premium merch inspired by Feel Good Inc, Clint Eastwood, and the animated world of Noodle, 2-D, Murdoc, and Russel.",
+    heroImage: '/artists/gorillaz-hero.png',
+    imageCredit: 'AI-generated artwork',
+    accentColor: '#00E676',
+    secondaryColor: '#121212',
+  },
+  'foo-fighters': {
+    handle: 'foo-fighters',
+    name: 'Foo Fighters',
+    vendorName: 'Foo Fighters',
+    tagline: 'India Debut 2027',
+    bio: 'Rock legends Foo Fighters. Premium merch celebrating their long-awaited India debut — Everlong, Best of You, and Learn to Fly, with The Pretty Reckless in support.',
+    heroImage: '/artists/foo-fighters-hero.png',
+    imageCredit: 'AI-generated artwork',
+    accentColor: '#FF3D00',
+    secondaryColor: '#1A1A1A',
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1365,7 +1428,7 @@ export type Article = {
   image_alt: string | null;
   image_width: number | null;
   image_height: number | null;
-  supabase_image_url: string | null;
+  storage_image_url: string | null;
   published: boolean;
   published_at: string | null;
   template_suffix: string | null;

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Update blog articles with images and enhanced SEO/GEO content.
-Downloads images from Unsplash, converts to WebP, uploads to Supabase Storage,
+Downloads images from Unsplash, converts to WebP, uploads to Cloudflare R2,
 and updates article records with image URLs and enhanced HTML content.
 """
 
@@ -12,15 +12,20 @@ from PIL import Image
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from typing import Optional, Tuple
-from utils.config import resolve_supabase_url
+from utils.config import (
+    resolve_r2_bucket,
+    resolve_supabase_secret_key,
+    resolve_supabase_url,
+)
+from utils.r2_helpers import upload_image
 
 load_dotenv()
 
 # Falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
+R2_BUCKET = resolve_r2_bucket()
 BLOG_ID = 89876988081
-STORAGE_BUCKET = 'products'
 
 # Unsplash photo IDs for concert/music themed images
 # Using curated high-quality images from Unsplash
@@ -120,27 +125,13 @@ def convert_to_webp(image_data: bytes) -> Tuple[Optional[bytes], int, int]:
         return None, 0, 0
 
 
-def upload_to_supabase(supabase: Client, article_id: int, webp_data: bytes) -> Optional[str]:
-    """Upload WebP image to Supabase Storage."""
-    try:
-        storage_path = f'articles/{article_id}.webp'
-
-        # Upload to Supabase Storage
-        result = supabase.storage.from_(STORAGE_BUCKET).upload(
-            storage_path,
-            webp_data,
-            file_options={
-                'content-type': 'image/webp',
-                'upsert': 'true'
-            }
-        )
-
-        # Get public URL
-        public_url = supabase.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
-        return public_url
-    except Exception as e:
-        print(f"  Error uploading to Supabase: {e}")
+def upload_to_r2(article_id: int, webp_data: bytes) -> Optional[str]:
+    """Upload WebP image to Cloudflare R2."""
+    public_url, error = upload_image(f'articles/{article_id}', webp_data, 'image/webp')
+    if error:
+        print(f"  Error uploading to R2: {error}")
         return None
+    return public_url
 
 
 def update_article(supabase: Client, article_id: int, image_url: str, image_alt: str,
@@ -148,7 +139,7 @@ def update_article(supabase: Client, article_id: int, image_url: str, image_alt:
     """Update article record with image and enhanced content."""
     try:
         update_data = {
-            'supabase_image_url': image_url,
+            'storage_image_url': image_url,
             'image_alt': image_alt,
             'image_width': width,
             'image_height': height,
@@ -863,16 +854,19 @@ ENHANCED_CONTENT = {
 
 
 def main():
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        print("ERROR: Missing Supabase URL (SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY in root .env")
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        print("ERROR: Missing Supabase URL (SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SECRET_KEY in root .env")
+        return
+    if not R2_BUCKET:
+        print("ERROR: Missing R2_BUCKET in root .env")
         return
 
     print(f"Supabase URL: {SUPABASE_URL}")
-    print(f"Storage Bucket: {STORAGE_BUCKET}")
+    print("Storage: Cloudflare R2")
     print(f"Articles to update: {len(ARTICLE_IMAGES)}")
     print("=" * 70)
 
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    supabase = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 
     success_count = 0
     error_count = 0
@@ -900,11 +894,11 @@ def main():
             continue
         print(f"  Converted: {len(webp_data)} bytes, {width}x{height}")
 
-        # Step 3: Upload to Supabase
-        print("  Uploading to Supabase Storage...")
-        image_url = upload_to_supabase(supabase, article_id, webp_data)
+        # Step 3: Upload to Cloudflare R2
+        print("  Uploading to Cloudflare R2...")
+        image_url = upload_to_r2(article_id, webp_data)
         if not image_url:
-            print("  FAILED: Could not upload to Supabase")
+            print("  FAILED: Could not upload to R2")
             error_count += 1
             continue
         print(f"  Uploaded: {image_url[:80]}...")
@@ -936,10 +930,10 @@ def main():
     if success_count > 0:
         print("\nVERIFYING UPDATES...")
         ids = list(ARTICLE_IMAGES.keys())
-        result = supabase.table('articles').select('id,title,supabase_image_url,image_alt').in_('id', ids).execute()
+        result = supabase.table('articles').select('id,title,storage_image_url,image_alt').in_('id', ids).execute()
 
         for article in result.data:
-            has_image = bool(article.get('supabase_image_url'))
+            has_image = bool(article.get('storage_image_url'))
             status = "✓ IMAGE" if has_image else "✗ NO IMAGE"
             print(f"  [{status}] {article['title'][:50]}...")
 

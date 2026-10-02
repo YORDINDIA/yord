@@ -1,0 +1,103 @@
+/* Discounts surfaces: the row mark tile, the Discount column's code line, the
+ * usage cell, and the coupon preview.
+ *
+ * Only page-specific styles live here — `globals.css` owns the card, the table,
+ * the tone triplets, and the form layout, and is not edited. Colour comes from
+ * tokens only: `--tone*` is set by a `tone-*` class on the same element or an
+ * ancestor, so the mark follows the row's status and the preview follows the
+ * section's orange accent in both themes.
+ */
+
+/* ── List ─────────────────────────────────────────────────────────────────── */
+
+/* The row's leading mark. The box matches `.thumb-sm` (26px, radius 7) so a
+ * discounts row is exactly as tall as a products or inventory row. */
+.mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--tone-soft, var(--accent-local-soft, var(--surface-inset)));
+  border: 1px solid var(--tone-line, var(--accent-local-line, var(--border-default)));
+  color: var(--tone, var(--accent-local, var(--accent)));
+}
+
+/* Coupon code under the title in the Discount column.
+ *
+ * Deliberately not `.cell-sub`: that is 10.5px at `--text-subtle` (3.04:1),
+ * which the design system reserves for large or decorative text. A code is the
+ * thing an admin reads off this table to quote to a customer, so it takes
+ * `--text-muted` and keeps the monospace face from the global `.mono` class. */
+.codeLine {
+  margin-top: 1px;
+  font-size: 10.5px;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+/* Redemptions cell: the count, then the limit meter, right-aligned in the
+ * column. `white-space: nowrap` keeps the meter beside the number instead of
+ * wrapping under it in a narrow column. */
+.usage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.usageBar {
+  width: 44px;
+  flex: none;
+}
+
+/* ── Preview card ─────────────────────────────────────────────────────────── */
+
+/* The coupon itself: dashed edge, tinted with the section's orange tone. */
+.coupon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--tone-line, var(--border-strong));
+  background: var(--tone-soft, var(--surface-inset));
+  text-align: center;
+}
+
+.couponCode {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: var(--text-strong);
+}
+
+/* Placeholder before the admin types a code. `--text-muted`, not
+ * `--text-subtle`: 14px is not large text, and `--text-subtle` is 3.04:1. */
+.couponPlaceholder {
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.couponValue {
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--tone, var(--accent-local, var(--accent)));
+}
+
+.previewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}

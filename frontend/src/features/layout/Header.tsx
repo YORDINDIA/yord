@@ -39,7 +39,8 @@ export function Header({ artists = [] }: HeaderProps) {
   // Both the home hero and the artist hero are full-viewport dark media, and the
   // header is transparent over them until the page scrolls.
   const onMedia =
-    !isScrolled && (pathname === '/' || pathname.startsWith('/artist/'));
+    !isScrolled &&
+    (pathname === '/' || pathname.startsWith('/artist/') || pathname.startsWith('/concepts/'));
   // On media: light-on-dark tokens. On the page surface: theme-following ones.
   const textTone = onMedia ? 'text-text-on-media' : 'text-text-primary';
   const textHover = onMedia ? 'hover:text-accent-on-media' : 'hover:text-accent';
@@ -94,8 +95,11 @@ export function Header({ artists = [] }: HeaderProps) {
                   style={{
                     // Ivory→gold reads on the dark hero; on a light page an
                     // ivory start would be invisible, so the light theme
-                    // reverses to ink→bronze.
-                    background: onMedia
+                    // reverses to ink→bronze. `backgroundImage`, not the
+                    // `background` shorthand: the shorthand resets
+                    // `background-clip`, which React does not re-apply when only
+                    // the gradient changes, leaving a solid block on scroll.
+                    backgroundImage: onMedia
                       ? 'linear-gradient(135deg, var(--text-on-media) 0%, var(--accent-on-media) 45%, var(--text-on-media) 100%)'
                       : 'linear-gradient(135deg, var(--text-primary) 0%, var(--accent-on-surface) 45%, var(--text-primary) 100%)',
                     WebkitBackgroundClip: 'text',

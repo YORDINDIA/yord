@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
-import { openai, textModel } from '@/lib/ai/openai';
-import { extractJson, getOutputText } from '@/lib/ai/parse';
+import { generateText } from '@/lib/ai/agnes';
+import { extractJson } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, failJson, okJson, toPlainText, xmlBlock } from '@/lib/utils/prompt';
@@ -11,8 +11,8 @@ import { getCoverImage } from '@/lib/data/products';
 /**
  * Cover image for the AI studio.
  *
- * The studio used to read `product_images` from the browser with the anon key.
- * This GET runs the same read server-side, so the anon key never touches a
+ * The studio used to read `product_images` from the browser with the publishable
+ * key. This GET runs the same read server-side, so the key never touches a
  * product-images read and the lookup is not a second code path in the client.
  */
 export async function GET(req: Request) {
@@ -72,14 +72,9 @@ ${xmlBlock('tags', toPlainText(product.tags))}
 ${xmlBlock('description', toPlainText(product.body_html))}
 `;
 
-    const response = await openai.responses.create({
-      model: textModel,
-      input: prompt,
-    });
-
     let suggestion: unknown;
     try {
-      suggestion = extractJson(getOutputText(response) || '');
+      suggestion = extractJson(await generateText(prompt));
     } catch {
       return failJson('UPSTREAM_INVALID', 'Model returned invalid JSON', 502);
     }

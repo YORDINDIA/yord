@@ -103,7 +103,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
 // Article Card Component
 function ArticleCard({ article }: { article: ArticleWithBlog }) {
-  const imageUrl = article.supabase_image_url || article.image_src;
+  const imageUrl = article.storage_image_url || article.image_src;
 
   return (
     <Link href={`/blog/${article.handle}`} className="group block">

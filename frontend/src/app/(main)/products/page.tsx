@@ -3,6 +3,7 @@ import { degrade } from '@/lib/result';
 import { parseSortParam, parsePageParam } from '@/lib/product';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
 import { ProductToolbar } from '@/features/catalog/ProductToolbar';
+import { buildFilterUrl } from '@/features/catalog/catalogUrl';
 import { ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 import { JsonLd, breadcrumbSchema } from '@/lib/seo/jsonld';
@@ -113,6 +114,25 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               pageSize,
             }}
           />
+        ) : page > 1 && count > 0 ? (
+          // A `?page=` past the end is not an empty catalog: the header above
+          // says how many products exist, so say the same thing here (the
+          // collection grid makes the identical distinction).
+          <div className="text-center py-16">
+            <ShoppingBag className="w-16 h-16 mx-auto text-text-muted mb-4" />
+            <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-muted mb-4">
+              Nothing on this page
+            </p>
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-8">
+              Page {page} is past the end of this list of {count} products.
+            </p>
+            <Link
+              href={buildFilterUrl(baseFilters, {})}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
+            >
+              BACK TO PAGE 1
+            </Link>
+          </div>
         ) : (
           <div className="text-center py-16">
             <ShoppingBag className="w-16 h-16 mx-auto text-text-muted mb-4" />

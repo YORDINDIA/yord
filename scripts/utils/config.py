@@ -67,6 +67,81 @@ def resolve_supabase_url(explicit: str | None = None) -> str:
     return os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or ""
 
 
+def resolve_supabase_secret_key(explicit: str | None = None) -> str:
+    """Resolve the Supabase secret key for migration scripts.
+
+    Reads ``SUPABASE_SECRET_KEY`` — the ``sb_secret_...`` key that replaces
+    the legacy JWT-based ``service_role`` key (see root ``.env.example``).
+    Pass ``explicit`` to override.
+
+    Returns ``""`` when unset so scripts keep their friendly missing-env
+    messages instead of raising at import time.
+    """
+    if explicit:
+        return explicit
+    return os.getenv("SUPABASE_SECRET_KEY") or ""
+
+
+def resolve_r2_endpoint(explicit: str | None = None) -> str:
+    """Resolve the S3 endpoint for Cloudflare R2.
+
+    Reads ``R2_ENDPOINT`` when set (for jurisdiction-specific or test
+    endpoints), otherwise derives it from ``R2_ACCOUNT_ID``:
+
+    ``https://<account_id>.r2.cloudflarestorage.com``
+
+    ``R2_JURISDICTION`` (``eu`` / ``fedramp`` / ``us``) is inserted into the
+    host for buckets created in a jurisdiction; ``default`` means no change.
+    Returns ``""`` when neither is set so scripts keep their friendly
+    missing-env messages instead of raising at import time.
+    """
+    if explicit:
+        return explicit
+    endpoint = os.getenv("R2_ENDPOINT")
+    if endpoint:
+        return endpoint.rstrip("/")
+    account_id = os.getenv("R2_ACCOUNT_ID")
+    if not account_id:
+        return ""
+    jurisdiction = (os.getenv("R2_JURISDICTION") or "").strip().lower()
+    prefix = f"{jurisdiction}." if jurisdiction and jurisdiction != "default" else ""
+    return f"https://{account_id}.{prefix}r2.cloudflarestorage.com"
+
+
+def resolve_r2_access_key_id(explicit: str | None = None) -> str:
+    """Resolve the R2 Access Key ID (the id of the R2 API token)."""
+    if explicit:
+        return explicit
+    return os.getenv("R2_ACCESS_KEY_ID") or ""
+
+
+def resolve_r2_secret_access_key(explicit: str | None = None) -> str:
+    """Resolve the R2 Secret Access Key (the token's SHA-256 hash)."""
+    if explicit:
+        return explicit
+    return os.getenv("R2_SECRET_ACCESS_KEY") or ""
+
+
+def resolve_r2_bucket(explicit: str | None = None) -> str:
+    """Resolve the R2 bucket name that holds media."""
+    if explicit:
+        return explicit
+    return os.getenv("R2_BUCKET") or ""
+
+
+def resolve_r2_public_base_url(explicit: str | None = None) -> str:
+    """Resolve the public delivery base URL for the R2 bucket.
+
+    This is the bucket's public development URL (``https://pub-<hash>.r2.dev``)
+    until a custom domain is connected; the trailing slash is stripped so
+    ``public_url_for`` can join keys predictably.
+    """
+    if explicit:
+        return explicit.rstrip("/")
+    return (os.getenv("R2_PUBLIC_BASE_URL") or "").rstrip("/")
+
+
+
 def get_project_ref() -> str:
     """Get Supabase project reference from the environment.
 

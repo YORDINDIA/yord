@@ -1,0 +1,19 @@
+/*
+  Styles for the UI primitives that globals.css cannot express.
+
+  globals.css owns the boxes (`.avatar`, `.thumb`, `.stat-*`); these two rules
+  are the only things left over: an avatar that carries an image needs a
+  positioned, clipped box so `next/image`'s `fill` mode becomes a circle.
+*/
+
+.avatarMedia {
+  position: relative;
+  overflow: hidden;
+}
+
+.avatarMedia img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

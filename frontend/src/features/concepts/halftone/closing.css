@@ -1,0 +1,171 @@
+/* Concept B, Halftone: brand story and newsletter. */
+
+/* Story ------------------------------------------------------------------- */
+
+.ht-story .ht-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(56px, 8vw, 120px);
+}
+
+.ht-story__title {
+  font-size: clamp(3.25rem, 11vw, 11rem);
+  line-height: 0.92;
+}
+
+.ht-story__copy {
+  display: grid;
+  gap: clamp(32px, 5vw, 72px);
+  width: 100%;
+}
+
+.ht-story__p {
+  font-size: clamp(1.5rem, 2.9vw, 2.6rem);
+  line-height: 1.22;
+}
+
+.ht-story__band {
+  width: 100%;
+  aspect-ratio: 21 / 8;
+}
+
+.ht-story__sign {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ht-story__pull {
+  font-size: clamp(2rem, 4.6vw, 4.25rem);
+}
+
+.ht-story__est {
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+}
+
+.ht-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 44px clamp(20px, 4vw, 64px);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ht-values li {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.ht-values__n {
+  font-size: 2.75rem;
+  line-height: 1;
+  color: var(--ht-soft);
+}
+
+.ht-values h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ht-values p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ht-soft);
+}
+
+@media (min-width: 900px) {
+  .ht-story__copy {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+
+  .ht-story__p {
+    grid-column: 1 / span 7;
+  }
+
+  .ht-story__p--late {
+    grid-column: 6 / span 7;
+  }
+
+  .ht-values {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Newsletter -------------------------------------------------------------- */
+
+.ht-news__title {
+  font-size: clamp(3.5rem, 13vw, 13rem);
+  line-height: 0.9;
+}
+
+.ht-news__lead {
+  max-width: 44ch;
+  margin-top: clamp(28px, 3.6vw, 52px);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--ht-soft);
+}
+
+.ht-news__form {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 4vw, 56px);
+  max-width: 980px;
+  margin-top: clamp(40px, 6vw, 88px);
+}
+
+.ht-news__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35em 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ht-tone) 60%, var(--ht-ink));
+  border-radius: 0;
+  background: transparent;
+  color: var(--ht-tone);
+  font: 300 clamp(1.75rem, 4.2vw, 3.5rem) / 1.1 var(--ht-display);
+  transition: border-color 0.25s;
+}
+
+.ht-news__input::placeholder {
+  color: color-mix(in srgb, var(--ht-tone) 65%, var(--ht-ink));
+}
+
+.ht-news__input:focus,
+.ht-news__input[aria-invalid='true'] {
+  border-bottom: 2px solid var(--ht-tone);
+  outline: none;
+  padding-bottom: calc(0.35em - 1px);
+}
+
+.ht-news__ring {
+  --ring: clamp(112px, 12vw, 150px);
+}
+
+.ht-news__done,
+.ht-news__error {
+  min-height: 1.6em;
+  margin-top: 24px;
+  font-size: 1rem;
+  color: var(--ht-soft);
+}
+
+.ht-news__done--ok {
+  max-width: 24ch;
+  margin-top: clamp(32px, 5vw, 64px);
+  font: 300 clamp(1.75rem, 3.6vw, 3rem) / 1.2 var(--ht-display);
+  color: var(--ht-tone);
+}
+
+.ht-news__error {
+  margin-top: 0;
+  font-weight: 600;
+  color: var(--ht-tone);
+}

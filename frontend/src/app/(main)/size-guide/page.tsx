@@ -1,7 +1,7 @@
 import { Ruler } from 'lucide-react';
 
 export const metadata = {
-  title: 'Size Guide | YORD India',
+  title: 'Size Guide',
   description: 'Find your perfect fit with our comprehensive size guide for all merchandise.',
 };
 

@@ -8,6 +8,17 @@ export function formatCurrency(value: number | string | null | undefined, curren
   }
 }
 
+/**
+ * `123456` → `1,23,456` — the en-IN grouping every other figure on
+ * the page uses. Non-finite input renders the em dash rather than
+ * "NaN".
+ */
+export function formatNumber(value: number | string | null | undefined): string {
+  const num = Number(value ?? 0);
+  if (!Number.isFinite(num)) return '—';
+  return new Intl.NumberFormat('en-IN').format(num);
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);

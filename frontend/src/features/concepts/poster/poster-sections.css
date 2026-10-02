@@ -1,0 +1,366 @@
+/* Poster concept: shared section chrome, marquee, masonry, concerts, artist index. */
+
+/* ── Section surfaces ────────────────────────────────────────────────────── */
+/* Tone steps page / card; each section opens with a soft handoff from the
+   previous tone instead of a hard seam. */
+
+.poster-sect {
+  --tone: var(--surface-page);
+  --seam: var(--tone);
+  position: relative;
+  padding-block: clamp(3.5rem, 6vw, 6rem);
+  background: var(--poster-grain), linear-gradient(to bottom, var(--seam), var(--tone) 9rem), var(--tone);
+}
+.poster-sect[data-tone="card"] {
+  --tone: var(--surface-card);
+}
+.poster-sect[data-from="page"] {
+  --seam: var(--surface-page);
+}
+.poster-sect[data-from="card"] {
+  --seam: var(--surface-card);
+}
+
+.poster-head {
+  display: grid;
+  gap: 1.5rem;
+  align-items: end;
+  margin-bottom: clamp(2.25rem, 5vw, 4.5rem);
+}
+@media (min-width: 1100px) {
+  .poster-head {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 1.5rem;
+  }
+  .poster-head > :first-child {
+    grid-column: 1 / 8;
+  }
+  .poster-head-aside {
+    grid-column: 8 / -1;
+  }
+  .poster-head[data-wide] > :first-child {
+    grid-column: 1 / 10;
+  }
+  .poster-head[data-wide] .poster-head-aside {
+    grid-column: 10 / -1;
+  }
+}
+.poster-title {
+  margin: 0;
+  font-size: clamp(3.4rem, 10.5vw, 10.5rem);
+  line-height: 0.8;
+}
+.poster-title-wide {
+  font-size: clamp(2.6rem, 7.4vw, 7.4rem);
+}
+.poster-title-sm {
+  font-size: clamp(2.6rem, 6vw, 6rem);
+  margin-bottom: 1rem;
+}
+.poster-note {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* ── Hover that recolours a surface: tokens inside are swapped to ink-on-accent ── */
+
+.poster-invert {
+  transition: background-color 0.14s;
+}
+.poster-invert:focus-within {
+  --text-primary: var(--poster-accent-ink);
+  --text-secondary: var(--poster-accent-ink);
+  --text-muted: color-mix(in srgb, var(--poster-accent-ink) 76%, transparent);
+  --accent: var(--poster-accent-ink);
+  --accent-hover: var(--poster-accent-ink);
+  --text-on-accent: var(--poster-accent);
+  background-color: var(--poster-accent);
+  color: var(--poster-accent-ink);
+}
+/* Hover only where a real pointer exists, so a tap does not leave a tile coloured. */
+@media (hover: hover) {
+  .poster-invert:hover {
+    --text-primary: var(--poster-accent-ink);
+    --text-secondary: var(--poster-accent-ink);
+    --text-muted: color-mix(in srgb, var(--poster-accent-ink) 76%, transparent);
+    --accent: var(--poster-accent-ink);
+    --accent-hover: var(--poster-accent-ink);
+    --text-on-accent: var(--poster-accent);
+    background-color: var(--poster-accent);
+    color: var(--poster-accent-ink);
+  }
+}
+
+/* ── Marquee ─────────────────────────────────────────────────────────────── */
+
+.poster-marquee {
+  overflow: hidden;
+  padding-block: 0.7rem 0.55rem;
+  background: var(--poster-grain), var(--poster-accent);
+  color: var(--poster-accent-ink);
+}
+.poster-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: poster-scroll 75s linear infinite;
+}
+.poster-marquee:hover .poster-marquee-track,
+.poster-marquee:focus-within .poster-marquee-track {
+  animation-play-state: paused;
+}
+@keyframes poster-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.poster-marquee-group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.poster-marquee-group li {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding-right: 1.25rem;
+}
+.poster-marquee-group a {
+  padding: 0.1em 0.14em;
+  font-size: clamp(2.4rem, 5.2vw, 4.75rem);
+  line-height: 0.9;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.12s, color 0.12s;
+}
+.poster-marquee-group a:hover,
+.poster-marquee-group a:focus-visible {
+  background: var(--poster-accent-ink);
+  color: var(--poster-accent);
+  outline: none;
+}
+.poster-diamond {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+/* ── Featured masonry ────────────────────────────────────────────────────── */
+
+.poster-masonry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+.poster-col {
+  display: contents;
+}
+.poster-tile {
+  width: 100%;
+  padding: 0.6rem;
+  background-color: var(--surface-card);
+}
+.poster-tile[data-w="wide"] {
+  width: 86%;
+}
+.poster-tile[data-w="mid"] {
+  width: 68%;
+  margin-left: auto;
+}
+.poster-col[data-col="2"] .poster-tile[data-w="wide"] {
+  margin-left: auto;
+}
+.poster-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2.5rem;
+  min-height: 13rem;
+  padding: 1.25rem;
+  background: var(--poster-grain), var(--poster-accent);
+  color: var(--poster-accent-ink);
+  text-decoration: none;
+  transition: background-color 0.14s, color 0.14s;
+}
+.poster-block:hover,
+.poster-block:focus-visible {
+  background: var(--poster-grain), var(--poster-accent-ink);
+  color: var(--poster-accent);
+}
+.poster-block-title {
+  font-size: clamp(2.4rem, 3.4vw, 3.4rem);
+  line-height: 0.86;
+}
+.poster-block-arrow {
+  align-self: flex-end;
+  font-size: 2.5rem;
+}
+@media (min-width: 768px) {
+  .poster-masonry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 1.5rem;
+  }
+  .poster-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .poster-col[data-col="1"],
+  .poster-col[data-col="3"] {
+    padding-top: 5rem;
+  }
+}
+@media (min-width: 1100px) {
+  .poster-masonry {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  .poster-col[data-col="0"] { grid-column: 1 / 5; }
+  .poster-col[data-col="1"] { grid-column: 5 / 8; padding-top: 7rem; }
+  .poster-col[data-col="2"] { grid-column: 8 / 11; padding-top: 2.5rem; }
+  .poster-col[data-col="3"] { grid-column: 11 / 13; padding-top: 14rem; }
+  .poster-col > :last-child {
+    margin-top: auto;
+  }
+}
+
+/* ── Concerts ────────────────────────────────────────────────────────────── */
+
+.poster-rows {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  list-style: none;
+}
+.poster-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-areas: "date place" "count place" "artist artist" "thumbs thumbs";
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 1rem;
+  background-color: var(--surface-raised);
+  color: var(--text-primary);
+}
+.poster-row-date { grid-area: date; display: flex; flex-direction: column; font-size: 0.75rem; line-height: 1.2; color: var(--text-muted); }
+.poster-row-date .poster-display { font-size: 2.75rem; line-height: 0.8; margin-bottom: 0.3rem; color: var(--text-primary); }
+.poster-row-place { grid-area: place; }
+.poster-row-place p { margin: 0; }
+.poster-row-place .poster-display { font-size: 2.25rem; line-height: 0.85; }
+.poster-row-place p:last-child { margin-top: 0.3rem; font-size: 0.875rem; color: var(--text-muted); }
+.poster-row-count { grid-area: count; margin: 0; font-size: 0.8125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.poster-row-artist { grid-area: artist; }
+.poster-row-artist a { font-weight: 700; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.25em; }
+.poster-row-artist p { margin: 0.15rem 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+.poster-row-thumbs { grid-area: thumbs; display: flex; gap: 0.375rem; margin: 0; padding: 0; list-style: none; }
+.poster-row-thumbs a { position: relative; display: block; width: 3.5rem; aspect-ratio: 3 / 4; overflow: hidden; background: var(--surface-inset); }
+.poster-row-thumbs a:hover,
+.poster-row-thumbs a:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+@media (min-width: 640px) {
+  .poster-row {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    grid-template-areas: "date place count" "artist artist thumbs";
+    gap: 1rem 1.5rem;
+    padding: 1.1rem 1.4rem;
+  }
+  .poster-row-count { font-size: 0.9375rem; }
+}
+@media (min-width: 1024px) {
+  .poster-row {
+    grid-template-columns: 7rem minmax(0, 1.25fr) 7rem minmax(0, 1fr) auto;
+    grid-template-areas: "date place count artist thumbs";
+    gap: 2rem;
+  }
+}
+
+/* ── Artist index ────────────────────────────────────────────────────────── */
+
+.poster-index-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.5rem 2.5rem;
+  margin-bottom: clamp(2rem, 4vw, 3.5rem);
+}
+.poster-bignum {
+  margin: 0;
+  padding: 0.1em 0.12em;
+  font-size: clamp(7rem, 20vw, 20rem);
+  line-height: 0.8;
+  background: var(--poster-grain), var(--poster-accent);
+  color: var(--poster-accent-ink);
+}
+.poster-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.04em 0.42em;
+  margin: 0;
+  list-style: none;
+  font-size: clamp(1.85rem, 4.6vw, 4.6rem);
+}
+.poster-index a {
+  display: inline-block;
+  margin-inline: -0.14em;
+  padding: 0.06em 0.14em 0.02em;
+  line-height: 0.95;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.15s, background-color 0.12s;
+}
+.poster-index a sup {
+  position: relative;
+  top: 0.3em;
+  margin-right: 0.5em;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-size: max(0.2em, 0.625rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  vertical-align: top;
+  color: var(--text-muted);
+}
+.poster-index a:hover,
+.poster-index a:focus-visible {
+  background: var(--c);
+  color: var(--text-on-brand);
+  outline: none;
+}
+.poster-index a:hover sup,
+.poster-index a:focus-visible sup {
+  color: inherit;
+}
+.poster-index:has(a:hover) a:not(:hover),
+.poster-index:has(a:focus-visible) a:not(:focus-visible) {
+  color: var(--text-subtle);
+}
+.poster-peek {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  width: 240px;
+  height: 300px;
+  border: 6px solid var(--pc, transparent);
+  background: var(--surface-inset);
+  pointer-events: none;
+  translate: var(--px, 0px) var(--py, 0px);
+  rotate: var(--pr, 0deg);
+  scale: 0.7;
+  visibility: hidden;
+  transition: scale 0.22s cubic-bezier(0.3, 1.4, 0.5, 1), visibility 0s 0.22s;
+}
+.poster-peek[data-on="1"] {
+  scale: 1;
+  visibility: visible;
+  transition: scale 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.poster-peek img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
