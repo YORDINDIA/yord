@@ -1,11 +1,28 @@
 import type { MetadataRoute } from 'next';
 import { createStaticClient } from '@/lib/supabase/server';
+import { isSupabaseUnconfigured } from '@/lib/result';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES } from '@/lib/data/cities';
 
 const BASE_URL = 'https://yordindia.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Concert pages (static data, no backend needed)
+  const concertPages: MetadataRoute.Sitemap = CONCERTS.map((c) => ({
+    url: `${BASE_URL}/concerts/${c.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+
+  // City concert pages (static data, no backend needed)
+  const cityPages: MetadataRoute.Sitemap = CITIES.map((city) => ({
+    url: `${BASE_URL}/concerts/city/${city.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }));
+
   const supabase = createStaticClient();
 
   // Static pages
@@ -27,18 +44,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/concert-merchandise-india`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
   ];
 
+  // Backend-less builds emit the static URL set only; dynamic URLs reappear
+  // at the next build once Supabase is configured.
+  if (isSupabaseUnconfigured()) {
+    return [...staticPages, ...concertPages, ...cityPages];
+  }
+
   // Product pages
   const { data: products } = await supabase
     .from('products')
     .select('handle, updated_at')
-    .eq('status', 'active') as { data: { handle: string; updated_at: string }[] | null };
+    .eq('status', 'active') as { data: { handle: string | null; updated_at: string }[] | null };
 
-  const productPages: MetadataRoute.Sitemap = (products || []).map((p) => ({
-    url: `${BASE_URL}/product/${p.handle}`,
-    lastModified: new Date(p.updated_at),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
+  const productPages: MetadataRoute.Sitemap = (products || [])
+    .filter((p) => p.handle)
+    .map((p) => ({
+      url: `${BASE_URL}/product/${p.handle}`,
+      lastModified: new Date(p.updated_at),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
 
   // Collection pages
   const { data: collections } = await supabase
@@ -61,7 +86,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .select('handle, updated_at')
     .eq('published', true) as { data: { handle: string | null; updated_at: string }[] | null };
 
-  const { ARTIST_COLLECTION_HANDLES } = await import('@/types/database');
+  const { ARTIST_COLLECTION_HANDLES } = await import('@yord/db-types');
   const artistHandleSet = new Set<string>(ARTIST_COLLECTION_HANDLES as unknown as string[]);
 
   const artistPages: MetadataRoute.Sitemap = (artistCollections || [])
@@ -87,22 +112,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly' as const,
       priority: 0.6,
     }));
-
-  // Concert pages
-  const concertPages: MetadataRoute.Sitemap = CONCERTS.map((c) => ({
-    url: `${BASE_URL}/concerts/${c.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.7,
-  }));
-
-  // City concert pages
-  const cityPages: MetadataRoute.Sitemap = CITIES.map((city) => ({
-    url: `${BASE_URL}/concerts/city/${city.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.6,
-  }));
 
   return [
     ...staticPages,

@@ -1,41 +1,99 @@
-import { createServerClient } from '@/lib/supabase/server';
+import Link from 'next/link';
+import type { Metadata } from 'next';
+import DataTable, { type DataTableColumn } from '@/components/data/DataTable';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { getDashboardSummary, type RecentOrder } from '@/lib/data/analytics';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
+export const metadata: Metadata = { title: 'Dashboard · YORD Admin' };
+
+/**
+ * Dashboard.
+ *
+ * Two things were wrong with the previous version. It summed revenue in JS from
+ * `.limit(500)` order rows, so any 30-day window holding more than 500 orders
+ * under-reported; revenue is now aggregated in SQL. And every KPI was
+ * `count ?? 0` — a failed count read rendered as a confident `0`, so a broken
+ * query looked like a healthy business. Failed reads now throw `DatabaseError`
+ * and land on the route error boundary.
+ *
+ * Money contracts this page requires of `getDashboardSummary()` (implemented
+ * in `lib/data/analytics.ts`, fixed alongside this page):
+ * - Fulfillment queue counts `unfulfilled` AND `NULL` fulfillment_status
+ *   (migrated orders have NULL). The drill-down href below stays unfiltered
+ *   by status text so NULL rows are reachable from here.
+ * - Revenue derives from successful transactions net of refunds — never a raw
+ *   sum over pending/failed/voided/refunded orders.
+ * - Both revenue windows end yesterday (the charted window). A today bucket
+ *   may only be added on top of these figures, never overlapping them, or
+ *   today is double-counted.
+ */
 export default async function DashboardPage() {
-  const supabase = await createServerClient();
+  const { counts, revenue, recentOrders } = await getDashboardSummary();
 
-  const [products, orders, customers, articles] = await Promise.all([
-    supabase.from('products').select('id', { count: 'exact', head: true }),
-    supabase.from('orders').select('id', { count: 'exact', head: true }),
-    supabase.from('customers').select('id', { count: 'exact', head: true }),
-    supabase.from('articles').select('id', { count: 'exact', head: true }),
-  ]);
+  const kpis = [
+    { label: 'Revenue · 7d', value: formatCurrency(revenue.last7Days, 'INR'), href: '/analytics' },
+    { label: 'Revenue · 30d', value: formatCurrency(revenue.last30Days, 'INR'), href: '/analytics' },
+    { label: 'Orders today', value: String(counts.ordersToday), href: '/orders' },
+    {
+      label: 'Fulfillment queue',
+      value: String(counts.fulfillmentQueue),
+      // Unfiltered: `?fulfillment=unfulfilled` matches only the literal value
+      // and hides migrated orders with NULL status — the same rows this KPI
+      // counts. Keep the drill-down unfiltered until the orders filter itself
+      // includes NULL.
+      href: '/orders',
+    },
+    { label: 'Low stock variants', value: String(counts.lowStockVariants), href: '/inventory' },
+    { label: 'Products', value: String(counts.products), href: '/products' },
+    { label: 'Orders', value: String(counts.orders), href: '/orders' },
+    { label: 'Customers', value: String(counts.customers), href: '/customers' },
+    { label: 'Articles', value: String(counts.articles), href: '/blogs' },
+  ];
 
-  const { data: recentOrders } = await supabase
-    .from('orders')
-    .select('id, name, total_price, currency, financial_status, fulfillment_status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(6);
+  const columns: DataTableColumn<RecentOrder>[] = [
+    {
+      key: 'order',
+      header: 'Order',
+      render: (order) => (
+        <Link href={`/orders/${order.id}`}>{order.name || `#${order.id}`}</Link>
+      ),
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      render: (order) => formatCurrency(order.total_price, order.currency || 'INR'),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (order) => <StatusBadge value={order.financial_status} />,
+      hideOnTablet: true,
+    },
+    {
+      key: 'fulfillment',
+      header: 'Fulfillment',
+      render: (order) => <StatusBadge value={order.fulfillment_status} />,
+      hideOnTablet: true,
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      render: (order) => formatDate(order.created_at),
+      hideOnMobile: true,
+    },
+  ];
 
   return (
     <>
       <div className="grid-2">
-        <div className="card kpi">
-          <span className="kpi-label">Products</span>
-          <span className="kpi-value">{products.count ?? 0}</span>
-        </div>
-        <div className="card kpi">
-          <span className="kpi-label">Orders</span>
-          <span className="kpi-value">{orders.count ?? 0}</span>
-        </div>
-        <div className="card kpi">
-          <span className="kpi-label">Customers</span>
-          <span className="kpi-value">{customers.count ?? 0}</span>
-        </div>
-        <div className="card kpi">
-          <span className="kpi-label">Articles</span>
-          <span className="kpi-value">{articles.count ?? 0}</span>
-        </div>
+        {kpis.map((kpi) => (
+          <Link key={kpi.label} className="card kpi" href={kpi.href}>
+            <span className="kpi-label">{kpi.label}</span>
+            <span className="kpi-value">{kpi.value}</span>
+          </Link>
+        ))}
       </div>
 
       <div className="card">
@@ -44,29 +102,18 @@ export default async function DashboardPage() {
             <div className="section-title">Recent Orders</div>
             <div className="helper">Latest activity across storefront orders.</div>
           </div>
+          <Link className="button" href="/orders">
+            View all
+          </Link>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Fulfillment</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(recentOrders || []).map((order) => (
-              <tr key={order.id}>
-                <td>{order.name}</td>
-                <td>{formatCurrency(order.total_price, order.currency || 'INR')}</td>
-                <td>{order.financial_status || '-'}</td>
-                <td>{order.fulfillment_status || '-'}</td>
-                <td>{formatDate(order.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          caption="Recent orders"
+          columns={columns}
+          rows={recentOrders}
+          rowKey={(order) => order.id}
+          emptyTitle="No orders yet"
+          emptyHint="Orders appear here as soon as the storefront takes one."
+        />
       </div>
     </>
   );

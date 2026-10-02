@@ -1,7 +1,10 @@
 import { Metadata } from 'next';
-import { CollectionHeader } from '@/components/collection/CollectionHeader';
-import { CollectionProducts } from '@/components/collection/CollectionProducts';
-import { getCollections, getCollectionByHandle, getCollectionsStatic, getCollectionByHandleStatic } from '@/lib/supabase/queries';
+import { notFound } from 'next/navigation';
+import { CollectionHeader } from '@/features/collection/CollectionHeader';
+import { CatalogGrid } from '@/features/catalog/CatalogGrid';
+import { getCollectionsStatic, getCollectionByHandleStatic, getProductsByCollectionHandle } from '@/lib/supabase/queries';
+import { parseSortParam, parsePageParam } from '@/lib/product';
+import { stripHtml } from '@yord/ui';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
@@ -9,11 +12,15 @@ interface CollectionPageProps {
   searchParams: Promise<{ sort?: string; page?: string }>;
 }
 
+export const revalidate = 3600;
+
 export async function generateStaticParams() {
   const collections = await getCollectionsStatic();
-  return collections.map((collection) => ({
-    handle: collection.handle,
-  }));
+  return collections
+    .filter((collection) => collection.handle)
+    .map((collection) => ({
+      handle: collection.handle as string,
+    }));
 }
 
 export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
@@ -23,7 +30,7 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
   const title = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   // Strip HTML tags from body_html for description
   const description = collection?.body_html
-    ? collection.body_html.replace(/<[^>]*>/g, '').substring(0, 160)
+    ? stripHtml(collection.body_html).substring(0, 160)
     : `Shop ${title} collection at YORD India. Premium concert merchandise.`;
 
   return {
@@ -39,19 +46,37 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
 
 export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
   const { handle } = await params;
-  const { sort = 'newest', page = '1' } = await searchParams;
+  const { sort: rawSort, page: rawPage } = await searchParams;
+  const sort = parseSortParam(rawSort);
+  const page = parsePageParam(rawPage);
+  const pageSize = 12;
 
   // Fetch collection metadata from database
-  const collection = await getCollectionByHandle(handle);
+  // Static (cookie-free) client so `revalidate = 3600` actually applies.
+  const collection = await getCollectionByHandleStatic(handle);
 
   // Use DB title/description, or fallback to formatted handle
   const collectionTitle = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const collectionDescription = collection?.body_html
-    ? collection.body_html.replace(/<[^>]*>/g, '')
+    ? stripHtml(collection.body_html)
     : `Explore our ${collectionTitle} collection.`;
 
+  // Page 1 is SSR HTML (SEO); pages 2+ append via /api/products.
+  // getProductsByCollectionHandle returns null only when no published
+  // collection matches the handle, so a null result is an unknown handle and
+  // renders the route's not-found page. A known-but-empty collection returns
+  // { data: [], count: 0 } and still renders the grid below.
+  const result = await getProductsByCollectionHandle(
+    handle,
+    { sort, page, pageSize },
+    { publishedOnly: true, useStatic: true },
+  );
+  if (!result) notFound();
+  const products = result.data;
+  const count = result.count;
+
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="min-h-screen bg-surface-page pt-20">
       <JsonLd
         data={collectionPageSchema({
           title: collectionTitle,
@@ -71,15 +96,22 @@ export default async function CollectionPage({ params, searchParams }: Collectio
         title={collectionTitle}
         description={collectionDescription}
         handle={handle}
-        productCount={0} // Will be updated by client component
+        productCount={count}
       />
 
       {/* Collection Products */}
-      <CollectionProducts
-        handle={handle}
-        initialSort={sort as 'newest' | 'price-asc' | 'price-desc' | 'title'}
-        initialPage={parseInt(page)}
-      />
+      <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
+        <CatalogGrid
+          initialProducts={products}
+          totalCount={count}
+          initialPage={page}
+          query={{ mode: 'collection', handle, sort, pageSize }}
+          showSort
+          showGridToggle
+          emptyTitle="No products found"
+          emptyMessage="Check back soon for new arrivals in this collection."
+        />
+      </div>
     </main>
   );
 }

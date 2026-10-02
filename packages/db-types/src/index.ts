@@ -1,0 +1,1615 @@
+/**
+ * YORD India - Database Types
+ * Generated from Supabase schema for type-safe queries
+ */
+
+/**
+ * Foreign-key metadata, keyed by relation name.
+ *
+ * supabase-js needs this to type embedded selects (`.select('*, variants(*)')`).
+ * Row types remain the authoritative source of column shapes; these entries
+ * only describe the joins, so the column lists are intentionally partial.
+ */
+type Fk<Relation extends string, Column extends string> = {
+  foreignKeyName: string;
+  columns: [Column];
+  isOneToOne?: boolean;
+  referencedRelation: Relation;
+  referencedColumns: ['id'];
+};
+
+/** Products ⇄ variants / images / options / collects / line items. */
+type ProductRelations = [
+  Fk<'product_variants', 'product_id'>,
+  Fk<'product_images', 'product_id'>,
+  Fk<'product_options', 'product_id'>,
+  Fk<'collects', 'product_id'>,
+  Fk<'line_items', 'product_id'>,
+];
+
+/** Collections ⇄ collects / smart rules. */
+type CollectionRelations = [
+  Fk<'collects', 'collection_id'>,
+  Fk<'smart_collection_rules', 'collection_id'>,
+];
+
+type ArticleRelations = [Fk<'blogs', 'blog_id'>];
+type LineItemRelations = [
+  Fk<'orders', 'order_id'>,
+  Fk<'products', 'product_id'>,
+  Fk<'product_variants', 'variant_id'>,
+];
+type CustomerRelations = [
+  Fk<'orders', 'customer_id'>,
+  Fk<'customer_addresses', 'customer_id'>,
+];
+type OrderRelations = [
+  Fk<'customers', 'customer_id'>,
+  Fk<'line_items', 'order_id'>,
+  Fk<'transactions', 'order_id'>,
+  Fk<'fulfillments', 'order_id'>,
+  Fk<'refunds', 'order_id'>,
+];
+type PriceRuleRelations = [Fk<'discount_codes', 'price_rule_id'>];
+type NoRelations = [];
+
+export interface Database {
+  public: {
+    Tables: {
+      products: {
+        Row: Product;
+        // Generated-types convention: any column the app does not set is
+        // optional, so `created_at`/`updated_at` defaults and the
+        // backfilled-once `min_price` column do not have to be repeated at
+        // every insert site.
+        Insert: Partial<Product> &
+          Pick<Product, 'id' | 'title' | 'status' | 'handle'>;
+        Update: Partial<Product>;
+        Relationships: ProductRelations;
+      };
+      product_variants: {
+        Row: ProductVariant;
+        Insert: Partial<ProductVariant> & Pick<ProductVariant, 'id' | 'product_id'>;
+        Update: Partial<ProductVariant>;
+        Relationships: ProductRelations;
+      };
+      product_images: {
+        Row: ProductImage;
+        Insert: Partial<ProductImage> & Pick<ProductImage, 'id' | 'product_id'>;
+        Update: Partial<ProductImage>;
+        Relationships: ProductRelations;
+      };
+      product_options: {
+        Row: ProductOption;
+        Insert: ProductOption;
+        Update: Partial<ProductOption>;
+        Relationships: ProductRelations;
+      };
+      collections: {
+        Row: Collection;
+        Insert: Partial<Collection> & Pick<Collection, 'id' | 'title'>;
+        Update: Partial<Collection>;
+        Relationships: CollectionRelations;
+      };
+      customers: {
+        Row: Customer;
+        Insert: Omit<Customer, 'created_at' | 'updated_at'> &
+          Partial<Pick<Customer, 'created_at' | 'updated_at'>>;
+        Update: Partial<Customer>;
+        Relationships: CustomerRelations;
+      };
+      orders: {
+        Row: Order;
+        Insert: Partial<Order> & Pick<Order, 'id'>;
+        Update: Partial<Order>;
+        Relationships: OrderRelations;
+      };
+      line_items: {
+        Row: LineItem;
+        Insert: Partial<LineItem> & Pick<LineItem, 'id' | 'order_id'>;
+        Update: Partial<LineItem>;
+        Relationships: LineItemRelations;
+      };
+      blogs: {
+        Row: Blog;
+        Insert: Partial<Blog> & Pick<Blog, 'id' | 'title'>;
+        Update: Partial<Blog>;
+        Relationships: NoRelations;
+      };
+      articles: {
+        Row: Article;
+        Insert: Partial<Article> & Pick<Article, 'id' | 'blog_id' | 'title'>;
+        Update: Partial<Article>;
+        Relationships: ArticleRelations;
+      };
+      collects: {
+        Row: Collect;
+        Insert: Partial<Collect> & Pick<Collect, 'id' | 'collection_id' | 'product_id'>;
+        Update: Partial<Collect>;
+        Relationships: CollectionRelations;
+      };
+      contact_submissions: {
+        Row: ContactSubmission;
+        Insert: Partial<ContactSubmission>;
+        Update: Partial<ContactSubmission>;
+        Relationships: NoRelations;
+      };
+      newsletter_subscribers: {
+        Row: NewsletterSubscriber;
+        Insert: Partial<NewsletterSubscriber>;
+        Update: Partial<NewsletterSubscriber>;
+        Relationships: NoRelations;
+      };
+      // ── Admin-app tables. Row interfaces live further down in this file so
+      // there is exactly one schema definition for the whole monorepo.
+      smart_collection_rules: {
+        Row: SmartCollectionRule;
+        Insert: Omit<SmartCollectionRule, 'id'> & Partial<Pick<SmartCollectionRule, 'id'>>;
+        Update: Partial<SmartCollectionRule>;
+        Relationships: NoRelations;
+      };
+      inventory_items: {
+        Row: InventoryItem;
+        Insert: Partial<InventoryItem> & Pick<InventoryItem, 'id'>;
+        Update: Partial<InventoryItem>;
+        Relationships: NoRelations;
+      };
+      inventory_levels: {
+        Row: InventoryLevel;
+        Insert: Partial<InventoryLevel> &
+          Pick<InventoryLevel, 'inventory_item_id' | 'location_id'>;
+        Update: Partial<InventoryLevel>;
+        Relationships: NoRelations;
+      };
+      locations: {
+        Row: Location;
+        Insert: Partial<Location> & Pick<Location, 'id' | 'name'>;
+        Update: Partial<Location>;
+        Relationships: NoRelations;
+      };
+      customer_addresses: {
+        Row: CustomerAddress;
+        Insert: Partial<CustomerAddress> & Pick<CustomerAddress, 'id' | 'customer_id'>;
+        Update: Partial<CustomerAddress>;
+        Relationships: NoRelations;
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: Partial<Transaction> & Pick<Transaction, 'id' | 'order_id'>;
+        Update: Partial<Transaction>;
+        Relationships: NoRelations;
+      };
+      fulfillments: {
+        Row: Fulfillment;
+        Insert: Partial<Fulfillment> & Pick<Fulfillment, 'id' | 'order_id'>;
+        Update: Partial<Fulfillment>;
+        Relationships: NoRelations;
+      };
+      refunds: {
+        Row: Refund;
+        Insert: Partial<Refund> & Pick<Refund, 'id' | 'order_id'>;
+        Update: Partial<Refund>;
+        Relationships: NoRelations;
+      };
+      refund_transactions: {
+        Row: RefundTransaction;
+        Insert: Partial<RefundTransaction> &
+          Pick<RefundTransaction, 'refund_id' | 'transaction_id'>;
+        Update: Partial<RefundTransaction>;
+        Relationships: NoRelations;
+      };
+      price_rules: {
+        Row: PriceRule;
+        Insert: Partial<PriceRule> & Pick<PriceRule, 'id' | 'title'>;
+        Update: Partial<PriceRule>;
+        Relationships: PriceRuleRelations;
+      };
+      discount_codes: {
+        Row: DiscountCode;
+        Insert: Partial<DiscountCode> & Pick<DiscountCode, 'id' | 'price_rule_id' | 'code'>;
+        Update: Partial<DiscountCode>;
+        Relationships: NoRelations;
+      };
+      // ── Admin support tables (admin-dashboard/sql/001_admin_tables.sql,
+      // 002_admin_next_id.sql). Default-deny under RLS: see sql/003_admin_rls.sql.
+      admin_users: {
+        Row: AdminUser;
+        Insert: Omit<AdminUser, 'created_at'> & Partial<Pick<AdminUser, 'created_at'>>;
+        Update: Partial<AdminUser>;
+        Relationships: NoRelations;
+      };
+      admin_audit_log: {
+        Row: AdminAuditLog;
+        Insert: Partial<AdminAuditLog> &
+          Pick<AdminAuditLog, 'actor_id' | 'action' | 'entity' | 'entity_id'>;
+        Update: Partial<AdminAuditLog>;
+        Relationships: NoRelations;
+      };
+      ai_jobs: {
+        Row: AiJob;
+        Insert: Partial<AiJob> & Pick<AiJob, 'type'>;
+        Update: Partial<AiJob>;
+        Relationships: NoRelations;
+      };
+      ai_suggestions: {
+        Row: AiSuggestion;
+        Insert: Partial<AiSuggestion> &
+          Pick<AiSuggestion, 'entity_type' | 'entity_id' | 'payload_json'>;
+        Update: Partial<AiSuggestion>;
+        Relationships: NoRelations;
+      };
+      ai_assets: {
+        Row: AiAsset;
+        Insert: Partial<AiAsset> & Pick<AiAsset, 'storage_path'>;
+        Update: Partial<AiAsset>;
+        Relationships: NoRelations;
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      /** BIGINT id allocator (admin-dashboard/sql/002_admin_next_id.sql). */
+      admin_next_id: {
+        Args: { p_table: string };
+        Returns: number;
+      };
+      /**
+       * Atomic refund reservation + cumulative-cap guard.
+       * (supabase/migrations/002_refund_idempotency.sql)
+       */
+      reserve_refund: {
+        Args: {
+          p_refund_id: number;
+          p_transaction_id: number;
+          p_amount?: number | null;
+        };
+        Returns: { effective: number; cumulative: number }[];
+      };
+      /**
+       * Bulk product status change in one statement; a publish backfills a
+       * missing `published_at` atomically (admin-dashboard/sql/004_atomic_writes.sql).
+       */
+      bulk_set_product_status: {
+        Args: { p_ids: number[]; p_status: string };
+        Returns: number;
+      };
+      /** Atomic `collects` replace for a collection (sql/004_atomic_writes.sql). */
+      set_collection_products: {
+        Args: { p_collection_id: number; p_product_ids: number[] };
+        Returns: number;
+      };
+      /** Atomic variant batch update (sql/004_atomic_writes.sql). */
+      set_product_variants: {
+        Args: { p_rows: unknown };
+        Returns: number;
+      };
+      /** Promote one image to cover, demoting the previous (sql/004). */
+      set_cover_image: {
+        Args: { p_image_id: number };
+        Returns: number;
+      };
+      /**
+       * Per-day INR revenue rollup (admin-dashboard/sql/004_atomic_writes.sql).
+       * Replaces client-side summation over a `.limit(500)` fetch, which
+       * silently under-reported any window holding more than 500 orders.
+       */
+      revenue_by_day: {
+        Args: { p_since: string };
+        Returns: { day: string; total: number }[];
+      };
+      /**
+       * Units + revenue per product (admin-dashboard/sql/004_atomic_writes.sql).
+       * Grouped by `product_id`, so two products sharing a title stay distinct.
+       */
+      top_products_by_units: {
+        Args: { p_limit: number };
+        Returns: {
+          product_id: number | null;
+          title: string;
+          quantity: number;
+          revenue: number;
+        }[];
+      };
+    };
+    Enums: Record<string, never>;
+  };
+}
+
+// ── Table helpers ─────────────────────────────────────────────────────────────
+// Row/Insert/Update aliases so consumers never hand-write row shapes.
+
+export type TableRow<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row'];
+export type TableInsert<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Insert'];
+export type TableUpdate<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Update'];
+
+/** Any value Postgres `jsonb` columns accept. */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+// The table helpers above are erased at runtime; this module stays type-only
+// except for the artist/collection helpers further down, which the storefront
+// and admin both import.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CORE ENTITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type Product = {
+  id: number;
+  title: string;
+  body_html: string | null;
+  vendor: string | null;
+  product_type: string | null;
+  // Nullable in the DB (migrated rows predate the not-null backfill), so
+  // link builders and card transforms must guard (?? '' / .filter) rather
+  // than calling string methods directly.
+  handle: string | null;
+  status: 'active' | 'archived' | 'draft';
+  published_at: string | null;
+  published_scope: string | null;
+  template_suffix: string | null;
+  tags: string | null;
+  // Product-level SEO (supabase/migrations/005_seo_content.sql), enriched
+  // by the offline enrichment pass. Null until enriched; the storefront
+  // falls back to title/body slicing when these are absent.
+  meta_title: string | null;
+  meta_description: string | null;
+  search_keywords: string | null;
+  // Cached minimum variant price (supabase/migrations/001_min_price.sql).
+  // NULL until backfilled; price sorts fall back to client-side ordering.
+  min_price: number | string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductVariant = {
+  id: number;
+  product_id: number;
+  title: string | null;
+  price: number;
+  compare_at_price: number | null;
+  position: number;
+  sku: string | null;
+  barcode: string | null;
+  grams: number | null;
+  weight: number | null;
+  weight_unit: string | null;
+  inventory_item_id: number | null;
+  inventory_quantity: number;
+  inventory_policy: string | null;
+  inventory_management: string | null;
+  fulfillment_service: string | null;
+  requires_shipping: boolean;
+  taxable: boolean;
+  option1: string | null;
+  option2: string | null;
+  option3: string | null;
+  image_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductImage = {
+  id: number;
+  product_id: number;
+  position: number;
+  src: string;
+  alt: string | null;
+  width: number | null;
+  height: number | null;
+  supabase_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductOption = {
+  id: number;
+  product_id: number;
+  name: string;
+  position: number;
+  values: string[] | null;
+}
+
+export type Collection = {
+  id: number;
+  title: string;
+  handle: string | null;
+  body_html: string | null;
+  collection_type: 'smart' | 'custom';
+  published: boolean;
+  published_at: string | null;
+  published_scope: string | null;
+  sort_order: string | null;
+  template_suffix: string | null;
+  disjunctive: boolean | null;
+  image_src: string | null;
+  image_alt: string | null;
+  updated_at: string;
+}
+
+export type Customer = {
+  id: number;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  state: string | null;
+  note: string | null;
+  tags: string | null;
+  verified_email: boolean;
+  tax_exempt: boolean;
+  orders_count: number;
+  total_spent: number;
+  accepts_marketing: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Order = {
+  id: number;
+  customer_id: number | null;
+  name: string | null;
+  order_number: number | null;
+  email: string | null;
+  phone: string | null;
+  financial_status: string | null;
+  fulfillment_status: string | null;
+  cancel_reason: string | null;
+  cancelled_at: string | null;
+  currency: string;
+  total_price: number;
+  subtotal_price: number | null;
+  total_discounts: number | null;
+  total_tax: number | null;
+  total_shipping_price: number | null;
+  created_at: string;
+  processed_at: string | null;
+  closed_at: string | null;
+}
+
+export type LineItem = {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  variant_id: number | null;
+  title: string;
+  variant_title: string | null;
+  sku: string | null;
+  price: number;
+  quantity: number;
+  total_discount: number | null;
+  fulfillment_status: string | null;
+  requires_shipping: boolean;
+  taxable: boolean;
+  gift_card: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENRICHED TYPES (for frontend use)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ProductWithDetails extends Product {
+  product_variants: ProductVariant[];
+  product_images: ProductImage[];
+  product_options?: ProductOption[];
+}
+
+export interface ProductWithRelations extends ProductWithDetails {
+  collections?: Collection[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARTIST DATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// List of collection handles that represent artists (not product categories)
+// These collections have products linked via the collects junction table
+export const ARTIST_COLLECTION_HANDLES = [
+  'alan-walker',
+  'akon',
+  'anuv-jain',
+  'ap-dhillon',
+  'arijit-singh',
+  'badshah',
+  'behemoth',
+  'billie-eilish',
+  'bryan-adams',
+  'bts',
+  'calvin-harris',
+  'cigarettes-after-sex',
+  'coldplay',
+  'def-leppard',
+  'diljit-dosanjh',
+  'divine',
+  'dj-snake',
+  'dream-theater',
+  'dua-lipa',
+  'ed-sheeran',
+  'fred-again',
+  'fujii-kaze',
+  'glass-animals',
+  'green-day',
+  'guns-and-roses',
+  'hanumankind',
+  'honey-singh',
+  'imagine-dragons',
+  'jackson-wang',
+  'john-mayer',
+  'justin-bieber',
+  'kanye-west',
+  'karan-aujla',
+  'kehlani',
+  'keinemusik',
+  'king',
+  'krsna',
+  'lana-del-rey',
+  'lany',
+  'linkin-park',
+  'lollapalooza-india',
+  'louis-tomlinson',
+  'maroon-5',
+  'marshmello',
+  'martin-garrix',
+  'mc-stan',
+  'nick-jonas',
+  'nucleya',
+  'onerepublic',
+  'playboi-carti',
+  'post-malone',
+  'prabh-deep',
+  'prateek-kuhad',
+  'raftaar',
+  'ritviz',
+  'seedhe-maut',
+  'shawn-mendes',
+  'sidhu-moosewala',
+  'sunburn-festival',
+  'talwiinder',
+  'taylor-swift',
+  'the-lumineers',
+  'the-weeknd',
+  'tiesto',
+  'travis-scott',
+  'yungblud',
+] as const;
+
+export type ArtistHandle = typeof ARTIST_COLLECTION_HANDLES[number];
+
+// Helper to check if a collection handle is an artist
+export function isArtistCollection(handle: string): boolean {
+  return ARTIST_COLLECTION_HANDLES.includes(handle as ArtistHandle);
+}
+
+export interface ArtistData {
+  handle: string;
+  name: string;
+  vendorName: string;
+  tagline?: string;
+  bio?: string;
+  heroImage?: string;
+  logoImage?: string;
+  accentColor?: string;
+  secondaryColor?: string;
+  productCount?: number;
+}
+
+// Helper to convert vendor name to URL-safe handle
+export function vendorToHandle(vendor: string): string {
+  return vendor.toLowerCase().replace(/\s+/g, '-');
+}
+
+// Helper to get artist metadata from ARTISTS config by vendor name
+export function getArtistMetadata(vendorName: string): Partial<ArtistData> | null {
+  const handle = vendorToHandle(vendorName);
+  return ARTISTS[handle] || null;
+}
+
+// Static artist configuration - used as metadata fallback for colors, images, etc.
+export const ARTISTS: Record<string, ArtistData> = {
+  'alan-walker': {
+    handle: 'alan-walker',
+    name: 'Alan Walker',
+    vendorName: 'Alan Walker',
+    tagline: 'Faded Collection',
+    bio: 'Electronic dance music meets premium fashion. Experience the signature Alan Walker aesthetic with exclusive concert merchandise.',
+    heroImage: '/artists/alan-walker-hero.png',
+    accentColor: '#00D4FF',
+    secondaryColor: '#0A1628',
+  },
+  akon: {
+    handle: 'akon',
+    name: 'Akon',
+    vendorName: 'Akon',
+    tagline: 'Smack That Collection',
+    bio: "Akon's iconic R&B and hip-hop style in premium merchandise. The Senegalese-American superstar has performed in India multiple times.",
+    heroImage: '/artists/akon-hero.png',
+    accentColor: '#FFD700',
+    secondaryColor: '#1C1C1C',
+  },
+  'anuv-jain': {
+    handle: 'anuv-jain',
+    name: 'Anuv Jain',
+    vendorName: 'Anuv Jain',
+    tagline: 'Baarishein Vibes',
+    bio: "India's indie-pop sensation. Premium merchandise for fans of Baarishein, Husn, and Alag Aasmaan.",
+    heroImage: '/artists/anuv-jain-hero.png',
+    accentColor: '#A8D8EA',
+    secondaryColor: '#2C3E50',
+  },
+  'ap-dhillon': {
+    handle: 'ap-dhillon',
+    name: 'AP Dhillon',
+    vendorName: 'AP Dhillon',
+    tagline: 'The Brownprint',
+    bio: "AP Dhillon's Indo-Canadian fusion sound redefined Punjabi music globally. Shop exclusive Brownprint Tour merchandise.",
+    heroImage: '/artists/ap-dhillon-hero.png',
+    accentColor: '#FF3D00',
+    secondaryColor: '#1A1A2E',
+  },
+  'arijit-singh': {
+    handle: 'arijit-singh',
+    name: 'Arijit Singh',
+    vendorName: 'Arijit Singh',
+    tagline: "India's Voice",
+    bio: "India's most beloved playback singer. Premium merchandise for fans of Tum Hi Ho, Channa Mereya, and Kesariya.",
+    heroImage: '/artists/arijit-singh-hero.png',
+    accentColor: '#E91E63',
+    secondaryColor: '#1A1A1A',
+  },
+  badshah: {
+    handle: 'badshah',
+    name: 'Badshah',
+    vendorName: 'Badshah',
+    tagline: 'Paagal Collection',
+    bio: "India's biggest commercial rapper. Shop Badshah merchandise featuring designs inspired by DJ Waale Babu and Kala Chashma.",
+    heroImage: '/artists/badshah-hero.png',
+    accentColor: '#FF9800',
+    secondaryColor: '#212121',
+  },
+  'billie-eilish': {
+    handle: 'billie-eilish',
+    name: 'Billie Eilish',
+    vendorName: 'Billie Eilish',
+    tagline: 'Hit Me Hard and Soft',
+    bio: "Billie Eilish's dark aesthetic meets premium fashion. Fan-made designs inspired by the Grammy-winning artist.",
+    heroImage: '/artists/billie-eilish-hero.png',
+    accentColor: '#00FF41',
+    secondaryColor: '#0D0D0D',
+  },
+  'bryan-adams': {
+    handle: 'bryan-adams',
+    name: 'Bryan Adams',
+    vendorName: 'Bryan Adams',
+    tagline: 'So Happy It Hurts',
+    bio: "Classic rock royalty. Premium Bryan Adams merchandise inspired by Summer of '69 and decades of rock anthems.",
+    heroImage: '/artists/bryan-adams-hero.png',
+    accentColor: '#B22222',
+    secondaryColor: '#1C1C1C',
+  },
+  'cigarettes-after-sex': {
+    handle: 'cigarettes-after-sex',
+    name: 'Cigarettes After Sex',
+    vendorName: 'Cigarettes After Sex',
+    tagline: 'Apocalypse Aesthetic',
+    bio: "Dream pop aesthetics in premium fashion. Minimalist merchandise for fans of Apocalypse, K., and Nothing's Gonna Hurt You Baby.",
+    heroImage: '/artists/cas-hero.png',
+    accentColor: '#B0BEC5',
+    secondaryColor: '#0D0D0D',
+  },
+  coldplay: {
+    handle: 'coldplay',
+    name: 'Coldplay',
+    vendorName: 'ColdPlay',
+    tagline: 'Music of the Spheres',
+    bio: "Experience the ethereal beauty of Coldplay's universe with exclusive concert couture. From the iconic Music of the Spheres World Tour, each piece captures the magic of live performance.",
+    heroImage: '/artists/coldplay-hero.png',
+    accentColor: '#FFD700',
+    secondaryColor: '#1E90FF',
+  },
+  'diljit-dosanjh': {
+    handle: 'diljit-dosanjh',
+    name: 'Diljit Dosanjh',
+    vendorName: 'Diljit Dosanjh',
+    tagline: 'Dil-Luminati Tour',
+    bio: 'Celebrate Punjabi pride with exclusive Diljit concert fashion. Bold, vibrant, and unmistakably G.O.A.T. — wear your devotion with pride.',
+    heroImage: '/artists/diljit-hero.png',
+    accentColor: '#FF6B35',
+    secondaryColor: '#004E64',
+  },
+  divine: {
+    handle: 'divine',
+    name: 'DIVINE',
+    vendorName: 'DIVINE',
+    tagline: 'Gully Gang',
+    bio: "The pioneer of Indian street rap. DIVINE put Mumbai's hip-hop on the global map. Shop official Gully Boy-inspired merchandise.",
+    heroImage: '/artists/divine-hero.png',
+    accentColor: '#FF5722',
+    secondaryColor: '#1C1C1C',
+  },
+  'dua-lipa': {
+    handle: 'dua-lipa',
+    name: 'Dua Lipa',
+    vendorName: 'Dua Lipa',
+    tagline: 'Future Nostalgia',
+    bio: 'Disco-inspired fashion for the modern pop era. Embrace the Future Nostalgia aesthetic with premium Dua Lipa merchandise.',
+    heroImage: '/artists/dua-lipa-hero.png',
+    accentColor: '#FF69B4',
+    secondaryColor: '#4B0082',
+  },
+  'ed-sheeran': {
+    handle: 'ed-sheeran',
+    name: 'Ed Sheeran',
+    vendorName: 'ED Sheeran',
+    tagline: 'Mathematics Tour',
+    bio: 'Acoustic vibes meet premium fan designs. An artist-inspired collection for the devoted Sheerios.',
+    heroImage: '/artists/ed-sheeran-hero.png',
+    accentColor: '#FF4500',
+    secondaryColor: '#228B22',
+  },
+  'glass-animals': {
+    handle: 'glass-animals',
+    name: 'Glass Animals',
+    vendorName: 'Glass Animals',
+    tagline: 'Heat Waves',
+    bio: 'Psychedelic pop aesthetics in premium fashion. Glass Animals merchandise inspired by Heat Waves and Dreamland.',
+    heroImage: '/artists/glass-animals-hero.png',
+    accentColor: '#FF6F61',
+    secondaryColor: '#2E294E',
+  },
+  'green-day': {
+    handle: 'green-day',
+    name: 'Green Day',
+    vendorName: 'Green Day',
+    tagline: 'American Idiot',
+    bio: "Punk rock meets premium fashion. Shop Green Day merchandise featuring designs inspired by American Idiot and Boulevard of Broken Dreams.",
+    heroImage: '/artists/green-day-hero.png',
+    accentColor: '#00FF00',
+    secondaryColor: '#1C1C1C',
+  },
+  'guns-and-roses': {
+    handle: 'guns-and-roses',
+    name: "Guns N' Roses",
+    vendorName: 'Guns and Roses',
+    tagline: 'Rock Legends',
+    bio: "Classic rock meets premium fashion. Channel your inner rock god with official Guns N' Roses merchandise.",
+    heroImage: '/artists/gnr-hero.png',
+    accentColor: '#FFD700',
+    secondaryColor: '#8B0000',
+  },
+  hanumankind: {
+    handle: 'hanumankind',
+    name: 'Hanumankind',
+    vendorName: 'Hanumankind',
+    tagline: 'Big Dawgs',
+    bio: 'Indian hip-hop meets luxury streetwear. Rep the movement with official Hanumankind merchandise.',
+    heroImage: '/artists/hanumankind-hero.png',
+    accentColor: '#FF5722',
+    secondaryColor: '#1C1C1C',
+  },
+  'honey-singh': {
+    handle: 'honey-singh',
+    name: 'Yo Yo Honey Singh',
+    vendorName: 'Honey Singh',
+    tagline: 'Desi Kalakaar',
+    bio: 'The original Desi Kalakaar. Premium merchandise for true Honey Singh fans.',
+    heroImage: '/artists/honey-singh-hero.png',
+    accentColor: '#FFC107',
+    secondaryColor: '#212121',
+  },
+  'imagine-dragons': {
+    handle: 'imagine-dragons',
+    name: 'Imagine Dragons',
+    vendorName: 'Imagine Dragons',
+    tagline: 'Believer',
+    bio: "Arena rock anthems meet premium fashion. Shop Imagine Dragons merchandise inspired by Believer, Radioactive, and Thunder.",
+    heroImage: '/artists/imagine-dragons-hero.png',
+    accentColor: '#FFD700',
+    secondaryColor: '#2C2C2C',
+  },
+  'jackson-wang': {
+    handle: 'jackson-wang',
+    name: 'Jackson Wang',
+    vendorName: 'Jackson Wang',
+    tagline: 'TEAM WANG',
+    bio: "K-pop meets luxury streetwear. Jackson Wang's TEAM WANG aesthetic in premium merchandise.",
+    heroImage: '/artists/jackson-wang-hero.png',
+    accentColor: '#FF1744',
+    secondaryColor: '#0D0D0D',
+  },
+  'john-mayer': {
+    handle: 'john-mayer',
+    name: 'John Mayer',
+    vendorName: 'John Mayer',
+    tagline: 'Sob Rock',
+    bio: "Guitar virtuoso meets premium fashion. John Mayer merchandise for fans of Gravity, Slow Dancing, and Waiting on the World to Change.",
+    heroImage: '/artists/john-mayer-hero.png',
+    accentColor: '#5C6BC0',
+    secondaryColor: '#1A1A1A',
+  },
+  'justin-bieber': {
+    handle: 'justin-bieber',
+    name: 'Justin Bieber',
+    vendorName: 'Justin Bieber',
+    tagline: 'Justice World Tour',
+    bio: "Premium Justin Bieber merchandise for Indian Beliebers. Designs inspired by the Justice and Purpose eras.",
+    heroImage: '/artists/justin-bieber-hero.png',
+    accentColor: '#E040FB',
+    secondaryColor: '#1C1C1C',
+  },
+  'karan-aujla': {
+    handle: 'karan-aujla',
+    name: 'Karan Aujla',
+    vendorName: 'Karan Aujla',
+    tagline: 'Tauba Tauba',
+    bio: 'Punjabi music sensation. Official Karan Aujla merchandise for the real ones.',
+    heroImage: '/artists/karan-aujla-hero.png',
+    accentColor: '#E53935',
+    secondaryColor: '#1C1C1C',
+  },
+  king: {
+    handle: 'king',
+    name: 'King',
+    vendorName: 'King',
+    tagline: 'Champagne Talk',
+    bio: "India's pop sensation. Shop King merchandise inspired by Maan Meri Jaan and Tu Aake Dekhle.",
+    heroImage: '/artists/king-hero.png',
+    accentColor: '#FFB300',
+    secondaryColor: '#1A1A2E',
+  },
+  krsna: {
+    handle: 'krsna',
+    name: 'KRSNA',
+    vendorName: 'KRSNA',
+    tagline: 'Indian Hip-Hop',
+    bio: 'Desi hip-hop royalty. Official KRSNA merchandise for the real ones.',
+    heroImage: '/artists/krsna-hero.png',
+    accentColor: '#9C27B0',
+    secondaryColor: '#1C1C1C',
+  },
+  'lana-del-rey': {
+    handle: 'lana-del-rey',
+    name: 'Lana Del Rey',
+    vendorName: 'Lana Del Rey',
+    tagline: 'Born to Die',
+    bio: "Vintage glamour meets premium fashion. Lana Del Rey merchandise with her signature melancholic aesthetic.",
+    heroImage: '/artists/lana-del-rey-hero.png',
+    accentColor: '#D4AF37',
+    secondaryColor: '#1C0A0A',
+  },
+  'linkin-park': {
+    handle: 'linkin-park',
+    name: 'Linkin Park',
+    vendorName: 'Linkin Park',
+    tagline: 'From Zero',
+    bio: "Linkin Park's iconic nu-metal aesthetic in premium merchandise. From Hybrid Theory to From Zero, wear the legacy.",
+    heroImage: '/artists/linkin-park-hero.png',
+    accentColor: '#FF0000',
+    secondaryColor: '#0A0A0A',
+  },
+  'lollapalooza-india': {
+    handle: 'lollapalooza-india',
+    name: 'Lollapalooza India',
+    vendorName: 'lollapalooza india',
+    tagline: 'Festival Collection',
+    bio: "Celebrate India's biggest music festival with exclusive Lollapalooza merchandise.",
+    heroImage: '/artists/lolla-hero.png',
+    accentColor: '#00BCD4',
+    secondaryColor: '#E91E63',
+  },
+  'louis-tomlinson': {
+    handle: 'louis-tomlinson',
+    name: 'Louis Tomlinson',
+    vendorName: 'Louis Tomlinson',
+    tagline: 'Faith in the Future',
+    bio: "Former One Direction star turned solo artist. Premium Louis Tomlinson merchandise for Directioners and solo fans.",
+    heroImage: '/artists/louis-tomlinson-hero.png',
+    accentColor: '#42A5F5',
+    secondaryColor: '#1A1A1A',
+  },
+  'maroon-5': {
+    handle: 'maroon-5',
+    name: 'Maroon 5',
+    vendorName: 'Maroon 5',
+    tagline: 'Moves Like Jagger',
+    bio: "Pop-rock perfection. Maroon 5 merchandise featuring designs inspired by their chart-topping hits and live shows.",
+    heroImage: '/artists/maroon-5-hero.png',
+    accentColor: '#C62828',
+    secondaryColor: '#1C1C1C',
+  },
+  marshmello: {
+    handle: 'marshmello',
+    name: 'Marshmello',
+    vendorName: 'Marshmello',
+    tagline: 'Helmet On',
+    bio: "The masked DJ's playful aesthetic in premium fashion. Marshmello merchandise for fans of Happier and Alone.",
+    heroImage: '/artists/marshmello-hero.png',
+    accentColor: '#FFFFFF',
+    secondaryColor: '#1A1A1A',
+  },
+  'martin-garrix': {
+    handle: 'martin-garrix',
+    name: 'Martin Garrix',
+    vendorName: 'Martin Garrix',
+    tagline: 'Animals',
+    bio: "World's #1 DJ. Martin Garrix merchandise featuring designs inspired by Animals and In the Name of Love.",
+    heroImage: '/artists/martin-garrix-hero.png',
+    accentColor: '#00BCD4',
+    secondaryColor: '#0D0D0D',
+  },
+  'mc-stan': {
+    handle: 'mc-stan',
+    name: 'MC Stan',
+    vendorName: 'MC Stan',
+    tagline: 'Insaan',
+    bio: "Pune's street rap king. MC Stan merchandise inspired by Insaan, Amin, and his raw street style.",
+    heroImage: '/artists/mc-stan-hero.png',
+    accentColor: '#FF5722',
+    secondaryColor: '#0D0D0D',
+  },
+  'nick-jonas': {
+    handle: 'nick-jonas',
+    name: 'Nick Jonas',
+    vendorName: 'Nick Jonas',
+    tagline: 'Jealous',
+    bio: "Nick Jonas merchandise for Indian fans. The Jonas Brother with deep India connections, married to Priyanka Chopra.",
+    heroImage: '/artists/nick-jonas-hero.png',
+    accentColor: '#7B1FA2',
+    secondaryColor: '#1C1C1C',
+  },
+  nucleya: {
+    handle: 'nucleya',
+    name: 'Nucleya',
+    vendorName: 'Nucleya',
+    tagline: 'Bass Rani',
+    bio: "India's bass music pioneer. Nucleya merchandise inspired by Laung Gawacha and his fusion of bass, hip-hop, and Indian folk.",
+    heroImage: '/artists/nucleya-hero.png',
+    accentColor: '#FF6F00',
+    secondaryColor: '#1A1A1A',
+  },
+  onerepublic: {
+    handle: 'onerepublic',
+    name: 'OneRepublic',
+    vendorName: 'OneRepublic',
+    tagline: 'Counting Stars',
+    bio: "Pop-rock excellence. OneRepublic merchandise for fans of Counting Stars, Apologize, and Secrets.",
+    heroImage: '/artists/onerepublic-hero.png',
+    accentColor: '#FFC107',
+    secondaryColor: '#1C1C1C',
+  },
+  'post-malone': {
+    handle: 'post-malone',
+    name: 'Post Malone',
+    vendorName: 'Post Malone',
+    tagline: 'Rockstar',
+    bio: "Post Malone's eclectic style in premium merchandise. Designs inspired by Rockstar, Sunflower, and Circles.",
+    heroImage: '/artists/post-malone-hero.png',
+    accentColor: '#FF8A65',
+    secondaryColor: '#1C1C1C',
+  },
+  'prabh-deep': {
+    handle: 'prabh-deep',
+    name: 'Prabh Deep',
+    vendorName: 'Prabh Deep',
+    tagline: 'Tabia',
+    bio: "Delhi's underground hip-hop pioneer. Prabh Deep merchandise for fans of Indian alternative hip-hop.",
+    heroImage: '/artists/prabh-deep-hero.png',
+    accentColor: '#3F51B5',
+    secondaryColor: '#0D0D0D',
+  },
+  'prateek-kuhad': {
+    handle: 'prateek-kuhad',
+    name: 'Prateek Kuhad',
+    vendorName: 'Prateek Kuhad',
+    tagline: 'Cold/Mess',
+    bio: "India's indie-folk icon, endorsed by Barack Obama. Premium Prateek Kuhad merchandise for fans of Cold/Mess and Kasoor.",
+    heroImage: '/artists/prateek-kuhad-hero.png',
+    accentColor: '#8D6E63',
+    secondaryColor: '#2C2C2C',
+  },
+  raftaar: {
+    handle: 'raftaar',
+    name: 'Raftaar',
+    vendorName: 'Raftaar',
+    tagline: 'Swag Mera Desi',
+    bio: "Indian rap heavyweight. Raftaar merchandise for fans of Swag Mera Desi and his Bollywood hits.",
+    heroImage: '/artists/raftaar-hero.png',
+    accentColor: '#F44336',
+    secondaryColor: '#1C1C1C',
+  },
+  ritviz: {
+    handle: 'ritviz',
+    name: 'Ritviz',
+    vendorName: 'Ritviz',
+    tagline: 'Udd Gaye',
+    bio: "India's electronic pop pioneer. Ritviz merchandise inspired by Udd Gaye, Sage, and Liggi.",
+    heroImage: '/artists/ritviz-hero.png',
+    accentColor: '#AB47BC',
+    secondaryColor: '#1A1A2E',
+  },
+  'seedhe-maut': {
+    handle: 'seedhe-maut',
+    name: 'Seedhe Maut',
+    vendorName: 'Seedhe Maut',
+    tagline: 'Nayaab',
+    bio: "India's most acclaimed hip-hop duo. Seedhe Maut merchandise for fans of Nayaab and their intricate rap flows.",
+    heroImage: '/artists/seedhe-maut-hero.png',
+    accentColor: '#4CAF50',
+    secondaryColor: '#0D0D0D',
+  },
+  'shawn-mendes': {
+    handle: 'shawn-mendes',
+    name: 'Shawn Mendes',
+    vendorName: 'Shawn Mendes',
+    tagline: 'Wonder',
+    bio: 'Heartfelt melodies meet premium fashion. Official Shawn Mendes collection for the Mendes Army.',
+    heroImage: '/artists/shawn-mendes-hero.png',
+    accentColor: '#87CEEB',
+    secondaryColor: '#2F4F4F',
+  },
+  'sidhu-moosewala': {
+    handle: 'sidhu-moosewala',
+    name: 'Sidhu Moosewala',
+    vendorName: 'Sidhu Moosewala',
+    tagline: 'Legend Never Dies',
+    bio: 'Honor the legend. Premium Sidhu Moosewala tribute merchandise for true fans.',
+    heroImage: '/artists/sidhu-hero.png',
+    accentColor: '#8B4513',
+    secondaryColor: '#1C1C1C',
+  },
+  'sunburn-festival': {
+    handle: 'sunburn-festival',
+    name: 'Sunburn Festival',
+    vendorName: 'Sunburn Festival',
+    tagline: "Asia's Biggest EDM Festival",
+    bio: "Celebrate Asia's largest electronic dance music festival with exclusive Sunburn merchandise. Festival fashion for EDM lovers.",
+    heroImage: '/artists/sunburn-hero.png',
+    accentColor: '#FF6D00',
+    secondaryColor: '#0D0D0D',
+  },
+  talwiinder: {
+    handle: 'talwiinder',
+    name: 'Talwiinder',
+    vendorName: 'Talwiinder',
+    tagline: 'Dil Da',
+    bio: "India's rising R&B star. Talwiinder merchandise for fans of his smooth Punjabi R&B sound.",
+    heroImage: '/artists/talwiinder-hero.png',
+    accentColor: '#CE93D8',
+    secondaryColor: '#1A1A2E',
+  },
+  'taylor-swift': {
+    handle: 'taylor-swift',
+    name: 'Taylor Swift',
+    vendorName: 'Taylor Swift',
+    tagline: 'The Eras Tour',
+    bio: 'Dress for every era with premium Taylor Swift merchandise. Celebrate the journey through all the iconic eras with fashion that tells your story.',
+    heroImage: '/artists/taylor-hero.png',
+    accentColor: '#C71585',
+    secondaryColor: '#FFB6C1',
+  },
+  'the-weeknd': {
+    handle: 'the-weeknd',
+    name: 'The Weeknd',
+    vendorName: 'The Weeknd',
+    tagline: 'After Hours',
+    bio: "The Weeknd's dark R&B aesthetic in premium merchandise. Designs inspired by After Hours and Blinding Lights.",
+    heroImage: '/artists/the-weeknd-hero.png',
+    accentColor: '#FF0000',
+    secondaryColor: '#0A0A0A',
+  },
+  'travis-scott': {
+    handle: 'travis-scott',
+    name: 'Travis Scott',
+    vendorName: 'Travis Scott',
+    tagline: 'Utopia',
+    bio: "Cactus Jack aesthetics in premium fashion. Travis Scott merchandise inspired by Utopia and SICKO MODE.",
+    heroImage: '/artists/travis-scott-hero.png',
+    accentColor: '#795548',
+    secondaryColor: '#0A0A0A',
+  },
+  behemoth: {
+    handle: 'behemoth',
+    name: 'Behemoth',
+    vendorName: 'Behemoth',
+    tagline: 'Chant of the Eastern Lands',
+    bio: "Extreme metal giants Behemoth bring their blackened death metal aesthetic. Premium merchandise for fans of Nergal and the most theatrical metal band in the world.",
+    heroImage: '/artists/behemoth-hero.png',
+    accentColor: '#8B0000',
+    secondaryColor: '#0A0A0A',
+  },
+  bts: {
+    handle: 'bts',
+    name: 'BTS',
+    vendorName: 'BTS',
+    tagline: 'Beyond The Scene',
+    bio: "BTS ARMY-inspired premium merchandise. Celebrate the global K-pop phenomenon with designs inspired by Dynamite, Butter, and the Bangtan Boys' iconic aesthetic.",
+    heroImage: '/artists/bts-hero.png',
+    accentColor: '#9B59B6',
+    secondaryColor: '#1A1A2E',
+  },
+  'calvin-harris': {
+    handle: 'calvin-harris',
+    name: 'Calvin Harris',
+    vendorName: 'Calvin Harris',
+    tagline: 'India Debut 2026',
+    bio: "The world's highest-paid DJ comes to India. Premium merch inspired by Summer, Feel So Close, One Kiss, and This Is What You Came For.",
+    accentColor: '#FF6B35',
+    secondaryColor: '#0D0D0D',
+  },
+  'def-leppard': {
+    handle: 'def-leppard',
+    name: 'Def Leppard',
+    vendorName: 'Def Leppard',
+    tagline: 'Rock of Ages',
+    bio: "Rock & Roll Hall of Fame legends. Premium merch inspired by Pour Some Sugar on Me, Hysteria, and Animal. India Tour 2026.",
+    heroImage: '/artists/def-leppard-hero.png',
+    accentColor: '#C0392B',
+    secondaryColor: '#1C1C1C',
+  },
+  'dj-snake': {
+    handle: 'dj-snake',
+    name: 'DJ Snake',
+    vendorName: 'DJ Snake',
+    tagline: 'India Tour 2026',
+    bio: "French EDM superstar DJ Snake. Premium merchandise inspired by Turn Down for What, Lean On, Taki Taki, and his massive India tours.",
+    heroImage: '/artists/dj-snake-hero.png',
+    accentColor: '#27AE60',
+    secondaryColor: '#0A0A0A',
+  },
+  'dream-theater': {
+    handle: 'dream-theater',
+    name: 'Dream Theater',
+    vendorName: 'Dream Theater',
+    tagline: '40th Anniversary',
+    bio: "Progressive metal pioneers Dream Theater. Premium merch celebrating 40 years of technical mastery, from Metropolis to The Astonishing.",
+    heroImage: '/artists/dream-theater-hero.png',
+    accentColor: '#3498DB',
+    secondaryColor: '#0D0D1A',
+  },
+  'fred-again': {
+    handle: 'fred-again',
+    name: 'Fred Again..',
+    vendorName: 'Fred Again',
+    tagline: 'USB Collection',
+    bio: "Fred Again.. brings emotional electronic music to the mainstream. Premium merch inspired by Marea, Leavemealone, and Delilah (pull me out of this).",
+    heroImage: '/artists/fred-again-hero.png',
+    accentColor: '#E67E22',
+    secondaryColor: '#1A1A1A',
+  },
+  'fujii-kaze': {
+    handle: 'fujii-kaze',
+    name: 'Fujii Kaze',
+    vendorName: 'Fujii Kaze',
+    tagline: 'Shinunoga E-Wa',
+    bio: "Japanese singer-songwriter Fujii Kaze. Premium merch for fans of Shinunoga E-Wa, Matataki, and his genre-defying pop sound. Performed at Lollapalooza India 2026.",
+    heroImage: '/artists/fujii-kaze-hero.png',
+    accentColor: '#F39C12',
+    secondaryColor: '#2C3E50',
+  },
+  'kanye-west': {
+    handle: 'kanye-west',
+    name: 'Ye (Kanye West)',
+    vendorName: 'Kanye West',
+    tagline: 'India Debut 2026',
+    bio: "Ye (Kanye West) makes his India debut in 2026. Premium fan-made merch inspired by the most influential artist of the 21st century — Stronger, Gold Digger, Runaway, and the Yeezy aesthetic.",
+    heroImage: '/artists/kanye-west-hero.png',
+    accentColor: '#D4A574',
+    secondaryColor: '#0A0A0A',
+  },
+  kehlani: {
+    handle: 'kehlani',
+    name: 'Kehlani',
+    vendorName: 'Kehlani',
+    tagline: 'Crash Collection',
+    bio: "R&B sensation Kehlani. Premium merch for fans of Gangsta, Distraction, and her soulful vocals. Performed at Lollapalooza India 2026.",
+    heroImage: '/artists/kehlani-hero.png',
+    accentColor: '#E91E63',
+    secondaryColor: '#1A0A1A',
+  },
+  keinemusik: {
+    handle: 'keinemusik',
+    name: 'Keinemusik',
+    vendorName: 'Keinemusik',
+    tagline: 'Berlin Sound',
+    bio: "Berlin's boundary-pushing house and techno collective. &ME, Adam Port, and Rampa bring their genre-blending sound to India. Premium merch for deep house fans.",
+    heroImage: '/artists/keinemusik-hero.png',
+    accentColor: '#1ABC9C',
+    secondaryColor: '#0D0D0D',
+  },
+  lany: {
+    handle: 'lany',
+    name: 'LANY',
+    vendorName: 'LANY',
+    tagline: 'ILYSB Collection',
+    bio: "LANY's dreamy indie-pop in premium merchandise. Designs inspired by ILYSB, Malibu Nights, and their romantic sonic aesthetic. Performed at Lollapalooza India 2026.",
+    heroImage: '/artists/lany-hero.png',
+    accentColor: '#AED6F1',
+    secondaryColor: '#1A1A2E',
+  },
+  'playboi-carti': {
+    handle: 'playboi-carti',
+    name: 'Playboi Carti',
+    vendorName: 'Playboi Carti',
+    tagline: 'Opium',
+    bio: "Playboi Carti's avant-garde rap aesthetic in premium merch. Inspired by Magnolia, Shoota, and the Opium era. Headlined Lollapalooza India 2026.",
+    heroImage: '/artists/playboi-carti-hero.png',
+    accentColor: '#E74C3C',
+    secondaryColor: '#0A0A0A',
+  },
+  'the-lumineers': {
+    handle: 'the-lumineers',
+    name: 'The Lumineers',
+    vendorName: 'The Lumineers',
+    tagline: 'Automatic World Tour',
+    bio: "The Lumineers' folk-rock warmth in premium merchandise. Designs inspired by Ho Hey, Ophelia, Stubborn Love, and their Americana sound.",
+    accentColor: '#D4A76A',
+    secondaryColor: '#2C1810',
+  },
+  tiesto: {
+    handle: 'tiesto',
+    name: 'Tiësto',
+    vendorName: 'Tiësto',
+    tagline: 'India Tour 2026',
+    bio: "The godfather of trance and EDM. Premium merch inspired by Red Lights, The Business, and 10:35. Tiësto toured India in January 2026.",
+    heroImage: '/artists/tiesto-hero.png',
+    accentColor: '#00BCD4',
+    secondaryColor: '#0A0A1A',
+  },
+  yungblud: {
+    handle: 'yungblud',
+    name: 'YUNGBLUD',
+    vendorName: 'YUNGBLUD',
+    tagline: 'Punk Energy',
+    bio: "YUNGBLUD's genre-bending punk energy in premium merch. Inspired by Fleabag, Parents, and his rebellious aesthetic. Performed at Lollapalooza India 2026.",
+    heroImage: '/artists/yungblud-hero.png',
+    accentColor: '#FF69B4',
+    secondaryColor: '#0D0D0D',
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSFORMED PRODUCT TYPES (for UI display)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type BadgeType = 'NEW' | 'SALE' | 'LIMITED' | 'BESTSELLER' | 'TRENDING';
+
+export interface TransformedProduct {
+  id: string;
+  handle: string;
+  title: string;
+  artist: string;
+  price: number;
+  compareAtPrice: number | null;
+  image: string | null;
+  badge: BadgeType | null;
+  accentColor: string;
+}
+
+/**
+ * Extended TransformedProduct that includes the original product data
+ * Used by server components that need to pass full product data to client components
+ */
+export interface TransformedProductWithSource extends TransformedProduct {
+  originalProduct: ProductWithDetails;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CART TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CartItem {
+  variantId: number;
+  productId: number;
+  productHandle: string;
+  title: string;
+  variantTitle: string | null;
+  price: number;
+  compareAtPrice: number | null;
+  quantity: number;
+  image: string | null;
+  maxQuantity: number;
+  artist: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API RESPONSE TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  count: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface ApiError {
+  message: string;
+  code?: string;
+  details?: unknown;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BLOG TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type Blog = {
+  id: number;
+  title: string;
+  handle: string | null;
+  commentable: 'no' | 'moderate' | 'yes';
+  feedburner: string | null;
+  feedburner_location: string | null;
+  tags: string | null;
+  template_suffix: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Article = {
+  id: number;
+  blog_id: number;
+  title: string;
+  handle: string | null;
+  author: string | null;
+  body_html: string | null;
+  summary_html: string | null;
+  tags: string | null;
+  image_src: string | null;
+  image_alt: string | null;
+  image_width: number | null;
+  image_height: number | null;
+  supabase_image_url: string | null;
+  published: boolean;
+  published_at: string | null;
+  template_suffix: string | null;
+  user_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ArticleWithBlog extends Article {
+  blog: Blog;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JUNCTION + FORM TABLES (queried via collects / public API routes)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type Collect = {
+  id: number;
+  collection_id: number;
+  product_id: number;
+  position: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SmartCollectionRule = {
+  id: number;
+  collection_id: number;
+  column_name: string;
+  relation: string;
+  condition: string;
+}
+
+export type InventoryItem = {
+  id: number;
+  sku: string | null;
+  cost: number | null;
+  tracked: boolean | null;
+  requires_shipping: boolean | null;
+  country_code_of_origin: string | null;
+  province_code_of_origin: string | null;
+  harmonized_system_code: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type InventoryLevel = {
+  inventory_item_id: number;
+  location_id: number;
+  available: number | null;
+  updated_at: string | null;
+}
+
+export type Location = {
+  id: number;
+  name: string;
+  active: boolean | null;
+  legacy: boolean | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  province_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  zip: string | null;
+  phone: string | null;
+  created_at: string | null;
+}
+
+export type CustomerAddress = {
+  id: number;
+  customer_id: number;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  province_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  zip: string | null;
+  phone: string | null;
+  is_default: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type Transaction = {
+  id: number;
+  order_id: number;
+  parent_id: number | null;
+  kind: string | null;
+  status: string | null;
+  amount: number | null;
+  currency: string | null;
+  gateway: string | null;
+  authorization: string | null;
+  authorization_expires_at: string | null;
+  message: string | null;
+  error_code: string | null;
+  source_name: string | null;
+  payment_id: string | null;
+  test: boolean | null;
+  receipt: unknown | null;
+  created_at: string | null;
+  processed_at: string | null;
+}
+
+export type Fulfillment = {
+  id: number;
+  order_id: number;
+  location_id: number | null;
+  status: string | null;
+  shipment_status: string | null;
+  service: string | null;
+  name: string | null;
+  tracking_company: string | null;
+  tracking_number: string | null;
+  tracking_numbers: unknown | null;
+  tracking_url: string | null;
+  tracking_urls: unknown | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type Refund = {
+  id: number;
+  order_id: number;
+  note: string | null;
+  /** Paise charged to the gateway; NULL on pre-migration refunds. */
+  amount: number | null;
+  restock: boolean | null;
+  user_id: number | null;
+  created_at: string | null;
+  processed_at: string | null;
+}
+
+export type RefundTransaction = {
+  refund_id: number;
+  transaction_id: number;
+  created_at: string | null;
+}
+
+export type PriceRule = {
+  id: number;
+  title: string;
+  value: number;
+  value_type: string;
+  customer_selection: string;
+  target_type: string;
+  target_selection: string;
+  allocation_method: string;
+  allocation_limit: number | null;
+  once_per_customer: boolean | null;
+  usage_limit: number | null;
+  starts_at: string;
+  ends_at: string | null;
+  entitled_product_ids: unknown | null;
+  entitled_variant_ids: unknown | null;
+  entitled_collection_ids: unknown | null;
+  prerequisite_product_ids: unknown | null;
+  prerequisite_variant_ids: unknown | null;
+  prerequisite_collection_ids: unknown | null;
+  prerequisite_customer_ids: unknown | null;
+  prerequisite_subtotal_range: unknown | null;
+  prerequisite_quantity_range: unknown | null;
+  prerequisite_shipping_price_range: unknown | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export type DiscountCode = {
+  id: number;
+  price_rule_id: number;
+  code: string;
+  usage_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN SUPPORT TABLES (admin-dashboard/sql/001_admin_tables.sql)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type AdminUser = {
+  user_id: string;
+  role: string;
+  is_active: boolean | null;
+  created_at: string | null;
+}
+
+export type AdminAuditLog = {
+  id: number;
+  actor_id: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  before: unknown | null;
+  after: unknown | null;
+  created_at: string | null;
+}
+
+export type AiJob = {
+  id: number;
+  type: string;
+  status: string;
+  input_ref: string | null;
+  created_by: string | null;
+  created_at: string | null;
+}
+
+export type AiSuggestion = {
+  id: number;
+  job_id: number | null;
+  entity_type: string;
+  entity_id: string;
+  payload_json: unknown;
+  created_at: string | null;
+}
+
+export type AiAsset = {
+  id: number;
+  job_id: number | null;
+  storage_path: string;
+  preview_url: string | null;
+  metadata: unknown | null;
+  created_at: string | null;
+}
+
+export type ContactSubmission = {
+  id: number;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: string | null;
+  created_at: string;
+}
+
+export type NewsletterSubscriber = {
+  id: number;
+  email: string;
+  subscribed_at: string;
+}

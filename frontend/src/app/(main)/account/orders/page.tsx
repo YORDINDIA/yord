@@ -5,16 +5,16 @@ import Link from 'next/link';
 import { Package, ChevronRight, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn, formatDate, formatPrice } from '@yord/ui';
 
 interface Order {
   id: number;
-  order_number: string;
+  order_number: number | null;
   created_at: string;
-  financial_status: string;
+  financial_status: string | null;
   fulfillment_status: string | null;
   total_price: number;
-  currency: string;
+  currency: string | null;
 }
 
 export default function OrdersPage() {
@@ -55,7 +55,7 @@ export default function OrdersPage() {
       case 'refunded':
         return 'text-red-400 bg-red-500/10';
       default:
-        return 'text-ivory-400 bg-ivory-500/10';
+        return 'text-text-muted bg-text-muted/10';
     }
   };
 
@@ -71,26 +71,10 @@ export default function OrdersPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency || 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-8 h-8 text-gold-200 animate-spin" />
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -98,25 +82,25 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
           Order History
         </h2>
       </div>
 
       {orders.length === 0 ? (
-        <div className="bg-noir-900 border border-noir-800 p-12 text-center">
-          <div className="w-16 h-16 bg-noir-800 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Package className="w-8 h-8 text-ivory-500" />
+        <div className="bg-surface-card border border-border-default p-12 text-center">
+          <div className="w-16 h-16 bg-surface-raised rounded-full flex items-center justify-center mx-auto mb-6">
+            <Package className="w-8 h-8 text-text-muted" />
           </div>
-          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-ivory-100 mb-2">
+          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-secondary mb-2">
             No orders yet
           </h3>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-6">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-6">
             When you place an order, it will appear here.
           </p>
           <Link
             href="/"
-            className="inline-block px-8 py-3 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+            className="inline-block px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
           >
             START SHOPPING
           </Link>
@@ -127,32 +111,32 @@ export default function OrdersPage() {
             <Link
               key={order.id}
               href={`/account/orders/${order.id}`}
-              className="block bg-noir-900 border border-noir-800 p-6 hover:border-gold-200/30 transition-colors group"
+              className="block bg-surface-card border border-border-default p-6 hover:border-accent/30 transition-colors group"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100">
+                    <span className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary">
                       {order.order_number}
                     </span>
                     <span className={cn(
                       'px-2 py-0.5 text-xs font-[family-name:var(--font-jakarta)] rounded',
-                      getStatusColor(order.financial_status)
+                      getStatusColor(order.financial_status ?? 'pending')
                     )}>
-                      {order.financial_status}
+                      {order.financial_status ?? 'pending'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+                  <div className="flex items-center gap-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                     <span>{formatDate(order.created_at)}</span>
-                    <span className="w-1 h-1 bg-ivory-600 rounded-full" />
+                    <span className="w-1 h-1 bg-text-muted rounded-full" />
                     <span>{getFulfillmentStatus(order.fulfillment_status)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="font-[family-name:var(--font-bebas)] text-xl text-gold-200">
-                    {formatCurrency(order.total_price, order.currency)}
+                  <span className="font-[family-name:var(--font-bebas)] text-xl text-accent">
+                    {formatPrice(order.total_price, order.currency || 'INR')}
                   </span>
-                  <ChevronRight className="w-5 h-5 text-ivory-500 group-hover:text-gold-200 transition-colors" />
+                  <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" />
                 </div>
               </div>
             </Link>

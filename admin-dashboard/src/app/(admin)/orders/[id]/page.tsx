@@ -1,151 +1,197 @@
-import { createServerClient } from '@/lib/supabase/server';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
-import { getNextId } from '@/lib/utils/ids';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import DataTable, { type DataTableColumn } from '@/components/data/DataTable';
+import OrderStatusForm from '@/components/orders/OrderStatusForm';
+import FulfillmentForm from '@/components/orders/FulfillmentForm';
+import StatusBadge from '@/components/ui/StatusBadge';
 import RefundPanel from '../refund-panel';
+import { getOrder } from '@/lib/data/orders';
+import { formatCurrency, formatDate } from '@/lib/utils/format';
+import type { LineItem, Transaction } from '@yord/db-types';
 
-async function updateStatus(formData: FormData) {
-  'use server';
-  const supabase = await createServerClient();
-  const orderId = Number(formData.get('order_id'));
-  const financial_status = String(formData.get('financial_status') || '').trim();
-  const fulfillment_status = String(formData.get('fulfillment_status') || '').trim();
-  await supabase.from('orders').update({ financial_status, fulfillment_status }).eq('id', orderId);
+type Params = Promise<{ id: string }>;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  // Lossless ID handling: `Number()` rounds BIGINTs above 2^53, so the raw
+  // decimal string is validated and passed straight through to the lookup
+  // (PostgREST binds it as bigint). Anything non-numeric is a 404.
+  if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) {
+    return { title: 'Order · YORD Admin' };
+  }
+  const detail = await getOrder(id).catch(() => null);
+  return { title: detail ? `${detail.order.name ?? `Order ${id}`} · YORD Admin` : 'Order · YORD Admin' };
 }
 
-async function addFulfillment(formData: FormData) {
-  'use server';
-  const supabase = await createServerClient();
-  const orderId = Number(formData.get('order_id'));
-  const trackingCompany = String(formData.get('tracking_company') || '').trim();
-  const trackingNumber = String(formData.get('tracking_number') || '').trim();
-  const id = await getNextId('fulfillments');
-  const now = new Date().toISOString();
-  await supabase.from('fulfillments').insert({
-    id,
-    order_id: orderId,
-    status: 'success',
-    tracking_company: trackingCompany || null,
-    tracking_number: trackingNumber || null,
-    created_at: now,
-    updated_at: now,
-  });
-  await supabase.from('orders').update({ fulfillment_status: 'fulfilled' }).eq('id', orderId);
-}
+/**
+ * Order detail.
+ *
+ * Four sequential queries (order, then line items, transactions, fulfillments)
+ * became one `getOrder()` that runs the three child reads in parallel. The two
+ * inline mutations — which `return`ed on any database error, so a rejected save
+ * was indistinguishable from a successful one — are now bound to the actions in
+ * `src/server/actions/orders.ts`.
+ */
+export default async function OrderDetailPage({ params }: { params: Params }) {
+  const { id } = await params;
+  // Same lossless rule as generateMetadata: never round the route param
+  // through `Number()` (`Number.isInteger` still accepts the rounded value,
+  // so a huge BIGINT could load a different order). Decimal strings go to
+  // PostgREST verbatim; anything else is notFound().
+  if (!/^\d+$/.test(id) || !/[1-9]/.test(id)) notFound();
 
-export default async function OrderDetailPage({ params }: { params: { id: string } }) {
-  const supabase = await createServerClient();
-  const { data: order } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', params.id)
-    .single();
-  const { data: lineItems } = await supabase
-    .from('line_items')
-    .select('*')
-    .eq('order_id', params.id);
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('order_id', params.id);
-  const { data: fulfillments } = await supabase
-    .from('fulfillments')
-    .select('*')
-    .eq('order_id', params.id);
+  const detail = await getOrder(id);
+  if (!detail) notFound();
+
+  const { order, lineItems, transactions, fulfillments } = detail;
+  const currency = order.currency || 'INR';
+
+  const placed = Boolean(order.created_at);
+  const paid =
+    order.financial_status === 'paid' || order.financial_status === 'partially_refunded';
+  const fulfilled = order.fulfillment_status === 'fulfilled';
+  const refunded =
+    order.financial_status === 'refunded' || order.financial_status === 'partially_refunded';
+  const steps = [
+    { label: 'Placed', done: placed },
+    { label: 'Paid', done: paid },
+    { label: 'Fulfilled', done: fulfilled },
+    { label: 'Refunded', done: refunded },
+  ];
+
+  const lineItemColumns: DataTableColumn<LineItem>[] = [
+    {
+      key: 'title',
+      header: 'Title',
+      render: (item) =>
+        item.product_id ? (
+          <Link href={`/products/${item.product_id}`}>{item.title}</Link>
+        ) : (
+          item.title
+        ),
+    },
+    {
+      key: 'variant',
+      header: 'Variant / SKU',
+      render: (item) => (
+        <span className="helper">
+          {item.variant_title || '—'} · {item.sku || 'no SKU'}
+        </span>
+      ),
+      hideOnTablet: true,
+    },
+    {
+      key: 'quantity',
+      header: 'Qty',
+      align: 'right',
+      render: (item) => String(item.quantity ?? 0),
+    },
+    {
+      key: 'price',
+      header: 'Price',
+      align: 'right',
+      render: (item) => formatCurrency(item.price, currency),
+    },
+  ];
+
+  const transactionColumns: DataTableColumn<Transaction>[] = [
+    { key: 'gateway', header: 'Gateway', render: (txn) => txn.gateway || '—' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      align: 'right',
+      render: (txn) => formatCurrency(txn.amount, txn.currency || currency),
+    },
+    { key: 'status', header: 'Status', render: (txn) => <StatusBadge value={txn.status} /> },
+    {
+      key: 'payment',
+      header: 'Payment Id',
+      render: (txn) => txn.payment_id || '—',
+      hideOnMobile: true,
+    },
+  ];
 
   return (
     <div className="grid gap-4">
       <div className="card">
         <div className="card-header">
           <div>
-            <div className="section-title">Order {order?.name}</div>
-            <div className="helper">Created {formatDate(order?.created_at)}</div>
+            <div className="section-title">Order {order.name}</div>
+            <div className="helper">Created {formatDate(order.created_at)}</div>
           </div>
-          <Link className="button" href="/orders">Back</Link>
+          <Link className="button" href="/orders">
+            Back
+          </Link>
+        </div>
+        <div className="timeline" style={{ marginBottom: 16 }}>
+          {steps.map((step) => (
+            <span key={step.label} className={`timeline-step${step.done ? ' done' : ''}`}>
+              <span className="timeline-dot" />
+              {step.label}
+            </span>
+          ))}
         </div>
         <div className="form-grid">
           <div>
-            <label className="helper">Total</label>
-            <div>{formatCurrency(order?.total_price, order?.currency || 'INR')}</div>
+            <span className="helper">Total</span>
+            <div>{formatCurrency(order.total_price, currency)}</div>
           </div>
           <div>
-            <label className="helper">Customer Email</label>
-            <div>{order?.email || '-'}</div>
+            <span className="helper">Customer Email</span>
+            <div>{order.email || '—'}</div>
+          </div>
+          <div>
+            <span className="helper">Financial</span>
+            <div>
+              <StatusBadge value={order.financial_status} />
+            </div>
+          </div>
+          <div>
+            <span className="helper">Fulfillment</span>
+            <div>
+              <StatusBadge value={order.fulfillment_status} />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <div>
-            <div className="section-title">Line Items</div>
-          </div>
+          <div className="section-title">Line Items</div>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Qty</th>
-              <th>Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(lineItems || []).map((item) => (
-              <tr key={item.id}>
-                <td>{item.title}</td>
-                <td>{item.quantity}</td>
-                <td>{formatCurrency(item.price, order?.currency || 'INR')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          caption="Line items"
+          columns={lineItemColumns}
+          rows={lineItems}
+          rowKey={(item) => item.id}
+          emptyTitle="No line items"
+          emptyHint="This order has no recorded items."
+        />
       </div>
 
       <div className="card">
         <div className="card-header">
           <div>
             <div className="section-title">Statuses</div>
-            <div className="helper">Update financial or fulfillment status.</div>
+            <div className="helper">Constrained to valid Shopify-style states.</div>
           </div>
         </div>
-        <form action={updateStatus} className="form-grid">
-          <input type="hidden" name="order_id" value={order?.id} />
-          <div>
-            <label className="helper">Financial Status</label>
-            <input className="input" name="financial_status" defaultValue={order?.financial_status || ''} />
-          </div>
-          <div>
-            <label className="helper">Fulfillment Status</label>
-            <input className="input" name="fulfillment_status" defaultValue={order?.fulfillment_status || ''} />
-          </div>
-          <button className="button primary" type="submit">Save Status</button>
-        </form>
+        <OrderStatusForm
+          orderId={id}
+          financialStatus={order.financial_status}
+          fulfillmentStatus={order.fulfillment_status}
+        />
       </div>
 
       <div className="card">
         <div className="card-header">
           <div>
             <div className="section-title">Fulfillment</div>
-            <div className="helper">Add tracking details.</div>
+            <div className="helper">Tracking number required. History newest first.</div>
           </div>
         </div>
-        <form action={addFulfillment} className="form-grid">
-          <input type="hidden" name="order_id" value={order?.id} />
-          <div>
-            <label className="helper">Tracking Company</label>
-            <input className="input" name="tracking_company" />
-          </div>
-          <div>
-            <label className="helper">Tracking Number</label>
-            <input className="input" name="tracking_number" />
-          </div>
-          <button className="button" type="submit">Add Fulfillment</button>
-        </form>
-        <div className="helper" style={{ marginTop: 12 }}>
-          {(fulfillments || []).map((fulfillment) => (
-            <div key={fulfillment.id}>#{fulfillment.id} · {fulfillment.tracking_company} {fulfillment.tracking_number}</div>
-          ))}
-        </div>
+        <FulfillmentForm orderId={id} fulfillments={fulfillments} />
       </div>
 
       <div className="card">
@@ -155,36 +201,24 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             <div className="helper">Refunds are processed via Razorpay.</div>
           </div>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Gateway</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Payment Id</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(transactions || []).map((txn) => (
-              <tr key={txn.id}>
-                <td>{txn.gateway}</td>
-                <td>{formatCurrency(txn.amount, txn.currency || 'INR')}</td>
-                <td>{txn.status}</td>
-                <td>{txn.payment_id || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          caption="Transactions"
+          columns={transactionColumns}
+          rows={transactions}
+          rowKey={(txn) => txn.id}
+          emptyTitle="No transactions"
+          emptyHint="Nothing has been charged against this order."
+        />
       </div>
 
       <div className="card">
         <div className="card-header">
           <div>
             <div className="section-title">Refunds</div>
-            <div className="helper">Trigger a Razorpay refund and sync status.</div>
+            <div className="helper">Button disables when nothing is refundable.</div>
           </div>
         </div>
-        <RefundPanel orderId={order?.id || 0} transactions={(transactions || []) as any} />
+        <RefundPanel orderId={id} transactions={transactions} />
       </div>
     </div>
   );

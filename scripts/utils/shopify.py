@@ -1,19 +1,22 @@
 """Shopify API client with retry logic and pagination support."""
 
-import os
 import logging
+import os
+
 import requests
-from time import sleep
 from dotenv import load_dotenv
+
+from .config import RETRY_LIMIT, RETRY_WAIT, BATCH_SIZE, get_shopify_store_name
+from .retry import retry_with_backoff
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Default configuration
-DEFAULT_BATCH_SIZE = 250
-DEFAULT_RETRY_LIMIT = 5
-DEFAULT_RETRY_WAIT = 2
+# Back-compat aliases (canonical values now live in utils.config).
+DEFAULT_BATCH_SIZE = BATCH_SIZE
+DEFAULT_RETRY_LIMIT = RETRY_LIMIT
+DEFAULT_RETRY_WAIT = RETRY_WAIT
 
 
 class ShopifyClient:
@@ -28,12 +31,12 @@ class ShopifyClient:
         retry_limit: int = None,
         retry_wait: int = None,
     ):
-        self.store_name = store_name or os.getenv('SHOPIFY_STORE_NAME')
+        self.store_name = store_name or get_shopify_store_name()
         self.access_token = access_token or os.getenv('SHOPIFY_ADMIN_API_ACCESS_TOKEN')
         self.api_version = api_version or os.getenv('SHOPIFY_API_VERSION', '2025-01')
-        self.batch_size = batch_size or int(os.getenv('BATCH_SIZE', str(DEFAULT_BATCH_SIZE)))
-        self.retry_limit = retry_limit or DEFAULT_RETRY_LIMIT
-        self.retry_wait = retry_wait or DEFAULT_RETRY_WAIT
+        self.batch_size = batch_size or BATCH_SIZE
+        self.retry_limit = retry_limit or RETRY_LIMIT
+        self.retry_wait = retry_wait or RETRY_WAIT
 
         self.base_url = f"https://{self.store_name}.myshopify.com/admin/api/{self.api_version}"
         self.headers = {
@@ -44,35 +47,31 @@ class ShopifyClient:
     def request(self, endpoint: str, params: dict = None) -> tuple:
         """Make a GET request to Shopify API with retry logic.
 
+        Retry/backoff lives in :mod:`utils.retry` (honors ``Retry-After``
+        on 429, exponential backoff + jitter).
+
         Returns:
             tuple: (data, headers) or (None, None) on failure
         """
         url = f"{self.base_url}/{endpoint}"
-        retries = 0
-        wait_time = self.retry_wait
 
-        while retries < self.retry_limit:
-            try:
-                response = requests.get(url, headers=self.headers, params=params)
+        def _attempt():
+            response = requests.get(url, headers=self.headers, params=params)
+            if response.status_code == 200:
+                return response.json(), response.headers
+            if response.status_code == 429:
+                return response  # retry helper waits per Retry-After
+            response.raise_for_status()
+            return response.json(), response.headers  # pragma: no cover
 
-                if response.status_code == 200:
-                    return response.json(), response.headers
-
-                if response.status_code == 429:  # Rate limited
-                    retry_after = int(response.headers.get('Retry-After', wait_time))
-                    logger.warning(f"Rate limited. Waiting {retry_after}s...")
-                    sleep(retry_after)
-                    retries += 1
-                    continue
-
-                response.raise_for_status()
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Request failed: {e}")
-                retries += 1
-                sleep(wait_time * retries)
-
-        return None, None
+        try:
+            return retry_with_backoff(
+                _attempt, retry_limit=self.retry_limit,
+                base_wait=self.retry_wait, logger_=logger,
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed after {self.retry_limit} attempts: {e}")
+            return None, None
 
     def get_all_paginated(self, endpoint: str, key: str, params: dict = None) -> list:
         """Fetch all items from a paginated Shopify endpoint.

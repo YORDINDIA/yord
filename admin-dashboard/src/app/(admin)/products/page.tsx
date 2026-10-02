@@ -1,68 +1,75 @@
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase/server';
-import { formatDate } from '@/lib/utils/format';
+import type { Metadata } from 'next';
+import ExportCsvButton from '@/components/products/ExportCsvButton';
+import { listProducts } from '@/lib/data/products';
+import { firstParam, pageCount } from '@/lib/pagination';
+import ProductsClient from './products-client';
 
-export default async function ProductsPage({ searchParams }: { searchParams: { q?: string } }) {
-  const supabase = await createServerClient();
-  const query = searchParams?.q?.trim();
+export const metadata: Metadata = { title: 'Products · YORD Admin' };
 
-  let request = supabase
-    .from('products')
-    .select('id, title, status, tags, updated_at, product_variants(price, inventory_quantity), product_images(supabase_url)')
-    .order('updated_at', { ascending: false })
-    .limit(100);
+type Search = Record<string, string | string[] | undefined>;
 
-  if (query) {
-    request = request.or(`title.ilike.%${query}%,handle.ilike.%${query}%,tags.ilike.%${query}%`);
-  }
+/**
+ * Catalog list.
+ *
+ * A thin server component: all reads go through `src/lib/data`, all rendering
+ * through the shared table components. The page contains no `.from()` call, no
+ * `PAGE_SIZE`, no `qs()`, and no hand-rolled search sanitizer — those were
+ * duplicated here and in orders/customers/inventory.
+ */
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
+  const resolved = await searchParams;
+  const params: Record<string, string | undefined> = {
+    q: firstParam(resolved.q)?.trim() || undefined,
+    status: firstParam(resolved.status),
+    stock: firstParam(resolved.stock),
+    sort: firstParam(resolved.sort),
+  };
 
-  const { data: products } = await request;
+  const { rows, count, page, pageSize } = await listProducts({
+    q: params.q,
+    status: params.status,
+    stock: params.stock === 'low' ? 'low' : 'all',
+    sort: params.sort === 'title' ? 'title' : 'updated_at',
+    page: Number(firstParam(resolved.page)) || 1,
+  });
+
+  const csvRows = rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    status: row.status ?? '',
+    price: row.price,
+    inventory: row.inventory,
+  }));
 
   return (
-    <>
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="section-title">Catalog</div>
-            <div className="helper">Create, update, and publish products.</div>
-          </div>
-          <div className="flex gap-2">
-            <form>
-              <input className="input" name="q" placeholder="Search products" defaultValue={query || ''} />
-            </form>
-            <Link className="button primary" href="/products/new">New Product</Link>
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <div className="section-title">Catalog</div>
+          <div className="helper">
+            {count} products · page {page} of {pageCount(count, pageSize)}
           </div>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Status</th>
-              <th>Price</th>
-              <th>Inventory</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(products || []).map((product) => {
-              const price = product.product_variants?.[0]?.price ?? 0;
-              const inventory = product.product_variants?.[0]?.inventory_quantity ?? 0;
-              return (
-                <tr key={product.id}>
-                  <td>
-                    <Link href={`/products/${product.id}`}>{product.title}</Link>
-                    <div className="helper">{product.tags || '-'}</div>
-                  </td>
-                  <td>{product.status}</td>
-                  <td>₹{price}</td>
-                  <td>{inventory}</td>
-                  <td>{formatDate(product.updated_at)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="toolbar">
+          <ExportCsvButton rows={csvRows} />
+          <Link className="button primary" href="/products/new">
+            New Product
+          </Link>
+        </div>
       </div>
-    </>
+
+      <ProductsClient
+        rows={rows}
+        count={count}
+        page={page}
+        pageSize={pageSize}
+        params={params}
+      />
+    </div>
   );
 }

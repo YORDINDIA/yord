@@ -3,6 +3,7 @@ import { Fraunces, Spline_Sans } from 'next/font/google';
 import './globals.css';
 import { PHProvider } from '@/providers/PostHogProvider';
 import PostHogPageView from '@/providers/PostHogPageView';
+import { ToastProvider } from '@/components/ui/ToastProvider';
 
 const display = Fraunces({
   subsets: ['latin'],
@@ -22,11 +23,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("yord-admin-theme");if(t!=="light"&&t!=="dark"){t="dark"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}})();`,
+          }}
+        />
+      </head>
       <PHProvider>
         <body className={`${display.variable} ${body.variable}`}>
-          <PostHogPageView />
-          {children}
+          {/* The toast provider sits at the root so every route can raise
+              feedback — including /login, which previously had no host and
+              silently dropped its toasts. */}
+          <ToastProvider>
+            <PostHogPageView />
+            {children}
+          </ToastProvider>
         </body>
       </PHProvider>
     </html>

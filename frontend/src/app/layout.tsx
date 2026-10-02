@@ -91,14 +91,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning belongs on <html>, not <body>: next-themes writes
+    // `data-theme` onto this element from a pre-paint script, so React's
+    // hydration snapshot of <html> is expected to differ from the DOM.
     <html
       lang="en-IN"
-      className={`dark ${playfairDisplay.variable} ${cormorantGaramond.variable} ${plusJakartaSans.variable} ${bebasNeue.variable}`}
+      suppressHydrationWarning
+      className={`${playfairDisplay.variable} ${cormorantGaramond.variable} ${plusJakartaSans.variable} ${bebasNeue.variable}`}
     >
-      <body
-        suppressHydrationWarning
-        className="antialiased"
-      >
+      <body className="antialiased">
         <ClientProviders>
           {/* Noise texture overlay for luxury feel */}
           <div className="noise-overlay" aria-hidden="true" />

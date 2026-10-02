@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { ProductCard } from '@/components/ui/ProductCard';
-import type { ProductWithDetails } from '@/types/database';
+import { Search, X } from 'lucide-react';
+import { ProductCard } from '@/features/ui/ProductCard';
+import type { ProductWithDetails } from '@yord/db-types';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -35,10 +35,14 @@ function SearchContent() {
     }
   }, []);
 
+  // Sync URL query param (external navigation state) to input + results; deferred to avoid cascading render.
   useEffect(() => {
     if (query) {
-      setSearchInput(query);
-      searchProducts(query);
+      const q = query;
+      queueMicrotask(() => {
+        setSearchInput(q);
+        void searchProducts(q);
+      });
     }
   }, [query, searchProducts]);
 
@@ -56,11 +60,11 @@ function SearchContent() {
   };
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16">
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
         {/* Search Header */}
         <div className="mb-12">
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-text-primary mb-6">
             Search
           </h1>
 
@@ -72,14 +76,14 @@ function SearchContent() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search for products, artists..."
-                className="w-full h-14 pl-14 pr-12 bg-noir-900 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+                className="w-full h-14 pl-14 pr-12 bg-surface-card border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ivory-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
               {searchInput && (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ivory-400 hover:text-ivory-100"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
                 >
                   <X size={20} />
                 </button>
@@ -91,13 +95,13 @@ function SearchContent() {
         {/* Results */}
         {query && (
           <div className="mb-8">
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
               {isLoading ? (
                 'Searching...'
               ) : (
                 <>
                   {products.length} result{products.length !== 1 ? 's' : ''} for{' '}
-                  <span className="text-ivory-100">&quot;{query}&quot;</span>
+                  <span className="text-text-secondary">&quot;{query}&quot;</span>
                 </>
               )}
             </p>
@@ -109,11 +113,11 @@ function SearchContent() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="aspect-[3/4] bg-noir-800" />
+                <div className="aspect-[3/4] bg-surface-raised" />
                 <div className="pt-4 space-y-2">
-                  <div className="h-4 bg-noir-800 w-1/3" />
-                  <div className="h-5 bg-noir-800 w-2/3" />
-                  <div className="h-4 bg-noir-800 w-1/4" />
+                  <div className="h-4 bg-surface-raised w-1/3" />
+                  <div className="h-5 bg-surface-raised w-2/3" />
+                  <div className="h-4 bg-surface-raised w-1/4" />
                 </div>
               </div>
             ))}
@@ -126,17 +130,17 @@ function SearchContent() {
           </div>
         ) : query ? (
           <div className="text-center py-16">
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 mb-4">
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-4">
               No products found matching your search.
             </p>
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500">
+            <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
               Try different keywords or browse our collections.
             </p>
           </div>
         ) : (
           <div className="text-center py-16">
-            <Search className="w-16 h-16 mx-auto text-ivory-600 mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+            <Search className="w-16 h-16 mx-auto text-text-muted mb-4" />
+            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
               Enter a search term to find products
             </p>
           </div>
@@ -149,11 +153,11 @@ function SearchContent() {
 export default function SearchPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+      <main className="min-h-screen bg-surface-page pt-24 pb-16">
         <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
           <div className="animate-pulse">
-            <div className="h-12 bg-noir-800 w-48 mb-6" />
-            <div className="h-14 bg-noir-800 max-w-2xl" />
+            <div className="h-12 bg-surface-raised w-48 mb-6" />
+            <div className="h-14 bg-surface-raised max-w-2xl" />
           </div>
         </div>
       </main>

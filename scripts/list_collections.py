@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """List all collections from Supabase to identify artist collections."""
 
-import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
-from supabase import create_client
 
 load_dotenv()
 
-supabase = create_client(
-    os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-)
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.supabase_helpers import get_supabase_client
+
+supabase = get_supabase_client()
 
 result = supabase.table('collections').select('id, title, handle, collection_type').order('title').execute()
 

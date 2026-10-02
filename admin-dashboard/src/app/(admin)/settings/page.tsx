@@ -1,17 +1,54 @@
-import { createServerClient } from '@/lib/supabase/server';
+import type { Metadata } from 'next';
+import DataTable, { type DataTableColumn } from '@/components/data/DataTable';
+import Pagination from '@/components/data/Pagination';
+import AdminUsersPanel from '@/components/settings/AdminUsersPanel';
+import { listAdmins, listAuditLog } from '@/lib/data/settings';
+import { firstParam, pageCount } from '@/lib/pagination';
+import { formatDate } from '@/lib/utils/format';
+import type { AdminAuditLog } from '@yord/db-types';
 
-async function addAdmin(formData: FormData) {
-  'use server';
-  const supabase = await createServerClient();
-  const userId = String(formData.get('user_id') || '').trim();
-  if (!userId) return;
-  await supabase.from('admin_users').insert({ user_id: userId, role: 'admin', is_active: true });
-}
+export const metadata: Metadata = { title: 'Settings · YORD Admin' };
 
-export default async function SettingsPage() {
-  const supabase = await createServerClient();
-  const { data: audit } = await supabase.from('admin_audit_log').select('*').order('created_at', { ascending: false }).limit(10);
-  const { data: admins } = await supabase.from('admin_users').select('*').order('created_at', { ascending: false });
+type Search = Record<string, string | string[] | undefined>;
+
+/**
+ * Admin users and the audit log.
+ *
+ * Both reads were issued through `createServiceClient()` directly in the page
+ * and their results were cast to inline object types that did not match the
+ * table, so a schema change surfaced as a type error rather than a coherent read.
+ * The audit log was `.limit(20)` with no pager, so entries past the twentieth
+ * were unreachable; it is paged now.
+ */
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Search>;
+}) {
+  const resolved = searchParams ? await searchParams : {};
+  const [audit, admins] = await Promise.all([
+    listAuditLog({ page: Number(firstParam(resolved?.page)) || 1 }),
+    listAdmins(),
+  ]);
+
+  const auditColumns: DataTableColumn<AdminAuditLog>[] = [
+    { key: 'action', header: 'Action', render: (entry) => entry.action },
+    {
+      key: 'entity',
+      header: 'Entity',
+      render: (entry) => (
+        <span className="helper">
+          {entry.entity} {entry.entity_id}
+        </span>
+      ),
+    },
+    {
+      key: 'when',
+      header: 'When',
+      render: (entry) => formatDate(entry.created_at),
+      hideOnMobile: true,
+    },
+  ];
 
   return (
     <div className="grid gap-4">
@@ -19,35 +56,41 @@ export default async function SettingsPage() {
         <div className="card-header">
           <div>
             <div className="section-title">Admin Users</div>
-            <div className="helper">Phase 1 supports Admin role only.</div>
+            <div className="helper">
+              Deactivate instead of delete. You cannot deactivate yourself.
+            </div>
           </div>
         </div>
-        <form action={addAdmin} className="form-grid">
-          <div>
-            <label className="helper">Supabase User UUID</label>
-            <input className="input" name="user_id" placeholder="auth.users id" />
-          </div>
-          <button className="button" type="submit">Add Admin</button>
-        </form>
-        <ul className="helper" style={{ marginTop: 12 }}>
-          {(admins || []).map((admin) => (
-            <li key={admin.user_id}>{admin.user_id} · {admin.role}</li>
-          ))}
-        </ul>
+        <AdminUsersPanel admins={admins} />
       </div>
 
       <div className="card">
         <div className="card-header">
           <div>
             <div className="section-title">Audit Log</div>
-            <div className="helper">Recent admin actions.</div>
+            <div className="helper">
+              {audit.count} recorded action(s) · page {audit.page} of{' '}
+              {pageCount(audit.count, audit.pageSize)}
+            </div>
           </div>
         </div>
-        <ul className="helper" style={{ marginTop: 12 }}>
-          {(audit || []).map((entry) => (
-            <li key={entry.id}>{entry.action} · {entry.entity} #{entry.entity_id}</li>
-          ))}
-        </ul>
+        <DataTable
+          caption="Audit log"
+          columns={auditColumns}
+          rows={audit.rows}
+          rowKey={(entry) => entry.id}
+          emptyTitle="No audit entries"
+          emptyHint="Admin writes show up here once they commit."
+        />
+        <Pagination
+          basePath="/settings"
+          params={{}}
+          page={audit.page}
+          pageSize={audit.pageSize}
+          total={audit.count}
+          shown={audit.rows.length}
+          label="entries"
+        />
       </div>
     </div>
   );

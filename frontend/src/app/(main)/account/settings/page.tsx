@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -9,14 +9,26 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const [firstName, setFirstName] = useState(user?.user_metadata?.first_name || '');
-  const [lastName, setLastName] = useState(user?.user_metadata?.last_name || '');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // user loads async; sync fields when it arrives (initializers run once on null)
+  // Deferred via queueMicrotask: effect syncs external auth store to local state.
+  useEffect(() => {
+    if (user) {
+      const first = (user.user_metadata?.first_name as string) || '';
+      const last = (user.user_metadata?.last_name as string) || '';
+      queueMicrotask(() => {
+        setFirstName(first);
+        setLastName(last);
+      });
+    }
+  }, [user]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Password change state
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -73,7 +85,6 @@ export default function SettingsPage() {
 
       if (error) throw error;
       setPasswordSuccess(true);
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordSuccess(false), 3000);
@@ -86,13 +97,13 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50">
+      <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
         Account Settings
       </h2>
 
       {/* Profile Section */}
-      <div className="bg-noir-900 border border-noir-800 p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-6">
+      <div className="bg-surface-card border border-border-default p-6">
+        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-6">
           PROFILE INFORMATION
         </h3>
 
@@ -113,40 +124,40 @@ export default function SettingsPage() {
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                 First Name
               </label>
               <input
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm focus:outline-none focus:border-gold-200 transition-colors"
+                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
             </div>
             <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
                 Last Name
               </label>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm focus:outline-none focus:border-gold-200 transition-colors"
+                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
               Email Address
             </label>
             <input
               type="email"
               value={user?.email || ''}
               disabled
-              className="w-full px-4 py-3 bg-noir-800/50 border border-noir-700 text-ivory-400 font-[family-name:var(--font-jakarta)] text-sm cursor-not-allowed"
+              className="w-full px-4 py-3 bg-surface-raised/50 border border-border-default text-text-muted font-[family-name:var(--font-jakarta)] text-sm cursor-not-allowed"
             />
-            <p className="mt-1 font-[family-name:var(--font-jakarta)] text-xs text-ivory-500">
+            <p className="mt-1 font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
               Email cannot be changed
             </p>
           </div>
@@ -155,7 +166,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {isSaving ? (
                 <>
@@ -171,8 +182,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Password Section */}
-      <div className="bg-noir-900 border border-noir-800 p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-6">
+      <div className="bg-surface-card border border-border-default p-6">
+        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-6">
           CHANGE PASSWORD
         </h3>
 
@@ -192,7 +203,7 @@ export default function SettingsPage() {
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
               New Password
             </label>
             <input
@@ -200,11 +211,11 @@ export default function SettingsPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password"
-              className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:outline-none focus:border-gold-200 transition-colors"
+              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
             />
           </div>
           <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-ivory-400 mb-2">
+            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
               Confirm New Password
             </label>
             <input
@@ -212,7 +223,7 @@ export default function SettingsPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
-              className="w-full px-4 py-3 bg-noir-800 border border-noir-700 text-ivory-100 font-[family-name:var(--font-jakarta)] text-sm placeholder:text-ivory-500 focus:outline-none focus:border-gold-200 transition-colors"
+              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
             />
           </div>
 
@@ -220,7 +231,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isChangingPassword || !newPassword || !confirmPassword}
-              className="px-6 py-2 border border-ivory-500 text-ivory-100 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-ivory-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-2 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {isChangingPassword ? (
                 <>

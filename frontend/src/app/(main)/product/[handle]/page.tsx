@@ -1,32 +1,44 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { ProductGallery } from '@/components/product/ProductGallery';
-import { ProductInfo } from '@/components/product/ProductInfo';
-import { RelatedProducts } from '@/components/product/RelatedProducts';
-import { getProductByHandle } from '@/lib/supabase/queries';
+import { ProductGallery } from '@/features/product/ProductGallery';
+import { ProductInfo } from '@/features/product/ProductInfo';
+import { RelatedProducts } from '@/features/product/RelatedProducts';
+import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
-import { ARTISTS } from '@/types/database';
+import { ARTISTS } from '@yord/db-types';
+import { stripHtml } from '@yord/ui';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ProductPageProps {
   params: Promise<{ handle: string }>;
 }
 
-export async function generateStaticParams() {
-  const supabase = createStaticClient();
-  const { data: products } = await supabase
-    .from('products')
-    .select('handle')
-    .eq('status', 'active');
+export const revalidate = 3600;
 
-  return (products || []).map((p: { handle: string }) => ({
-    handle: p.handle,
-  }));
+export async function generateStaticParams() {
+  // Build-time enumeration degrades to [] so a catalog hiccup or missing env
+  // during the build does not fail it; unlisted handles render on demand.
+  try {
+    const supabase = createStaticClient();
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('handle')
+      .eq('status', 'active');
+    if (error) return [];
+
+    return (products || [])
+      .filter((p): p is { handle: string } => p.handle != null)
+      .map((p) => ({
+        handle: p.handle,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { handle } = await params;
-  const product = await getProductByHandle(handle);
+  const product = await getProductByHandleStatic(handle);
 
   if (!product) {
     return { title: 'Product Not Found' };
@@ -35,13 +47,20 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const price = product.product_variants?.[0]?.price;
   const image = product.product_images?.[0];
   const imageUrl = image?.supabase_url || image?.src;
-  const description = product.body_html
-    ? product.body_html.replace(/<[^>]*>/g, '').slice(0, 160)
-    : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`;
+  // Enriched SEO columns win when present (005_seo_content.sql); otherwise
+  // fall back to the pre-enrichment title/body slicing.
+  const description = product.meta_description
+    ?? (product.body_html
+      ? stripHtml(product.body_html).slice(0, 160)
+      : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`);
 
   return {
-    title: `${product.title} — ${product.vendor || 'YORD India'} Concert Merchandise`,
+    title: product.meta_title
+      ?? `${product.title} — ${product.vendor || 'YORD India'} Concert Merchandise`,
     description,
+    keywords: product.search_keywords
+      ? product.search_keywords.split(',').map((k) => k.trim()).filter(Boolean)
+      : undefined,
     openGraph: {
       title: `${product.title} | YORD India`,
       description,
@@ -62,7 +81,9 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { handle } = await params;
-  const productData = await getProductByHandle(handle);
+  // Static (cookie-free) client so `revalidate = 3600` actually applies; the
+  // cookie-based variant forced dynamic rendering.
+  const productData = await getProductByHandleStatic(handle);
 
   if (!productData) {
     notFound();
@@ -71,12 +92,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // Get artist accent color
   const artistHandle = productData.vendor?.toLowerCase().replace(/\s+/g, '-') || '';
   const artistData = ARTISTS[artistHandle];
-  const accentColor = artistData?.accentColor || '#FFD966';
+  const accentColor = artistData?.accentColor || 'var(--accent)';
 
   // Transform Supabase data to match component expectations
   const product = {
     id: productData.id,
-    handle: productData.handle,
+    handle: productData.handle ?? handle,
     title: productData.title,
     vendor: productData.vendor || '',
     description: productData.body_html || '',
@@ -103,7 +124,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <main className="bg-noir-950 pt-20">
+    <main className="bg-surface-page pt-20">
       <JsonLd data={productSchema(productData)} />
       <JsonLd
         data={breadcrumbSchema([
@@ -124,7 +145,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Product Info */}
           <ProductInfo
-            product={product}
+            key={product.id}
+            product={{
+              ...product,
+              image: product.images[0]?.src || null,
+            }}
           />
         </div>
       </section>

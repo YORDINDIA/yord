@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { claimCartForUser, releaseCartForUser } from '@/lib/stores/cartStore';
 import { useRouter } from 'next/navigation';
 import posthog from 'posthog-js';
 
@@ -24,7 +25,9 @@ export function useAuth(): UseAuthReturn {
     isLoading: true,
   });
   const router = useRouter();
-  const supabase = createClient();
+  // Stable client identity: creating it in render body re-runs the effect below
+  // on every parent re-render (resubscribe churn + duplicate identify calls).
+  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
     // Get initial session
@@ -39,6 +42,9 @@ export function useAuth(): UseAuthReturn {
       // Identify user if a session exists
       if (session?.user) {
         posthog.identify(session.user.id, { email: session.user.email });
+        // Deferred until cart rehydration: claiming against store defaults
+        // would be clobbered by the pending persist merge.
+        claimCartForUser(session.user.id);
       }
     };
 
@@ -55,8 +61,10 @@ export function useAuth(): UseAuthReturn {
 
         if (session?.user) {
           posthog.identify(session.user.id, { email: session.user.email });
+          claimCartForUser(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           posthog.reset();
+          releaseCartForUser();
         }
       }
     );

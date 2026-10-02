@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { CartContent } from '@/components/cart/CartContent';
+import { CartContent } from '@/features/cart/CartContent';
 
 export const metadata: Metadata = {
   title: 'Shopping Bag | YORD India',
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function CartPage() {
   return (
-    <main className="min-h-screen bg-noir-950 pt-20">
+    <main className="min-h-screen bg-surface-page pt-20">
       <CartContent />
     </main>
   );

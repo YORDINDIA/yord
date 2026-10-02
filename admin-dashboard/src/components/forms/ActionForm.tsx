@@ -1,0 +1,118 @@
+'use client';
+
+import { useActionState, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+import type { ActionState } from '@/lib/action-state';
+import { INITIAL_ACTION_STATE } from '@/lib/action-state';
+import { useToast } from '@/components/ui/ToastProvider';
+
+/**
+ * Shared form plumbing for every admin mutation.
+ *
+ * Every form runs through this so the three feedback channels are impossible to
+ * forget:
+ *
+ *  - a form-level banner for a failed write (`formError`)
+ *  - inline messages per field, from the shared zod schema's `fieldErrors`
+ *  - a toast for success, so an admin who scrolled away still gets confirmation
+ *
+ * `pending` disables the submit button and swaps its label, which is what
+ * replaces the old "clicked Save and nothing appeared to happen" experience.
+ *
+ * This module exports a hook, a field wrapper and a banner, not a `<form>` component:
+ * each admin form needs its own field layout, and a generic shell would have to
+ * grow props for every variation (which is how the unused `hiddenFields`,
+ * `footer`, and `submitVariant` props in the first draft ended up dead).
+ */
+
+/**
+ * Run a server action and expose its state to a form.
+ *
+ * Use this when the form renders its own fields — the common case, since most
+ * admin forms need a checkbox, a select, or a rich-text toolbar.
+ */
+export function useActionForm<T = undefined>(
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState<T>>,
+  options: {
+    /** Toast tone for a success message. Defaults to 'success'. */
+    successTone?: 'success' | 'info';
+    /** Fires once per state change, after the toast. */
+    onResult?: (state: ActionState<T>) => void;
+  } = {},
+) {
+  const [state, formAction, pending] = useActionState(
+    action as (prev: ActionState, formData: FormData) => Promise<ActionState>,
+    INITIAL_ACTION_STATE,
+  ) as [ActionState<T>, (formData: FormData) => void, boolean];
+  const { toast } = useToast();
+  const handled = useRef<ActionState<T> | null>(null);
+
+  // Only these three are deps: `options` is a fresh object literal on every
+  // render, so depending on it would re-run this effect every render. The ref
+  // still guards against a re-render before a genuinely new state arrives.
+  const { successTone, onResult } = options;
+
+  useEffect(() => {
+    if (handled.current === state) return;
+    handled.current = state;
+    if (state.status === 'error' && state.formError) {
+      toast(state.formError, 'error');
+    } else if (state.status === 'success' && state.message) {
+      toast(state.message, successTone ?? 'success');
+    }
+    onResult?.(state);
+  }, [state, toast, successTone, onResult]);
+
+  return {
+    state,
+    pending,
+    /** Pass to `<form action={...}>`. */
+    formAction,
+    /** First message for `field`, or undefined. */
+    errorFor: (field: string) =>
+      state.status === 'error' ? state.fieldErrors?.[field]?.[0] : undefined,
+  };
+}
+
+/** Form-level banner for a failed write. Renders nothing unless the action errored. */
+export function FormError<T = undefined>({ state }: { state: ActionState<T> }) {
+  if (state.status !== 'error' || !state.formError) return null;
+  return (
+    <div className="form-alert form-alert-error" role="alert">
+      {state.formError}
+    </div>
+  );
+}
+
+/**
+ * Labelled field with its action-state error wired up.
+ *
+ * Renders the label, the control, and the message together, so a form cannot
+ * ship a field with no error slot.
+ */
+export function ActionField<T = undefined>({
+  name,
+  label,
+  state,
+  children,
+}: {
+  name: string;
+  label: string;
+  state: ActionState<T>;
+  children: ReactNode;
+}) {
+  const message = state.status === 'error' ? state.fieldErrors?.[name]?.[0] : undefined;
+  return (
+    <div>
+      <label className="helper" htmlFor={name}>
+        {label}
+      </label>
+      {children}
+      {message && (
+        <div className="field-error" id={`${name}-error`} role="alert">
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}

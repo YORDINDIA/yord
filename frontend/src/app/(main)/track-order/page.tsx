@@ -4,13 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Package, Search, Loader2, Check, AlertCircle, MapPin, Calendar, Truck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { formatDate, formatPrice } from '@yord/ui';
+import { sanitizeOrPattern } from '@/lib/search';
 
 interface OrderDetails {
   id: number;
-  name: string;
-  order_number: number;
-  email: string;
-  financial_status: string;
+  name: string | null;
+  order_number: number | null;
+  email: string | null;
+  financial_status: string | null;
   fulfillment_status: string | null;
   total_price: number;
   created_at: string;
@@ -32,13 +34,23 @@ export default function TrackOrderPage() {
 
     try {
       const supabase = createClient();
+      // Orders are named YORD-<epochSeconds>-<hexSuffix> and order_number
+      // packs both halves (epoch * 65536 + suffix), so accept either the
+      // full name or the bare numeric order_number.
+      const rawNumber = orderNumber.trim().slice(0, 50);
+      const suffixMatch = rawNumber.match(/^YORD-(\d+)-([0-9A-Fa-f]{1,8})$/i);
+      const numeric = suffixMatch
+        ? Number(suffixMatch[1]) * 65536 + parseInt(suffixMatch[2], 16)
+        : parseInt(rawNumber.replace(/^YORD-/i, ''), 10);
+      // Quote the name predicate so input chars cannot break out of the filter
+      const safeName = sanitizeOrPattern(rawNumber);
 
       // Search by order number/name and email
       const { data, error: searchError } = await supabase
         .from('orders')
-        .select('*')
+        .select('id, name, order_number, email, financial_status, fulfillment_status, total_price, created_at, processed_at')
         .eq('email', email.toLowerCase().trim())
-        .or(`name.eq.${orderNumber.trim()},order_number.eq.${parseInt(orderNumber) || 0}`)
+        .or(`name.eq."${safeName}",order_number.eq.${Number.isFinite(numeric) ? numeric : 0}`)
         .single();
 
       if (searchError || !data) {
@@ -66,28 +78,28 @@ export default function TrackOrderPage() {
       case 'failed':
         return 'text-red-500';
       default:
-        return 'text-ivory-400';
+        return 'text-text-muted';
     }
   };
 
   return (
-    <main className="min-h-screen bg-noir-950 pt-24 pb-16">
+    <main className="min-h-screen bg-surface-page pt-24 pb-16">
       <div className="max-w-2xl mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <Package className="w-8 h-8 text-gold-200" />
+          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <Package className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-ivory-50 mb-4">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary mb-4">
             Track Your Order
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
             Enter your order number and email to track your delivery.
           </p>
         </div>
 
         {/* Search Form */}
-        <form onSubmit={handleSubmit} className="bg-noir-900 border border-noir-800 p-8 mb-8">
+        <form onSubmit={handleSubmit} className="bg-surface-card border border-border-default p-8 mb-8">
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
@@ -97,7 +109,7 @@ export default function TrackOrderPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-2">
+              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
                 ORDER NUMBER
               </label>
               <input
@@ -106,12 +118,12 @@ export default function TrackOrderPage() {
                 onChange={(e) => setOrderNumber(e.target.value)}
                 required
                 placeholder="e.g., YORD-1234567890"
-                className="w-full h-12 px-4 bg-noir-800 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               />
             </div>
 
             <div>
-              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-ivory-400 mb-2">
+              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
                 EMAIL ADDRESS
               </label>
               <input
@@ -120,14 +132,14 @@ export default function TrackOrderPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="The email used for your order"
-                className="w-full h-12 px-4 bg-noir-800 border border-noir-700 text-ivory-50 font-[family-name:var(--font-jakarta)] placeholder:text-ivory-500 focus:outline-none focus:border-gold-200"
+                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 flex items-center justify-center gap-2 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 flex items-center justify-center gap-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -146,9 +158,9 @@ export default function TrackOrderPage() {
 
         {/* Order Details */}
         {order && (
-          <div className="bg-noir-900 border border-noir-800 p-8">
+          <div className="bg-surface-card border border-border-default p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary">
                 ORDER {order.name}
               </h2>
               <span className={`font-[family-name:var(--font-bebas)] text-sm tracking-wider ${getStatusColor(order.financial_status)}`}>
@@ -157,18 +169,14 @@ export default function TrackOrderPage() {
             </div>
 
             <div className="space-y-4 mb-6">
-              <div className="flex items-center gap-3 text-ivory-400">
+              <div className="flex items-center gap-3 text-text-muted">
                 <Calendar size={18} />
                 <span className="font-[family-name:var(--font-jakarta)] text-sm">
-                  Ordered on {new Date(order.created_at).toLocaleDateString('en-IN', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
+                  Ordered on {formatDate(order.created_at)}
                 </span>
               </div>
 
-              <div className="flex items-center gap-3 text-ivory-400">
+              <div className="flex items-center gap-3 text-text-muted">
                 <Truck size={18} />
                 <span className="font-[family-name:var(--font-jakarta)] text-sm">
                   Fulfillment: <span className={getStatusColor(order.fulfillment_status)}>
@@ -178,11 +186,11 @@ export default function TrackOrderPage() {
               </div>
             </div>
 
-            <div className="border-t border-noir-800 pt-6">
+            <div className="border-t border-border-default pt-6">
               <div className="flex justify-between items-center">
-                <span className="font-[family-name:var(--font-jakarta)] text-ivory-400">Total</span>
-                <span className="font-[family-name:var(--font-cormorant)] text-2xl text-ivory-50">
-                  ₹{order.total_price.toLocaleString('en-IN')}
+                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">Total</span>
+                <span className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
+                  {formatPrice(order.total_price)}
                 </span>
               </div>
             </div>
@@ -191,12 +199,12 @@ export default function TrackOrderPage() {
 
         {/* Help Section */}
         <div className="mt-8 text-center">
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 mb-4">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-4">
             Can&apos;t find your order or need help?
           </p>
           <Link
             href="/contact"
-            className="inline-flex items-center gap-2 px-6 py-3 border border-ivory-600 text-ivory-300 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-gold-200 hover:text-gold-200 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 border border-text-muted text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
           >
             CONTACT SUPPORT
           </Link>

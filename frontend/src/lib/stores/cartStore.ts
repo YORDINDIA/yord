@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem } from '@/types/database';
+import { useShallow } from 'zustand/react/shallow';
+import type { CartItem } from '@yord/db-types';
 
 interface CartState {
   items: CartItem[];
   isOpen: boolean;
   _hasHydrated: boolean;
+  ownerId: string | null;
 }
 
 interface CartActions {
@@ -13,6 +15,8 @@ interface CartActions {
   removeItem: (variantId: number) => void;
   updateQuantity: (variantId: number, quantity: number) => void;
   clearCart: () => void;
+  claimCart: (userId: string) => void;
+  releaseCart: () => void;
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
@@ -34,6 +38,7 @@ export const useCartStore = create<CartStore>()(
       items: [],
       isOpen: false,
       _hasHydrated: false,
+      ownerId: null,
 
       // Hydration setter
       setHasHydrated: (state: boolean) => {
@@ -62,9 +67,10 @@ export const useCartStore = create<CartStore>()(
             };
           }
 
-          // Add new item
+          // Add new item (clamp to variant stock)
+          const safeMax = Math.max(1, item.maxQuantity);
           return {
-            items: [...state.items, { ...item, quantity }],
+            items: [...state.items, { ...item, quantity: Math.max(1, Math.min(quantity, safeMax)) }],
             isOpen: true,
           };
         });
@@ -98,6 +104,19 @@ export const useCartStore = create<CartStore>()(
         set({ items: [], isOpen: false });
       },
 
+      // A guest cart is adopted by the first signed-in owner. Switching to a
+      // different account starts clean so items never leak between users on a
+      // shared browser.
+      claimCart: (userId) => {
+        const { ownerId, items } = get();
+        if (ownerId === userId) return;
+        set({ items: ownerId === null ? items : [], ownerId: userId });
+      },
+
+      releaseCart: () => {
+        set({ items: [], ownerId: null });
+      },
+
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -113,8 +132,10 @@ export const useCartStore = create<CartStore>()(
 
       totalSavings: () => {
         return get().items.reduce((sum, item) => {
-          if (item.compareAtPrice && item.compareAtPrice > item.price) {
-            return sum + (item.compareAtPrice - item.price) * item.quantity;
+          const price = Number(item.price);
+          const compareAt = Number(item.compareAtPrice);
+          if (item.compareAtPrice != null && Number.isFinite(price) && Number.isFinite(compareAt) && compareAt > price) {
+            return sum + (compareAt - price) * item.quantity;
           }
           return sum;
         }, 0);
@@ -122,8 +143,17 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'yord-cart',
-      // Only persist items, not UI state
-      partialize: (state) => ({ items: state.items }),
+      version: 1,
+      // v0 -> v1: storage shape is unchanged (only the version stamp is new),
+      // so carry v0 carts forward instead of dropping them.
+      migrate: (persistedState: unknown, version: number) => {
+        if (version === 0 && persistedState && typeof persistedState === 'object') {
+          return { ...persistedState, _hasHydrated: false } as unknown as CartStore;
+        }
+        return persistedState as CartStore;
+      },
+      // Only persist items + owner, not UI state
+      partialize: (state) => ({ items: state.items, ownerId: state.ownerId }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
@@ -134,7 +164,9 @@ export const useCartStore = create<CartStore>()(
 // Selector hooks for specific pieces of state
 export const useCartItems = () => useCartStore((state) => state.items);
 export const useCartOpen = () => useCartStore((state) => state.isOpen);
-export const useCartActions = () => useCartStore((state) => ({
+// useShallow: the actions object keeps a stable identity so consumers don't
+// re-render on every unrelated store change.
+export const useCartActions = () => useCartStore(useShallow((state) => ({
   addItem: state.addItem,
   removeItem: state.removeItem,
   updateQuantity: state.updateQuantity,
@@ -142,4 +174,32 @@ export const useCartActions = () => useCartStore((state) => ({
   openCart: state.openCart,
   closeCart: state.closeCart,
   toggleCart: state.toggleCart,
-}));
+})));
+
+/**
+ * Run `fn` against the rehydrated cart state. `claimCart`/`releaseCart` must
+ * see the persisted `ownerId`/`items` — calling them before rehydration runs
+ * against store defaults and the rehydrate merge then clobbers the claim.
+ */
+function whenCartHydrated(fn: () => void): void {
+  if (useCartStore.getState()._hasHydrated) {
+    fn();
+    return;
+  }
+  const unsubscribe = useCartStore.subscribe((state) => {
+    if (state._hasHydrated) {
+      unsubscribe();
+      fn();
+    }
+  });
+}
+
+/** Adopt the guest cart for `userId` once persisted state is loaded. */
+export function claimCartForUser(userId: string): void {
+  whenCartHydrated(() => useCartStore.getState().claimCart(userId));
+}
+
+/** Drop the cart on sign-out once persisted state is loaded. */
+export function releaseCartForUser(): void {
+  whenCartHydrated(() => useCartStore.getState().releaseCart());
+}

@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from time import sleep
 from tqdm import tqdm
+from utils.config import resolve_supabase_url
 
 # Load environment variables
 load_dotenv()
@@ -38,8 +39,9 @@ ACCESS_TOKEN = os.getenv('SHOPIFY_ADMIN_API_ACCESS_TOKEN')
 API_VERSION = os.getenv('SHOPIFY_API_VERSION', '2025-01')
 SHOPIFY_BASE_URL = f"https://{STORE_NAME}.myshopify.com/admin/api/{API_VERSION}"
 
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+# Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
+# see root .env.example)
+SUPABASE_URL = resolve_supabase_url()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 # Request configuration
@@ -260,7 +262,7 @@ def run_blog_migration():
         logger.error("Missing SHOPIFY_ADMIN_API_ACCESS_TOKEN environment variable")
         sys.exit(1)
     if not SUPABASE_URL:
-        logger.error("Missing SUPABASE_URL environment variable")
+        logger.error("Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL environment variable (see root .env.example)")
         sys.exit(1)
     if not SUPABASE_SERVICE_ROLE_KEY:
         logger.error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable")

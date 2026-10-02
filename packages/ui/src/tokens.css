@@ -1,0 +1,234 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   YORD design tokens — "Alabaster & Bronze" (light) / "Noir Luxe" (dark)
+
+   Storefront only. The admin dashboard ships its own :root and never imports
+   this file, so changes here cannot reach it.
+
+   THEMING MODEL
+   :root holds the LIGHT theme because light is the product default. Dark is
+   the override, selected by [data-theme="dark"]. next-themes writes that
+   attribute (attribute: "data-theme") and resolves "system" to a literal
+   light/dark before writing, so this file needs no prefers-color-scheme block.
+
+   Every semantic token must exist in BOTH blocks. theme.test.ts asserts that,
+   because a token defined in one theme and forgotten in the other silently
+   falls back to the light value rather than failing.
+
+   The noir/gold/ivory ramps below are private to this layer. They are NOT
+   mapped into Tailwind's @theme (see frontend/src/app/globals.css) and must
+   not be used in components — use a semantic token instead. theme.test.ts
+   fails the build if a component references a raw ramp class.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: light;
+
+  /* ── Private ramps (token layer only, never in components) ─────────────── */
+  --noir-950: #0A0A0A;
+  --noir-900: #111111;
+  --noir-800: #1A1A1A;
+  --noir-700: #262626;
+  --noir-600: #333333;
+  --noir-500: #525252;
+  --noir-400: #737373;
+  --gold-50: #FFF9E5;
+  --gold-100: #FFE7A3;
+  --gold-200: #FFD966;
+  --gold-300: #E6C35A;
+  --gold-400: #CC9F00;
+  --gold-500: #996F00;
+  --ivory-50: #FAFAF8;
+  --ivory-100: #F5F5F0;
+  --ivory-200: #E8E8E0;
+  --ivory-300: #C4C4BC;
+  --ivory-400: #9A9A94;
+
+  /* ── Surfaces ───────────────────────────────────────────────────────────
+     A four-step ladder — page < card < raised < input — so elevation reads in
+     both themes instead of relying on shadow alone. */
+  --surface-page: #F4F4F2;
+  --surface-card: #FBFBFA;
+  --surface-raised: #FFFFFF;
+  --surface-input: #FFFFFF;
+  --surface-inset: #ECECEA;
+
+  /* ── Text ───────────────────────────────────────────────────────────────
+     --text-subtle is 3.04:1 on --surface-page: legal for large/decorative text
+     only (24px+, or an icon at 3:1). Never for body copy or form placeholders —
+     use --text-muted there (5.32:1). */
+  --text-primary: #14161A;    /* 16.45:1 on page */
+  --text-secondary: #3C4250;
+  --text-muted: #5F6570;      /* 5.32:1 on page */
+  --text-subtle: #868D98;     /* 3.04:1 — large text / decoration ONLY */
+  --text-on-accent: #FBFBFA;  /* 7.28:1 on --accent */
+
+  /* ── Accent ────────────────────────────────────────────────────────────
+     Bronze rather than gold: the gold ramp is ~14.5:1 on near-black but only
+     ~3.9:1 on a light page, so it cannot be text on light. Bronze holds 5.48:1
+     on page, 4.84:1 on the tint panel, and stays the same brand hue. */
+  --accent: #7C5E1E;          /* 5.48:1 on page, 4.84:1 on --accent-tint */
+  --accent-hover: #6B5019;
+  --accent-tint: #EAE6DA;     /* the gold-200/5..20 panels, as a solid token */
+  --accent-tint-strong: #E0D9C4;
+  --accent-on-surface: #7C5E1E; /* gold decorative strokes on a light page */
+
+  /* ── Borders ────────────────────────────────────────────────────────────
+     --border-default is decorative (hairlines, dividers) and is intentionally
+     below 3:1. --border-strong clears 3:1 on both page and card, so use it
+     wherever the border conveys an input's edge. */
+  --border-default: #DCDDDE;
+  --border-strong: #8B8271;
+
+  --focus-ring: #6B5019;      /* 6.84:1 on page, 7.54:1 on raised */
+
+  --success: #1A7F37;         /* 4.94:1 on page, 4.72:1 on card */
+
+  /* ── On-media (theme-invariant: always dark) ─────────────────────────────
+     Text and scrims that sit ON TOP of a photo, video, or artwork. These never
+     flip: a light value here would make hero and carousel text unreadable
+     against arbitrary imagery. */
+  --scrim: #0A0A0A;
+  --text-on-media: #FAFAF8;        /* 18.94:1 on --scrim */
+  --text-on-media-muted: #C4C4BC;  /* 11.28:1 on --scrim */
+  --accent-on-media: #FFD966;      /* 14.49:1 on --scrim */
+
+  /* ── Artist brand colours (theme-invariant) ─────────────────────────────
+     Per-artist identity colours. Never overridden per theme: they are brand
+     marks, and the views that use them draw them on their own dark artwork.
+
+     Two consequences follow from them being theme-invariant, and both are
+     deliberate:
+
+     - Artist colours are bright and saturated (brand yellows, hot pinks), so
+       label text sitting ON one must be dark ink in both themes. That is
+       --text-on-brand, and it does not flip. --text-on-accent is for the
+       theme accent surface only, which does flip (bronze in light).
+     - Artist colour must not be used as TEXT on a page surface, because a
+       brand yellow reaches only ~1.6:1 on the light page. Readable artist-tinted
+       copy uses --accent instead; the artist colour stays on lines, rules,
+       orbs and buttons. */
+  --text-on-brand: #0A0A0A;
+  --brand-veil: rgba(255, 255, 255, 0.16);
+  --coldplay-primary: #FFD700;
+  --coldplay-secondary: #1E90FF;
+  --taylor-primary: #C71585;
+  --taylor-secondary: #FFB6C1;
+  --diljit-primary: #FF6B35;
+  --diljit-secondary: #004E64;
+  --linkin-primary: #8B0000;
+  --linkin-secondary: #1C1C1C;
+  --weeknd-primary: #FF1744;
+  --weeknd-secondary: #212121;
+
+  /* ── Legacy semantic aliases ────────────────────────────────────────────
+     Pre-existing names kept so the globals.css base styles resolve. New code
+     uses the explicit tokens above. */
+  --background: var(--surface-page);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-hover: var(--surface-raised);
+  --border: var(--border-default);
+  --muted: var(--text-muted);
+
+  /* ── Chrome ───────────────────────────────────────────────────────────── */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(20, 22, 26, 0.08);
+  --selection-bg: #7C5E1E;
+  --selection-fg: #FBFBFA;
+  --scrollbar-track: #ECECEA;
+  --scrollbar-thumb: #C4C4C1;
+  --scrollbar-thumb-hover: #A8A8A4;
+  /* The noise overlay is a light-on-dark texture; on a light page it has to be
+     near-invisible or it reads as dirt. */
+  --noise-opacity: 0.015;
+  --cursor-blend: normal;
+
+  /* ── Shadows ────────────────────────────────────────────────────────────
+     Light mode inverts from dark-blur to light-lift: a near-black shadow on a
+     near-white page reads as a smudge, so alpha drops and spread grows. */
+  --shadow-sm: 0 1px 2px rgba(20, 22, 26, 0.06), 0 1px 3px rgba(20, 22, 26, 0.04);
+  --shadow-md: 0 2px 6px rgba(20, 22, 26, 0.07), 0 6px 16px rgba(20, 22, 26, 0.06);
+  --shadow-lg: 0 8px 20px rgba(20, 22, 26, 0.08), 0 20px 44px rgba(20, 22, 26, 0.08);
+  --shadow-xl: 0 20px 44px rgba(20, 22, 26, 0.10), 0 40px 80px rgba(20, 22, 26, 0.09);
+  --shadow-gold: 0 4px 30px rgba(124, 94, 30, 0.14);
+  --shadow-depth: 0 1px 2px rgba(20, 22, 26, 0.05),
+                  0 4px 8px rgba(20, 22, 26, 0.05),
+                  0 10px 20px rgba(20, 22, 26, 0.05);
+  --shadow-depth-hover: 0 2px 4px rgba(20, 22, 26, 0.07),
+                        0 8px 16px rgba(20, 22, 26, 0.08),
+                        0 20px 40px rgba(20, 22, 26, 0.09);
+
+  /* ── Layout / motion (theme-invariant) ────────────────────────────────── */
+  --header-height: 80px;
+  --max-width: 1440px;
+  --container-padding: 24px;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-luxury: 800ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOIR LUXE — dark theme. The original palette, unchanged, so the dark theme
+   renders exactly as it did before light mode existed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-page: #0A0A0A;
+  --surface-card: #111111;
+  --surface-raised: #1A1A1A;
+  --surface-input: #111111;
+  --surface-inset: #0A0A0A;
+
+  --text-primary: #FAFAF8;
+  --text-secondary: #F5F5F0;
+  --text-muted: #9A9A94;      /* 7.00:1 on page */
+  --text-subtle: #C4C4BC;
+  --text-on-accent: #0A0A0A;  /* 14.49:1 on --accent */
+
+  --accent: #FFD966;          /* 14.49:1 on page */
+  --accent-hover: #E6C35A;
+  --accent-tint: rgba(255, 217, 102, 0.08);
+  --accent-tint-strong: rgba(255, 217, 102, 0.16);
+  --accent-on-surface: #FFD966;
+
+  --border-default: #262626;
+  /* 3.30:1 on page, 3.14:1 on card. The original dark input border was #333333,
+     which measured 1.49:1 on the card — below the 3:1 needed for an input edge,
+     so dark-mode inputs had no visible boundary until focused. */
+  --border-strong: #636363;
+
+  --focus-ring: #FFD966;
+
+  --success: #4ADE80;         /* 10.9:1 on page */
+
+  --glass-bg: rgba(17, 17, 17, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --selection-bg: #FFE7A3;
+  --selection-fg: #0A0A0A;
+  --scrollbar-track: #111111;
+  --scrollbar-thumb: #333333;
+  --scrollbar-thumb-hover: #525252;
+  --noise-opacity: 0.03;
+  --cursor-blend: difference;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.6);
+  --shadow-gold: 0 4px 30px rgba(255, 217, 102, 0.15);
+  --shadow-depth: 0 2px 4px rgba(0, 0, 0, 0.1),
+                  0 4px 8px rgba(0, 0, 0, 0.1),
+                  0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-depth-hover: 0 4px 8px rgba(0, 0, 0, 0.25),
+                        0 12px 24px rgba(0, 0, 0, 0.3),
+                        0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --header-height: 64px;
+    --container-padding: 16px;
+  }
+}

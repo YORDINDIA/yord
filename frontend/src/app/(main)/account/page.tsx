@@ -37,11 +37,11 @@ export default function AccountPage() {
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <div className="bg-noir-900 border border-noir-800 p-8">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-ivory-50 mb-2">
+      <div className="bg-surface-card border border-border-default p-8">
+        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-2">
           Welcome, {userName}!
         </h2>
-        <p className="font-[family-name:var(--font-jakarta)] text-ivory-400">
+        <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
           Manage your account, track orders, and update your preferences.
         </p>
       </div>
@@ -54,18 +54,18 @@ export default function AccountPage() {
             <Link
               key={link.href}
               href={link.href}
-              className="group bg-noir-900 border border-noir-800 p-6 hover:border-gold-200/30 transition-colors"
+              className="group bg-surface-card border border-border-default p-6 hover:border-accent/30 transition-colors"
             >
               <div className="flex items-start justify-between">
-                <div className="w-12 h-12 bg-noir-800 flex items-center justify-center mb-4 group-hover:bg-gold-200/10 transition-colors">
-                  <Icon className="w-6 h-6 text-gold-200" />
+                <div className="w-12 h-12 bg-surface-raised flex items-center justify-center mb-4 group-hover:bg-accent-tint transition-colors">
+                  <Icon className="w-6 h-6 text-accent" />
                 </div>
-                <ChevronRight className="w-5 h-5 text-ivory-500 group-hover:text-gold-200 transition-colors" />
+                <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" />
               </div>
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-ivory-100 mb-1">
+              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-1">
                 {link.title}
               </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400">
+              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
                 {link.description}
               </p>
             </Link>
@@ -74,26 +74,26 @@ export default function AccountPage() {
       </div>
 
       {/* Recent Orders Preview */}
-      <div className="bg-noir-900 border border-noir-800">
-        <div className="p-6 border-b border-noir-800 flex items-center justify-between">
-          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-ivory-100">
+      <div className="bg-surface-card border border-border-default">
+        <div className="p-6 border-b border-border-default flex items-center justify-between">
+          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-secondary">
             Recent Orders
           </h3>
           <Link
             href="/account/orders"
-            className="font-[family-name:var(--font-jakarta)] text-sm text-gold-200 hover:underline"
+            className="font-[family-name:var(--font-jakarta)] text-sm text-accent hover:underline"
           >
             View all
           </Link>
         </div>
         <div className="p-6">
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 text-center py-8">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted text-center py-8">
             No orders yet. Start shopping to see your orders here.
           </p>
           <div className="text-center">
             <Link
               href="/"
-              className="inline-block px-6 py-2 bg-gold-200 text-noir-950 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-gold-300 transition-colors"
+              className="inline-block px-6 py-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
             >
               SHOP NOW
             </Link>

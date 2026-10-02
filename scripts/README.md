@@ -13,12 +13,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Required environment variables (create `.env` in project root):
+Required environment variables (copy the root `.env.example` to root `.env`):
 ```
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_KEY=xxx
-SHOPIFY_STORE=your-store.myshopify.com
-SHOPIFY_ACCESS_TOKEN=xxx
+SUPABASE_URL=https://xxx.supabase.co          # or NEXT_PUBLIC_SUPABASE_URL (fallback)
+SUPABASE_SERVICE_ROLE_KEY=xxx
+SHOPIFY_STORE_NAME=your-store-subdomain
+SHOPIFY_ADMIN_API_ACCESS_TOKEN=xxx
 ```
 
 ## Directory Structure
@@ -86,7 +86,29 @@ Configuration in `utils/config.py`:
 - `ARTIST_COLLECTIONS` - List of artist collection handles
 - `TARGET_ARTISTS` - Homepage featured artists
 
+## Archive Recovery Pipeline (data/clean/)
+
+Wayback-captured data (`data/*.json`) is normalized offline before ingest.
+Raw files are never modified; every step writes `data/clean/` and is
+dry-run by default.
+
+```bash
+python clean_data.py --execute        # dedupe images, strip blog bylines -> data/clean/
+python reorg_media.py --execute       # copy local_media into per-handle folders + alt text
+python merge_enrichment.py --execute  # merge subagent SEO with guardrail checks
+python blog_media.py --execute        # map blogs to substitute OG or placeholder plan
+python ingest_clean.py --execute      # offline ingest rehearsal, writes ingest_rehearsal.json
+```
+
+Enrichment is fanned out to worker subagents (6 product batches + 3 blog
+batches, one file each under `data/clean/enriched/`); the merge gate
+rejects any batch whose handles/titles differ or whose SEO lengths fail,
+and emits `review_queue.json` for human spot-check.
+
 ## Verification & Audit
+
+Runbook: [`MIGRATION_AUDIT_REPORT.md`](./MIGRATION_AUDIT_REPORT.md) — full
+pre/post-migration audit checklist. Start there before running verify.
 
 ### `verify_migration.py`
 Post-migration verification - checks data integrity and counts.
@@ -242,14 +264,38 @@ Error details are written to JSON files:
 - `optimization_errors.json`
 - `upload_errors.json`
 
+## Ops Runbook
+
+1. 429 storm: wait it out -- `utils/retry.py` honors `Retry-After` with backoff+jitter; rerun same command.
+2. Resume: rerun with `--resume` (or `--checkpoint-file X`); delete `*_checkpoint.json` for clean restart.
+3. Error schema: `[{"table": str, "id": value, "error": str, "ts": iso-UTC}]` per file above.
+4. Counts: `None`/`ERROR` means query failed (retry creds/network), not zero rows.
+5. Logs rotate at 5MB x3 (`migration.log`, `media_migration.log`); attach latest + error JSON when reporting.
+
 ## Migration Order
 
 For a fresh migration, run in this order:
 
-1. Apply schema: `schema.sql`
+1. Apply schema: `schema.sql`, then `supabase/migrations/` 001-005 in order
+   (005 adds blogs/articles tables + product SEO columns)
+0b. For archive-recovered data: run the Archive Recovery Pipeline above first,
+    then rehearse with `ingest_clean.py --execute` (validation only — it
+    writes `ingest_rehearsal.json`, it does not upload). No command ingests
+    `*.enriched.json` into Supabase yet; `migrate_via_rest.py` always
+    fetches from Shopify.
 2. Migrate core data: `migrate_via_rest.py --execute`
 3. Migrate media: `migrate_media.py --execute`
 4. Migrate blogs: `migrate_blogs.py --execute`
 5. Populate collections: `populate_collections.py --mode=keyword --execute`
 6. Verify: `verify_migration.py --full`
 7. Optimize images: `optimize_images.py --execute`
+
+Or drive the same order through the `yord` runner (plans, streams logs
+to `.yord/runs/<timestamp>/`, writes `ledger.json`):
+
+```bash
+python yord.py migrate --dry-run    # plan + env check, no writes
+python yord.py migrate --execute    # full pipeline
+python yord.py migrate --execute --from blogs   # resume at step
+python yord.py verify               # verify_migration.py
+```

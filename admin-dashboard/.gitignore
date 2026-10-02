@@ -50,3 +50,6 @@ coverage/
 # Misc
 *.log
 *.local
+
+# Override parent .gitignore lib/ rule
+!src/lib/

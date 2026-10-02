@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { FileText } from "lucide-react";
 
 export const metadata = {
@@ -9,21 +8,21 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-noir-950">
+    <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-6 lg:px-12">
         <div className="max-w-[1440px] mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-gold-200/10 rounded-full flex items-center justify-center">
-            <FileText className="w-8 h-8 text-gold-200" />
+          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <FileText className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-ivory-50 mb-6">
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Terms of Service
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-ivory-400 max-w-2xl mx-auto">
+          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
             Please read these terms carefully before using our website and
             services.
           </p>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-500 mt-4">
+          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-4">
             Last updated: January 1, 2025
           </p>
         </div>
@@ -32,13 +31,13 @@ export default function TermsPage() {
       {/* Content */}
       <section className="px-6 lg:px-12 pb-24">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-noir-900 border border-noir-800 p-8 md:p-12 space-y-8">
+          <div className="bg-surface-card border border-border-default p-8 md:p-12 space-y-8">
             {/* Acceptance */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 1. ACCEPTANCE OF TERMS
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   By accessing and using the YORD India website (yordindia.com),
                   you accept and agree to be bound by these Terms of Service. If
@@ -55,10 +54,10 @@ export default function TermsPage() {
 
             {/* Use of Website */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 2. USE OF WEBSITE
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   You agree to use our website only for lawful purposes. You may
                   not:
@@ -83,10 +82,10 @@ export default function TermsPage() {
 
             {/* Account */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 3. ACCOUNT REGISTRATION
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   To make purchases, you may need to create an account. You are
                   responsible for:
@@ -106,10 +105,10 @@ export default function TermsPage() {
 
             {/* Products and Pricing */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 4. PRODUCTS AND PRICING
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   All products displayed on our website are subject to
                   availability. We reserve the right to:
@@ -130,10 +129,10 @@ export default function TermsPage() {
 
             {/* Orders */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 5. ORDERS AND PAYMENT
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   When you place an order, you are making an offer to purchase.
                   We may accept or decline your order at our discretion. An
@@ -150,10 +149,10 @@ export default function TermsPage() {
 
             {/* Intellectual Property */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 6. INTELLECTUAL PROPERTY
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   All content on this website, including text, graphics, logos,
                   images, and software, is the property of YORD India or our
@@ -175,10 +174,10 @@ export default function TermsPage() {
 
             {/* Limitation of Liability */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 7. LIMITATION OF LIABILITY
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   To the maximum extent permitted by law, YORD India shall not
                   be liable for:
@@ -202,10 +201,10 @@ export default function TermsPage() {
 
             {/* Indemnification */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 8. INDEMNIFICATION
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   You agree to indemnify and hold harmless YORD India, its
                   officers, employees, and agents from any claims, damages, or
@@ -217,10 +216,10 @@ export default function TermsPage() {
 
             {/* Governing Law */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 9. GOVERNING LAW
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   These terms shall be governed by and construed in accordance
                   with the laws of India. Any disputes arising from these terms
@@ -232,10 +231,10 @@ export default function TermsPage() {
 
             {/* Severability */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 10. SEVERABILITY
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   If any provision of these terms is found to be unenforceable,
                   the remaining provisions shall continue in full force and
@@ -246,14 +245,14 @@ export default function TermsPage() {
 
             {/* Contact */}
             <div>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-ivory-100 mb-4">
+              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
                 11. CONTACT INFORMATION
               </h2>
-              <div className="font-[family-name:var(--font-jakarta)] text-sm text-ivory-400 space-y-4 leading-relaxed">
+              <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 leading-relaxed">
                 <p>
                   For questions about these Terms of Service, please contact us:
                 </p>
-                <div className="bg-noir-800 p-4">
+                <div className="bg-surface-raised p-4">
                   <p>YORD India</p>
                   <p>Email: info@yordindia.com</p>
                   <p>Gurgaon - 122001</p>

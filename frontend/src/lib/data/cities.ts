@@ -129,7 +129,22 @@ export const CITIES: City[] = [
   },
 ];
 
-// Helper to get city by slug
+// Helper to get city by slug (tolerates case/whitespace/encoding differences)
 export function getCityBySlug(slug: string): City | undefined {
-  return CITIES.find((c) => c.slug === slug);
+  let normalized: string;
+  try {
+    // Route params arrive decoded, so a stray '%' throws URIError here.
+    // Treat that as "no such city" instead of a 500.
+    normalized = decodeURIComponent(slug).toLowerCase().trim();
+  } catch {
+    return undefined;
+  }
+  return CITIES.find((c) => c.slug === normalized);
+}
+
+// Resolve a display city name (e.g. from concert data) to its page slug
+export function getCitySlugByName(name: string): string {
+  const match = CITIES.find((c) => c.name.toLowerCase() === name.toLowerCase().trim());
+  if (match) return match.slug;
+  return name.toLowerCase().trim().replace(/\s+/g, '-');
 }

@@ -1,23 +1,21 @@
 "use client";
 
-import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@/types/database';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get('redirect') || '/dashboard';
+  const redirect = safeRedirect(params.get('redirect'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Auth only, via the shared memoized browser client. Every data read in the
+  // admin app goes through `lib/data` and every write through a server action.
+  const supabase = getSupabaseClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,5 +55,34 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+/**
+ * Same-origin redirect guard.
+ *
+ * `/\evil.com` passes a naive `startsWith('/') && !startsWith('//')` check,
+ * but the browser normalizes the backslash to a slash and navigates to
+ * `https://evil.com/` after login. Reject backslashes outright and verify the
+ * resolved URL stays on this origin.
+ */
+function safeRedirect(value: string | null): string {
+  const fallback = '/dashboard';
+  if (!value || !value.startsWith('/')) return fallback;
+  if (value.startsWith('//') || value.includes('\\')) return fallback;
+  try {
+    const resolved = new URL(value, window.location.origin);
+    if (resolved.origin !== window.location.origin) return fallback;
+  } catch {
+    return fallback;
+  }
+  return value;
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
