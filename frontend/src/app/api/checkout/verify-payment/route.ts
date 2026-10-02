@@ -9,12 +9,12 @@ import { EMAIL_RE, clientIp, isRateLimited, rateLimitResponse } from '@/lib/rate
 
 function getClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!url || !serviceKey || !keyId || !keySecret) return null;
+  if (!url || !secretKey || !keyId || !keySecret) return null;
   return {
-    supabase: createClient(url, serviceKey),
+    supabase: createClient(url, secretKey),
     razorpay: new Razorpay({ key_id: keyId, key_secret: keySecret }),
     keySecret,
   };
@@ -59,6 +59,11 @@ function isValidOrderData(data: unknown): data is OrderData {
 
 type CheckoutSupabase = NonNullable<ReturnType<typeof getClients>>['supabase'];
 type ClaimOrder = { id: number; name: string; total_price: number };
+
+// The behavioral analytics session id is optional client input, so it is
+// accepted only when uuid-shaped (the route is the boundary; the client is
+// untrusted). Anything else degrades to a synthetic sid below.
+const ANALYTICS_SID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -244,6 +249,10 @@ export async function POST(request: NextRequest) {
     const { supabase, razorpay, keySecret } = clients;
     const body = await request.json();
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderData } = body;
+    const analyticsSid =
+      typeof body.analyticsSid === 'string' && ANALYTICS_SID_SHAPE.test(body.analyticsSid)
+        ? body.analyticsSid
+        : null;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: 'Missing payment details' }, { status: 400 });
@@ -653,6 +662,33 @@ export async function POST(request: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    // Behavioral analytics: the revenue end of the checkout funnel, recorded
+    // server-side so the value is the server-computed total and the event is
+    // authoritative. Placed after every post-payment failure path, so only a
+    // checkout that actually completed inserts one; the idempotent replay
+    // paths above return early and never reach this, so a reconcile retry
+    // cannot double-count. Best-effort: a failure here logs and moves on.
+    try {
+      const { error: analyticsError } = await supabase.from('analytics_events').insert({
+        type: 'order_completed',
+        sid: analyticsSid ?? crypto.randomUUID(),
+        path: '/checkout',
+        props: {
+          order_id: razorpay_payment_id,
+          value: total,
+          items: orderData.cartItems.reduce(
+            (sum: number, line: CartLine) => sum + line.quantity,
+            0
+          ),
+        },
+      });
+      if (analyticsError) {
+        logWarn('verify-payment:analytics', 'INSERT_FAILED', String(analyticsError.message).slice(0, 200));
+      }
+    } catch (analyticsThrown) {
+      logWarn('verify-payment:analytics', 'INSERT_THREW', String(analyticsThrown).slice(0, 200));
     }
 
     return successBody(razorpay_payment_id, razorpay_order_id, {

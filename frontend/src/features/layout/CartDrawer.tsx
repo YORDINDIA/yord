@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
+import { track } from '@/lib/analytics/track';
 import { formatPrice, cn } from '@yord/ui';
 import { isPriceOnSale } from '@/lib/product';
 import { FREE_SHIPPING_THRESHOLD, FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
@@ -73,6 +74,20 @@ export function CartDrawer() {
       previouslyFocused.current?.focus?.();
     };
   }, [isOpen, closeCart]);
+
+  // Analytics: snapshot the cart once per open. Totals are read through
+  // getState so the effect cannot re-fire when quantities change while the
+  // drawer stays open, and an empty cart is not a "cart viewed".
+  useEffect(() => {
+    if (!isOpen) return;
+    const current = useCartStore.getState().items;
+    if (current.length === 0) return;
+    track({
+      type: 'cart_viewed',
+      cartValue: current.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      cartItems: current.reduce((sum, i) => sum + i.quantity, 0),
+    });
+  }, [isOpen]);
 
   return (
     <AnimatePresence>

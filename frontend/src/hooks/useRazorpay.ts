@@ -7,6 +7,7 @@ import {
   RazorpayPaymentResponse,
   RazorpayCheckoutOptions,
 } from '@/lib/razorpay/client';
+import { analyticsSessionId, track } from '@/lib/analytics/track';
 import type { CartItem } from '@yord/db-types';
 
 interface ShippingAddress {
@@ -78,6 +79,13 @@ export function useRazorpay(): UseRazorpayReturn {
     setIsLoading(true);
     setError(null);
 
+    // Failure attribution for the pre-Razorpay phase. Once checkout_started
+    // fires (server-validated cart in hand), failures are tracked at their
+    // own sites (verify catch, ondismiss) and this fallback stands down so a
+    // payment that reached the gateway is never double-counted as
+    // `create_order`.
+    let pendingStep: 'create_order' | 'razorpay' | null = 'create_order';
+
     try {
       // Load Razorpay script
       const scriptLoaded = await loadRazorpayScript();
@@ -105,6 +113,14 @@ export function useRazorpay(): UseRazorpayReturn {
 
       const orderData = await orderResponse.json();
 
+      // Funnel: the server-validated cart is about to become a payment.
+      // Totals come from the server response, not the client cart.
+      track({
+        type: 'checkout_started',
+        cartValue: Number(orderData.total) || 0,
+        cartItems: data.cartItems.reduce((sum, item) => sum + item.quantity, 0),
+      });
+
       // Open Razorpay checkout
       return new Promise((resolve, reject) => {
         const options: RazorpayCheckoutOptions = {
@@ -123,6 +139,10 @@ export function useRazorpay(): UseRazorpayReturn {
             color: '#C9A227', // Gold color
           },
           handler: async (response) => {
+            // The payment reached the gateway, so the pre-gateway fallback
+            // stands down: from here the verify catch and ondismiss track
+            // outcomes themselves.
+            pendingStep = null;
             // The verify body is reused verbatim for every reconcile attempt:
             // same payment ids, so the server's confirmation_number lookup
             // makes re-POSTs idempotent instead of duplicate orders.
@@ -130,6 +150,9 @@ export function useRazorpay(): UseRazorpayReturn {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
+              // Joins the server-recorded order_completed event to this
+              // browser's behavioral session (random uuid, no PII).
+              analyticsSid: analyticsSessionId(),
               // Order data for Supabase (server recomputes prices/totals)
               orderData: {
                 email: data.customerEmail,
@@ -217,11 +240,19 @@ export function useRazorpay(): UseRazorpayReturn {
                   )
                 : lastError;
             } catch (err) {
+              // Verify failures (timeout after all retries, definitive
+              // rejection) land here once; the reconcile loop's swallowed
+              // timeout never reaches this.
+              track({ type: 'checkout_failed', step: 'verify' });
               reject(err);
             }
           },
           modal: {
             ondismiss: () => {
+              // Abandonment at the gateway is its own funnel step, so a
+              // dismissed modal never reads as a verify failure.
+              track({ type: 'checkout_failed', step: 'dismissed' });
+              pendingStep = null;
               setIsLoading(false);
               reject(new Error('Payment cancelled'));
             },
@@ -232,12 +263,22 @@ export function useRazorpay(): UseRazorpayReturn {
 
         try {
           const razorpay = createRazorpayCheckout(options);
+          pendingStep = 'razorpay';
           razorpay.open();
         } catch (err) {
           reject(err);
         }
       });
     } catch (err) {
+      // Pre-gateway failures (script, server order creation, checkout open).
+      // Null once the gateway took over — those outcomes track themselves.
+      if (pendingStep !== null) {
+        track({
+          type: 'checkout_failed',
+          step: pendingStep,
+          ...(err instanceof Error ? { code: err.message.slice(0, 64) } : {}),
+        });
+      }
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';
       setError(errorMessage);
       return null;

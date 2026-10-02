@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { CartItem } from '@yord/db-types';
+import { track } from '@/lib/analytics/track';
 
 interface CartState {
   items: CartItem[];
@@ -74,15 +75,25 @@ export const useCartStore = create<CartStore>()(
             isOpen: true,
           };
         });
+        trackCart('add_to_cart', item, quantity);
       },
 
       removeItem: (variantId) => {
+        const removed = get().items.find(i => i.variantId === variantId);
         set((state) => ({
           items: state.items.filter(i => i.variantId !== variantId),
         }));
+        if (removed) trackCart('remove_from_cart', removed, removed.quantity);
       },
 
       updateQuantity: (variantId, quantity) => {
+        // Quantity edits surface in analytics only as a removal (qty → 0):
+        // stepping a count up or down is demand, but `add_to_cart` stays
+        // reserved for real add intents so the admin's top-adds ranking is
+        // not inflated by every "+" click.
+        const removed = quantity <= 0
+          ? get().items.find(i => i.variantId === variantId)
+          : undefined;
         set((state) => {
           if (quantity <= 0) {
             return {
@@ -98,6 +109,7 @@ export const useCartStore = create<CartStore>()(
             ),
           };
         });
+        if (removed) trackCart('remove_from_cart', removed, removed.quantity);
       },
 
       clearCart: () => {
@@ -163,6 +175,29 @@ export const useCartStore = create<CartStore>()(
 
 // Selector hooks for specific pieces of state
 export const useCartItems = () => useCartStore((state) => state.items);
+
+/**
+ * Fire a cart analytics event with the cart totals as they are NOW
+ * (post-mutation), so `cart_value`/`cart_items` describe the cart the shopper
+ * sees after the action. `track()` is fail-silent and client-guarded, so a
+ * test or SSR environment importing this store simply no-ops here.
+ */
+function trackCart(
+  type: 'add_to_cart' | 'remove_from_cart',
+  item: Pick<CartItem, 'productId' | 'variantId'>,
+  quantity: number,
+): void {
+  const items = useCartStore.getState().items;
+  track({
+    type,
+    productId: item.productId,
+    variantId: item.variantId,
+    quantity: Math.max(0, Math.round(quantity)),
+    cartValue: items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    cartItems: items.reduce((sum, i) => sum + i.quantity, 0),
+  });
+}
+
 export const useCartOpen = () => useCartStore((state) => state.isOpen);
 // useShallow: the actions object keeps a stable identity so consumers don't
 // re-render on every unrelated store change.

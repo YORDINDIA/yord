@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import { ProductGallery } from '@/features/product/ProductGallery';
 import { ProductInfo } from '@/features/product/ProductInfo';
+import { ProductViewTracker } from '@/features/product/ProductViewTracker';
 import { RelatedProducts } from '@/features/product/RelatedProducts';
 import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
@@ -46,7 +47,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
   const price = product.product_variants?.[0]?.price;
   const image = product.product_images?.[0];
-  const imageUrl = image?.supabase_url || image?.src;
+  const imageUrl = image?.storage_url || image?.src;
   // Enriched SEO columns win when present (005_seo_content.sql); otherwise
   // fall back to the pre-enrichment title/body slicing.
   const description = product.meta_description
@@ -103,7 +104,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     description: productData.body_html || '',
     images: productData.product_images?.map((img) => ({
       id: img.id,
-      src: img.supabase_url || img.src,
+      src: img.storage_url || img.src,
       alt: img.alt || productData.title,
       position: img.position,
     })) || [],
@@ -125,6 +126,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <main className="bg-surface-page pt-20">
+      <ProductViewTracker productId={product.id} handle={product.handle} />
       <JsonLd data={productSchema(productData)} />
       <JsonLd
         data={breadcrumbSchema([

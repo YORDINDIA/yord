@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
+import { track } from '@/lib/analytics/track';
 
 interface WishlistItem {
   productId: number;
@@ -47,6 +48,7 @@ export const useWishlistStore = create<WishlistStore>()(
 
       // Actions
       addItem: (item) => {
+        const existed = get().items.some((i) => i.productId === item.productId);
         set((state) => {
           // Check if item already exists
           if (state.items.some((i) => i.productId === item.productId)) {
@@ -60,12 +62,29 @@ export const useWishlistStore = create<WishlistStore>()(
             ],
           };
         });
+        // Only a genuinely new entry is an "add": re-toggling an existing
+        // item must not inflate the admin's top-wishlisted ranking.
+        if (!existed) {
+          track({
+            type: 'wishlist_added',
+            productId: item.productId,
+            handle: item.productHandle,
+          });
+        }
       },
 
       removeItem: (productId) => {
+        const removed = get().items.find((i) => i.productId === productId);
         set((state) => ({
           items: state.items.filter((i) => i.productId !== productId),
         }));
+        if (removed) {
+          track({
+            type: 'wishlist_removed',
+            productId: removed.productId,
+            handle: removed.productHandle,
+          });
+        }
       },
 
       toggleItem: (item) => {

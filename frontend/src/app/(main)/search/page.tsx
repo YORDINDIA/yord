@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { ProductCard } from '@/features/ui/ProductCard';
+import { track } from '@/lib/analytics/track';
 import type { ProductWithDetails } from '@yord/db-types';
 
 function SearchContent() {
@@ -26,7 +27,16 @@ function SearchContent() {
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
       if (response.ok) {
         const data = await response.json();
-        setProducts(data.products || []);
+        const results = data.products || [];
+        setProducts(results);
+        // One event per submitted query (this runs from the URL-sync effect,
+        // never per keystroke). Zero-result searches feed the admin's
+        // merchandising-gap list, so the term is tracked even at 0.
+        track({
+          type: 'search_performed',
+          term: searchQuery.trim().slice(0, 128),
+          results: results.length,
+        });
       }
     } catch (error) {
       console.error('Search error:', error);
