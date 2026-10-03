@@ -56,6 +56,14 @@ export default function ImageLightbox({
         (event.shiftKey ? last : first).focus();
         return;
       }
+      // Focus starts on the dialog itself. `contains` counts it as
+      // inside, but it is neither `first` nor `last`, so without this
+      // boundary Shift+Tab falls through to the page behind the modal.
+      if (active === dialog) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
       if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();

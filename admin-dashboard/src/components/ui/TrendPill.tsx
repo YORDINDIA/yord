@@ -9,6 +9,14 @@ const TREND_ICON: Record<TrendDirection, LucideIcon> = {
   flat: Minus,
 };
 
+/** Screen-reader text for the arrow — the only directional cue a
+ *  delta like "10.0%" carries (no sign to read out). */
+const SR_DIRECTION: Record<TrendDirection, string> = {
+  up: "Up",
+  down: "Down",
+  flat: "Flat",
+};
+
 export interface TrendPillProps {
   direction: TrendDirection;
   /** Pre-formatted ("+12.4%", "2 fewer"). The pill never formats numbers. */
@@ -19,14 +27,16 @@ export interface TrendPillProps {
 
 /**
  * Delta pill for stat cards and tables. Colour comes from `.delta.up/.down/
- * .flat`; the arrow is decorative, so it stays out of the accessibility tree
- * and the direction is carried by the caller's text.
+ * .flat`; the arrow is decorative, so the direction also ships as
+ * screen-reader-only text before the value — unsigned deltas have no sign
+ * for assistive tech to read.
  */
 export function TrendPill({ direction, value, title }: TrendPillProps) {
   const Icon = TREND_ICON[direction] ?? Minus;
   return (
     <span className={clsx("delta", direction)} title={title}>
       <Icon size={11} aria-hidden="true" />
+      <span className="sr-only">{SR_DIRECTION[direction]} </span>
       {value}
     </span>
   );

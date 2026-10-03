@@ -50,6 +50,18 @@ describe('isAllowedImportUrl', () => {
     expect(isAllowedImportUrl('not a url', null, [])).toBe(false);
   });
 
+  it('rejects non-default ports even on allowed hosts', () => {
+    // A port makes it a different endpoint from the approved origin; Agnes
+    // would fetch `https://cdn.shopify.com:8443/...` on the hostname alone.
+    expect(isAllowedImportUrl('https://cdn.shopify.com:8443/a.jpg', null, [])).toBe(false);
+    expect(isAllowedImportUrl(`https://${R2_HOST}:8443/a.webp`, null, [R2_HOST])).toBe(false);
+    expect(
+      isAllowedImportUrl(`https://${PROJECT_HOST}:8443/storage/v1/object/public/p/1.webp`, PROJECT_HOST, []),
+    ).toBe(false);
+    // An explicit default port is the same endpoint as no port at all.
+    expect(isAllowedImportUrl('https://cdn.shopify.com:443/a.jpg', null, [])).toBe(true);
+  });
+
   it('rejects a lookalike host that only ends with an allowed name', () => {
     expect(isAllowedImportUrl('https://notshopifycdn.com/a.jpg', null, [])).toBe(false);
     // A host that merely contains the bucket host is not the bucket host.

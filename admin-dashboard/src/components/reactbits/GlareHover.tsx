@@ -35,20 +35,8 @@ const GlareHover: React.FC<GlareHoverProps> = ({
   className = '',
   style = {}
 }) => {
-  const hex = glareColor.replace('#', '');
-  let rgba = glareColor;
-  if (/^[\dA-Fa-f]{6}$/.test(hex)) {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    rgba = `rgba(${r}, ${g}, ${b}, ${glareOpacity})`;
-  } else if (/^[\dA-Fa-f]{3}$/.test(hex)) {
-    const r = parseInt(hex[0] + hex[0], 16);
-    const g = parseInt(hex[1] + hex[1], 16);
-    const b = parseInt(hex[2] + hex[2], 16);
-    rgba = `rgba(${r}, ${g}, ${b}, ${glareOpacity})`;
-  }
-
+  // Opacity lives on the overlay, not baked into the colour: hex,
+  // rgb(), var() and named colours then all dim identically.
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
   const animateIn = () => {
@@ -77,9 +65,10 @@ const GlareHover: React.FC<GlareHoverProps> = ({
   const overlayStyle: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
+    opacity: glareOpacity,
     background: `linear-gradient(${glareAngle}deg,
         hsla(0,0%,0%,0) 60%,
-        ${rgba} 70%,
+        ${glareColor} 70%,
         hsla(0,0%,0%,0) 100%)`,
     backgroundSize: `${glareSize}% ${glareSize}%, 100% 100%`,
     backgroundRepeat: 'no-repeat',

@@ -4,6 +4,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Thumb from '@/components/ui/Thumb';
 import type { LowStockRow } from '@/lib/data/analytics';
+import { variantDetail } from './variant-detail';
 import styles from './dashboard.module.css';
 
 /** Label + tone for a variant's remaining stock. NULL is "unknown", never zero. */
@@ -11,24 +12,6 @@ function stockBadge(quantity: number | null) {
   if (quantity === null) return { value: 'unknown', label: 'Unknown' };
   if (quantity <= 0) return { value: 'out', label: 'Out of stock' };
   return { value: 'low', label: `${quantity} left` };
-}
-
-/**
- * Shopify variant titles repeat the product title and append the options
- * ("<product> - White / 3XL"), so the useful half — size, colour, fit — sits
- * past the ellipsis. Strip the repeated prefix and keep the options; a variant
- * whose title adds nothing returns null and the row renders one line.
- */
-function variantDetail(productTitle: string, variantTitle: string | null): string | null {
-  const variant = variantTitle?.trim();
-  if (!variant) return null;
-
-  const product = productTitle.trim();
-  if (product && variant.toLowerCase().startsWith(product.toLowerCase())) {
-    const rest = variant.slice(product.length).replace(/^[\s\-–—:|/]+/, '').trim();
-    return rest || null;
-  }
-  return variant;
 }
 
 /**

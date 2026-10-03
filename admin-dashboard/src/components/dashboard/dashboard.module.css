@@ -43,18 +43,21 @@
 .listRow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 5px 0;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 8px;
   border-bottom: 1px solid var(--divider);
+  transition: background 120ms ease;
 }
 
 .listRow:last-child { border-bottom: none; }
+.listRow:hover { background: var(--surface-hover); }
 
 .listBody {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
@@ -66,6 +69,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 120ms ease;
 }
 
 .listTitle:hover {
@@ -76,7 +80,7 @@
 
 .listSub {
   font-size: 10.5px;
-  color: var(--text-subtle);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -91,11 +95,39 @@
 
 .rank {
   flex: none;
-  width: 16px;
-  font-size: 10.5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-subtle);
-  text-align: right;
+  color: var(--text-muted);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-default);
+  transition: all 120ms ease;
+}
+
+.rankTop1 {
+  background: linear-gradient(135deg, rgba(245, 183, 69, 0.22), rgba(217, 119, 6, 0.12));
+  color: #fbbf24;
+  border-color: rgba(245, 183, 69, 0.45);
+  box-shadow: 0 0 10px -2px rgba(245, 183, 69, 0.35);
+}
+
+.rankTop2 {
+  background: linear-gradient(135deg, rgba(226, 232, 240, 0.18), rgba(148, 163, 184, 0.08));
+  color: #e2e8f0;
+  border-color: rgba(226, 232, 240, 0.35);
+  box-shadow: 0 0 10px -2px rgba(226, 232, 240, 0.25);
+}
+
+.rankTop3 {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.16), rgba(180, 83, 9, 0.08));
+  color: #d97706;
+  border-color: rgba(217, 119, 6, 0.35);
+  box-shadow: 0 0 10px -2px rgba(217, 119, 6, 0.2);
 }
 
 /* ── Quick actions ──────────────────────────────────────────────────────── */
@@ -109,30 +141,59 @@
 .action {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--surface-inset);
-  border: 1px solid var(--divider);
-  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 140ms ease;
+}
+
+.action::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--tone-line, var(--border-strong)), transparent);
+  opacity: 0.6;
 }
 
 .action:hover {
-  border-color: var(--accent-local-line, var(--accent-line));
-  background: var(--accent-local-soft, var(--accent-soft));
-  transform: translateY(-1px);
+  border-color: var(--tone-line, var(--border-strong));
+  background: var(--surface-raised);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.25), 0 0 12px -3px var(--tone-soft, transparent);
+}
+
+/* GlareHover wraps each tile in `overflow: hidden`, which clips the
+   global outline (it draws outside the link's box). An inset ring
+   keeps keyboard focus visible inside the tile. */
+.action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -3px;
+  border-radius: 11px;
 }
 
 .actionIcon {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: var(--accent-local-soft, var(--accent-soft));
-  border: 1px solid var(--accent-local-line, var(--accent-line));
-  color: var(--accent-local, var(--accent));
+  background: var(--tone-soft, var(--surface-active));
+  border: 1px solid var(--tone-line, var(--border-default));
+  color: var(--tone, var(--accent));
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.action:hover .actionIcon {
+  transform: scale(1.08);
 }
 
 .actionBody {
@@ -140,21 +201,44 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  flex: 1;
 }
 
 .actionLabel {
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text-strong);
+  letter-spacing: -0.01em;
 }
 
 .actionDesc {
   font-size: 10.5px;
-  color: var(--text-subtle);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.actionArrow {
+  flex: none;
+  color: var(--text-subtle);
+  opacity: 0.35;
+  transition: opacity 140ms ease, transform 140ms ease, color 140ms ease;
+}
+
+.action:hover .actionArrow {
+  opacity: 1;
+  color: var(--tone, var(--accent));
+  transform: translate(2px, -2px);
+}
+
+/* Tone bindings for QuickActions */
+.action[data-tone="indigo"] { --tone: var(--tone-indigo); --tone-soft: var(--tone-indigo-soft); --tone-line: var(--tone-indigo-line); }
+.action[data-tone="fuchsia"] { --tone: var(--tone-fuchsia); --tone-soft: var(--tone-fuchsia-soft); --tone-line: var(--tone-fuchsia-line); }
+.action[data-tone="cyan"] { --tone: var(--tone-cyan); --tone-soft: var(--tone-cyan-soft); --tone-line: var(--tone-cyan-line); }
+.action[data-tone="violet"] { --tone: var(--tone-violet); --tone-soft: var(--tone-violet-soft); --tone-line: var(--tone-violet-line); }
+.action[data-tone="amber"] { --tone: var(--tone-amber); --tone-soft: var(--tone-amber-soft); --tone-line: var(--tone-amber-line); }
+.action[data-tone="emerald"] { --tone: var(--tone-emerald); --tone-soft: var(--tone-emerald-soft); --tone-line: var(--tone-emerald-line); }
 
 /* ── Notes list ("how these numbers are computed") ───────────────────────── */
 

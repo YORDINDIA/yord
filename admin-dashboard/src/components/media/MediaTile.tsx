@@ -32,7 +32,11 @@ export default function MediaTile({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const [broken, setBroken] = useState(false);
+  // Track the URL that failed, not a boolean: React reuses a tile when
+  // only the asset changes (same product/article key), and a stale flag
+  // would keep "Image unavailable" up for a corrected URL.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const broken = failedUrl === asset.url;
 
   return (
     <div className={styles.tileWrap}>
@@ -54,7 +58,7 @@ export default function MediaTile({
               alt={asset.alt ?? ''}
               fill
               sizes="(max-width: 767px) 30vw, 160px"
-              onError={() => setBroken(true)}
+              onError={() => setFailedUrl(asset.url)}
             />
           )}
         </button>

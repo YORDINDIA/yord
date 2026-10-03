@@ -32,6 +32,11 @@ interface SearchRow {
  * searches the catalog through `GET /api/products/search`, the endpoint the
  * collection editor already uses. No second search path, no new route.
  *
+ * The search passes `status=all`: the server-rendered list above is unfiltered,
+ * so a draft or archived product is selectable from the first page but would
+ * vanish from search results (the endpoint defaults `status=active`) once the
+ * catalog grows past what the page pre-renders.
+ *
  * That endpoint returns title/status/price/cover but not handle, so a search
  * result shows its handle only when the row also arrived in the initial list.
  */
@@ -83,7 +88,9 @@ export default function ProductPicker({
         failed: false,
         loading: true,
       }));
-      fetch(`/api/products/search?q=${encodeURIComponent(trimmed)}&pageSize=20`, {
+      // `status=all` matches the unfiltered server-rendered list (see above);
+      // the endpoint defaults to `active`, which would hide drafts/archived.
+      fetch(`/api/products/search?q=${encodeURIComponent(trimmed)}&pageSize=20&status=all`, {
         signal: controller.signal,
       })
         .then((response) => (response.ok ? response.json() : null))

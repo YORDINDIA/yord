@@ -41,6 +41,12 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
+    // Same guard as the blog/image routes: the hub page promises NOT_CONFIGURED
+    // when the key is missing, not a model-quality error from a caught throw.
+    if (!process.env.AGNES_AI_API_KEY) {
+      return failJson('NOT_CONFIGURED', 'AI service not configured', 500);
+    }
+
     const parsed = aiListingRequestSchema.safeParse(await req.json());
     if (!parsed.success) {
       return failJson(
@@ -72,9 +78,20 @@ ${xmlBlock('tags', toPlainText(product.tags))}
 ${xmlBlock('description', toPlainText(product.body_html))}
 `;
 
+    // A failed Agnes request (network, auth, model error) and unreadable model
+    // text are different failures: the first is an upstream outage, logged and
+    // reported as a request failure; only the second is 'invalid JSON'.
+    let raw: string;
+    try {
+      raw = await generateText(prompt);
+    } catch (error: unknown) {
+      console.error('Agnes listing request failed', error);
+      return failJson('UPSTREAM_ERROR', 'Model request failed', 502);
+    }
+
     let suggestion: unknown;
     try {
-      suggestion = extractJson(await generateText(prompt));
+      suggestion = extractJson(raw);
     } catch {
       return failJson('UPSTREAM_INVALID', 'Model returned invalid JSON', 502);
     }

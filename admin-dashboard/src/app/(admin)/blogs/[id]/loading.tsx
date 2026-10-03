@@ -33,6 +33,23 @@ export default function BlogDetailLoading() {
             <span className="skeleton skeleton-line" />
           </div>
         </div>
+        {/* The page's second and third rail cards ("Blog", "Storefront");
+            without these the rail expands when the blog resolves. */}
+        <div className="card">
+          <div className="stack-sm">
+            <span className="skeleton skeleton-title" />
+            <span className="skeleton skeleton-line" />
+            <span className="skeleton skeleton-line" />
+            <span className="skeleton skeleton-line" />
+          </div>
+        </div>
+        <div className="card">
+          <div className="stack-sm">
+            <span className="skeleton skeleton-title" />
+            <span className="skeleton skeleton-line" />
+            <span className="skeleton skeleton-line" />
+          </div>
+        </div>
       </aside>
       <span className="sr-only">Loading the blog…</span>
     </div>

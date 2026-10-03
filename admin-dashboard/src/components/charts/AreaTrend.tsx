@@ -201,6 +201,12 @@ export default function AreaTrend({
                 stroke={`url(#${strokeGradientId})`}
                 strokeWidth={2}
                 fill={`url(#${gradientId})`}
+                activeDot={{
+                  r: 5,
+                  fill: color,
+                  stroke: "var(--surface-card)",
+                  strokeWidth: 2,
+                }}
               />
               {hasCompare ? (
                 <Line

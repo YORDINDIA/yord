@@ -37,6 +37,9 @@ export default function ShellScope({
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         // ⌘K focuses the browser's own search bar otherwise.
         event.preventDefault();
+        // Holding the shortcut fires `keydown` repeatedly and would
+        // toggle the palette straight back closed.
+        if (event.repeat) return;
         setSearchOpen((open) => !open);
       }
     }

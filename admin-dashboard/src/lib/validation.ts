@@ -184,14 +184,29 @@ export function parseVariantRows(
 
 // ─── Collections ──────────────────────────────────────────────────────────────
 
-/** Optional image URL for a collection (absolute URL or site-relative path). */
+/**
+ * Optional image URL for a collection (absolute URL or site-relative path).
+ *
+ * Aligned with what the storefront can actually display
+ * (frontend/src/lib/media.ts): an absolute URL must be `https:` (an `http:`
+ * cover is blocked as mixed content on the https page) and a relative path
+ * must start with a single `/` (a protocol-relative `//host/...` value fails
+ * the storefront's displayability gate). Saving either used to pass and the
+ * cover silently disappeared.
+ */
 export const imageSrcSchema = z
   .string()
   .trim()
   .max(2048)
-  .refine((v) => v === '' || /^https?:\/\/\S+$/i.test(v) || v.startsWith('/'), {
-    message: 'Use an https:// URL or a path starting with /.',
-  });
+  .refine(
+    (v) =>
+      v === '' ||
+      (v.startsWith('/') && !v.startsWith('//')) ||
+      /^https:\/\/\S+$/i.test(v),
+    {
+      message: 'Use an https:// URL or a site-relative path starting with a single /.', 
+    },
+  );
 
 /**
  * Fields shared by the create and edit forms.

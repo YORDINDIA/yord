@@ -67,14 +67,38 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
     if (reduce) {
       // The preference can resolve after the reveal was set up (the
       // hook's server snapshot is "no preference", so the first run
-      // already wrote inline styles); clear them so the stylesheet —
-      // which shows the band plainly under reduced motion — wins.
-      gsap.set(el, { clearProps: 'all' });
+      // already wrote inline styles); clear only the animation
+      // properties so the stylesheet — which shows the band plainly
+      // under reduced motion — wins, and caller styles (layout,
+      // custom properties) survive.
+      gsap.set(el, { clearProps: 'transform,opacity,visibility' });
       return;
     }
 
     const scrollerTarget = container || null;
     const startPct = (1 - threshold) * 100;
+
+    // Re-runs start from the previous run's inline styles; clear the
+    // animation properties first so the measurement below is the
+    // layout box, then capture the top BEFORE the initial transform
+    // is written — the +y offset would push a band sitting just
+    // above the start line below it and leave it hidden until a
+    // later scroll.
+    gsap.set(el, { clearProps: 'transform,opacity,visibility' });
+    const layoutTop = el.getBoundingClientRect().top;
+
+    // The fast-path start line comes from the viewport that actually
+    // scrolls this element: against a custom scroller, the window
+    // fold is meaningless (the band can sit far below the window yet
+    // already be visible inside the container).
+    const scrollerEl =
+      typeof scrollerTarget === 'string'
+        ? document.querySelector(scrollerTarget)
+        : scrollerTarget;
+    const scrollerRect = scrollerEl?.getBoundingClientRect();
+    const startLine = scrollerRect
+      ? scrollerRect.top + scrollerRect.height * (1 - threshold)
+      : window.innerHeight * (1 - threshold);
 
     gsap.set(el, {
       y: distance,
@@ -93,8 +117,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
     // the initial refresh, so a paused timeline wired only to
     // `onEnter` would leave the band invisible forever. Elements
     // still below the fold wait for the scroll, as intended.
-    const startLine = window.innerHeight * (1 - threshold);
-    if (el.getBoundingClientRect().top < startLine) {
+    if (layoutTop < startLine) {
       tl.play();
       return () => {
         tl.kill();

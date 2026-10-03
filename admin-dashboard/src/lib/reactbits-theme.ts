@@ -70,13 +70,23 @@ function resolveColors(): ReactBitsColors {
 
 /**
  * `getSnapshot` must return the *same object* until something
- * actually changed, or React re-renders forever. The cache is
- * dropped on a theme flip.
+ * actually changed, or React re-renders forever. The cache is keyed
+ * to the current `data-theme`, not merely cleared by the observer:
+ * the observer only runs while a consumer is subscribed, so a toggle
+ * with none mounted (another admin page, or between unmount and
+ * remount) would otherwise leave the previous palette cached —
+ * keying makes the next `getSnapshot` re-read the cascade.
  */
 let cachedColors: ReactBitsColors | null = null;
+let cachedTheme: string | null = null;
 
 function getSnapshot(): ReactBitsColors {
-  if (!cachedColors) cachedColors = resolveColors();
+  if (typeof document === 'undefined') return SERVER_COLORS;
+  const theme = document.documentElement.getAttribute('data-theme') ?? '';
+  if (!cachedColors || cachedTheme !== theme) {
+    cachedColors = resolveColors();
+    cachedTheme = theme;
+  }
   return cachedColors;
 }
 
@@ -88,11 +98,9 @@ function subscribe(onStoreChange: () => void): () => void {
   if (typeof document === 'undefined') return () => {};
   // `<html data-theme>` is written by the pre-paint script in
   // `layout.tsx` and by `ThemeToggle`; watching the attribute is the
-  // whole theme contract.
-  const observer = new MutationObserver(() => {
-    cachedColors = null;
-    onStoreChange();
-  });
+  // whole theme contract. The snapshot is keyed to the attribute, so
+  // the callback only needs to trigger a re-read — no cache to clear.
+  const observer = new MutationObserver(() => onStoreChange());
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['data-theme'],
@@ -100,9 +108,23 @@ function subscribe(onStoreChange: () => void): () => void {
   return () => observer.disconnect();
 }
 
+/**
+ * The `useSyncExternalStore` wiring, exported so tests can drive the
+ * snapshot/subscription contract directly (the hook below is a thin wrap).
+ */
+export const reactBitsColorsStore = {
+  subscribe,
+  getSnapshot,
+  getServerSnapshot,
+};
+
 /** Live token colours for the current theme. */
 export function useReactBitsColors(): ReactBitsColors {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return useSyncExternalStore(
+    reactBitsColorsStore.subscribe,
+    reactBitsColorsStore.getSnapshot,
+    reactBitsColorsStore.getServerSnapshot,
+  );
 }
 
 /**

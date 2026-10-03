@@ -78,6 +78,12 @@ export function isAllowedImportUrl(
     return false;
   }
   if (url.protocol !== 'https:' || url.username || url.password) return false;
+  // A non-default port is a different endpoint from the approved origin:
+  // `https://cdn.shopify.com:8443/...` shares the hostname with an allowed
+  // CDN but lands somewhere else, and Agnes would still fetch it. Only an
+  // explicit default port (or no port at all) may pass.
+  const defaultPort = url.protocol === 'https:' ? '443' : '80';
+  if (url.port !== '' && url.port !== defaultPort) return false;
 
   const host = url.hostname.toLowerCase();
   if (media.includes(host)) return true;

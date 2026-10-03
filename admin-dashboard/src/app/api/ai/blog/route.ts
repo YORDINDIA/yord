@@ -16,6 +16,13 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
+    // The AI hub page promises every studio answers NOT_CONFIGURED when the key
+    // is missing. Without this check the `generateText` throw landed in the
+    // catches below and reported a model-quality error instead.
+    if (!process.env.AGNES_AI_API_KEY) {
+      return failJson('NOT_CONFIGURED', 'AI service not configured', 500);
+    }
+
     // One schema, shared with the client form: the old check was a bare
     // `if (!topic || typeof topic !== 'string')`.
     const parsed = aiBlogDraftSchema.safeParse(await req.json());
@@ -28,9 +35,20 @@ ${UNTRUSTED_DATA_GUARD}
 ${xmlBlock('topic', clampText(topic))}
 ${xmlBlock('keywords', clampText(keywords))}`;
 
+    // A failed Agnes request (network, auth, model error) and unreadable model
+    // text are different failures: the first is an upstream outage, logged and
+    // reported as a request failure; only the second is 'invalid JSON'.
+    let raw: string;
+    try {
+      raw = await generateText(prompt);
+    } catch (error: unknown) {
+      console.error('Agnes blog request failed', error);
+      return failJson('UPSTREAM_ERROR', 'Model request failed', 502);
+    }
+
     let output: unknown;
     try {
-      output = extractJson(await generateText(prompt));
+      output = extractJson(raw);
     } catch {
       return failJson('UPSTREAM_INVALID', 'Model returned invalid JSON', 502);
     }

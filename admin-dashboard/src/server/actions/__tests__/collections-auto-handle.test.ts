@@ -131,6 +131,45 @@ describe('updateCollectionAction: auto handles', () => {
     expect(state.message).toContain('managed automatically');
   });
 
+  it('normalises a stored manual sort_order to null and refuses the submitted manual', async () => {
+    // An auto collection has no `collects.position` order, so `manual` promises
+    // an order nothing can produce (the storefront degrades it to `newest`).
+    // The editor no longer offers the option; the action normalises whatever
+    // is stored or submitted so the row never carries a dead setting.
+    h.row = { ...autoRow, sort_order: 'manual' };
+    const { updateCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await updateCollectionAction(
+      { status: 'idle' },
+      form({
+        id: '77',
+        title: 'New Arrivals',
+        handle: 'new-arrivals',
+        body_html: '',
+        image_src: '',
+        sort_order: 'manual',
+      }),
+    );
+
+    expect(state.status).toBe('success');
+    expect(payloadOf()).toMatchObject({ sort_order: null });
+  });
+
+  it('keeps a meaningful stored sort_order for an auto collection', async () => {
+    // Like `published`/`collection_type`, the stored value wins for an auto
+    // handle; the storefront honours price-asc/title sorts on these pages.
+    h.row = { ...autoRow, sort_order: 'price-asc' };
+    const { updateCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await updateCollectionAction(
+      { status: 'idle' },
+      form({ id: '77', title: 'New Arrivals', handle: 'new-arrivals', body_html: '', image_src: '' }),
+    );
+
+    expect(state.status).toBe('success');
+    expect(payloadOf()).toMatchObject({ sort_order: 'price-asc' });
+  });
+
   it('refuses renaming a collection INTO an auto handle instead of duplicating it', async () => {
     h.row = { ...autoRow, id: 88, title: 'Premium Store', handle: 'premium-store', collection_type: 'custom', disjunctive: null };
     const { updateCollectionAction } = await import('@/server/actions/collections');
@@ -172,12 +211,19 @@ describe('updateCollectionAction: auto handles', () => {
         body_html: '',
         image_src: '',
         product_ids: '11,22',
+        sort_order: 'manual',
       }),
     );
 
     // No `published` field in the submission → the checkbox means "unchecked",
-    // and the membership replace goes through the atomic RPC as before.
-    expect(payloadOf()).toMatchObject({ published: false, published_at: null, collection_type: 'custom' });
+    // and the membership replace goes through the atomic RPC as before. The
+    // submitted sort wins for a normal collection, `manual` included.
+    expect(payloadOf()).toMatchObject({
+      published: false,
+      published_at: null,
+      collection_type: 'custom',
+      sort_order: 'manual',
+    });
     expect(state.status).toBe('success');
     expect(rpcCalls()).toHaveLength(1);
     expect(rpcCalls()[0].name).toBe('set_collection_products');

@@ -52,6 +52,31 @@ describe('sanitizeHtml', () => {
     expect(sanitizeHtml(encoded)).not.toContain('script');
   });
 
+  it('decodes nested entity layers to a fixpoint before the scheme check', () => {
+    // `javascript&colon;alert(1)` has no literal colon, so the scheme check
+    // cannot see it — but the browser decodes the entity before navigating.
+    // The decode must run to a fixpoint BEFORE the check: five nested `&amp;`
+    // layers (`&amp;amp;amp;amp;amp;colon;`) need six passes, and a capped
+    // loop leaves the innermost layer standing for the browser to peel off.
+    const nested = (depth: number) =>
+      `<a href="javascript&${'amp;'.repeat(depth)}colon;alert(1)">x</a>`;
+    for (let depth = 1; depth <= 8; depth += 1) {
+      const out = sanitizeHtml(nested(depth));
+      expect(out, `depth ${depth}`).toContain('href="#"');
+      expect(out, `depth ${depth}`).not.toContain('javascript');
+      expect(out, `depth ${depth}`).not.toContain('&colon;');
+    }
+  });
+
+  it('decodes nested numeric references the same way', () => {
+    // `&amp;#106;avascript:` peels to `javascript:` one layer per pass; a
+    // deeper stack must not survive as a clickable link either.
+    const deep = '<a href="&amp;amp;amp;#106;avascript:alert(1)">x</a>';
+    const out = sanitizeHtml(deep);
+    expect(out).toContain('href="#"');
+    expect(out).not.toContain('avascript');
+  });
+
   it('handles empty and nullish input', () => {
     expect(sanitizeHtml(null)).toBe('');
     expect(sanitizeHtml(undefined)).toBe('');

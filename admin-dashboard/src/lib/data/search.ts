@@ -9,7 +9,7 @@ import { reader, rows } from './client';
  * Three bounded `ilike` queries in parallel through the shared `reader()`,
  * mirroring the per-list filters so a palette hit and a list hit agree:
  *
- *  - products  → `title` / `handle`  (same columns as `listProducts`)
+ *  - products  → `title` / `handle` / `tags` (same columns as `listProducts`)
  *  - orders    → `name` / `email`    (same columns as `listOrders`)
  *  - customers → `first_name` / `last_name` / `email` (same as `listCustomers`)
  *
@@ -94,7 +94,7 @@ export async function searchAll(q: string, limit = SEARCH_LIMIT): Promise<Search
       supabase
         .from('products')
         .select('id, title, handle, status')
-        .or(`title.ilike.${pattern},handle.ilike.${pattern}`)
+        .or(`title.ilike.${pattern},handle.ilike.${pattern},tags.ilike.${pattern}`)
         .order('updated_at', { ascending: false })
         .limit(take),
     ),

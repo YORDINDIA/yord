@@ -28,12 +28,25 @@ describe('sniffImageFormat', () => {
   it('rejects empty and truncated buffers instead of guessing', () => {
     expect(sniffImageFormat(new Uint8Array())).toBeNull();
     expect(sniffImageFormat(new Uint8Array([0xff, 0xd8]))).toBeNull();
+    // The JPEG SOI prefix alone is not a decodable image: the first-segment
+    // marker byte must be plausible too (APPn, DQT, DRI, SOFn/Huffman).
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff]))).toBeNull();
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0x00]))).toBeNull();
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0x01]))).toBeNull();
     expect(sniffImageFormat(PNG.slice(0, 4))).toBeNull();
     // RIFF header without the WEBP tag: a WAV file, not an image.
     const riff = new Uint8Array([
       0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
     ]);
     expect(sniffImageFormat(riff)).toBeNull();
+  });
+
+  it('accepts a JPEG with a plausible first-segment marker', () => {
+    // APP1 (EXIF), APP0 (JFIF), DQT, and SOF0 all start real files.
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00]))).toBe('jpg');
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00]))).toBe('jpg');
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0x00]))).toBe('jpg');
+    expect(sniffImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00]))).toBe('jpg');
   });
 });
 

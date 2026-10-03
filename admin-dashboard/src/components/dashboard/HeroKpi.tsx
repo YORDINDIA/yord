@@ -42,7 +42,13 @@ export default function HeroKpi({
   return (
     <>
       <div className="hero-kpi-main">
-        <span className="hero-kpi-label">{label}</span>
+        <div className="hero-kpi-top">
+          <span className="hero-kpi-label">{label}</span>
+          <span className="hero-kpi-live">
+            <span className="hero-kpi-live-dot" aria-hidden="true" />
+            LIVE
+          </span>
+        </div>
         <div className="hero-kpi-row">
           <span className="hero-kpi-value">
             {valueRaw !== undefined ? (

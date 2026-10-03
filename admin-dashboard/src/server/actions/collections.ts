@@ -132,11 +132,34 @@ export async function updateCollectionAction(
     // "remove everything and publish" is refused. Smart collections are held to
     // the same rule: their members come from "Apply now", and a brand-new smart
     // collection has none yet.
+    //
+    // The storefront also filters inactive products out, so a published
+    // collection of drafts renders the same empty page. When this submit is
+    // about to publish, look the submitted ids' statuses up and let the guard
+    // refuse an all-inactive set the same way.
+    let activeCount: number | undefined;
+    if (published && !isAuto && input.product_ids.length > 0) {
+      const { data: statusRows, error: statusError } = await context.service
+        .from('products')
+        .select('id, status')
+        .in('id', input.product_ids);
+      if (statusError) {
+        console.error('[collections] product status lookup failed', input.id, statusError);
+        return actionError(
+          'Could not check the products in this collection, so the publish was not saved. Try again.',
+        );
+      }
+      // A stale id (the product was deleted after the page loaded) counts as
+      // not active here: it would render nothing on the storefront either.
+      activeCount = (statusRows ?? []).filter((row) => row.status === 'active').length;
+    }
+
     const refusal = refusePublish({
       isAuto,
       published,
       collectionType,
       productIds: input.product_ids,
+      activeCount,
     });
     if (refusal) return actionError(refusal.message, { product_ids: [refusal.fieldError] });
 
@@ -150,7 +173,16 @@ export async function updateCollectionAction(
         body_html: sanitizeHtml(input.body_html) || null,
         image_src: input.image_src || null,
         storage_image_url: input.storage_image_url || null,
-        sort_order: input.sort_order || null,
+        // An auto collection has no `collects` rows to order by, so a stored
+        // `manual` would promise an order nothing can produce (the storefront
+        // degrades it to `newest`); the editor no longer offers it and a save
+        // normalises it away instead of persisting it. Otherwise the stored
+        // value is kept, exactly like `published`/`collection_type` above.
+        sort_order: isAuto
+          ? before.sort_order === 'manual'
+            ? null
+            : (before.sort_order ?? null)
+          : (input.sort_order || null),
         // Smart collections only: AND (default) vs OR across their rules.
         disjunctive: isAuto ? before.disjunctive : collectionType === 'smart' ? input.disjunctive : null,
         updated_at: now,
@@ -293,12 +325,30 @@ export async function createCollectionAction(
     // published immediately becomes a linked, empty storefront page. A new smart
     // collection always starts with no products — its rules and their matches can
     // only be added after it exists — so publishing at create time is refused and
-    // the message names the step that fills the list.
+    // the message names the step that fills the list. An all-inactive product set
+    // is refused the same way (the storefront filters inactive products out), so
+    // the statuses are looked up whenever this submit publishes a product list.
+    let activeCount: number | undefined;
+    if (input.published && input.product_ids.length > 0) {
+      const { data: statusRows, error: statusError } = await context.service
+        .from('products')
+        .select('id, status')
+        .in('id', input.product_ids);
+      if (statusError) {
+        console.error('[collections] product status lookup failed', statusError);
+        return actionError(
+          'Could not check the products in this collection, so it was not created. Try again.',
+        );
+      }
+      activeCount = (statusRows ?? []).filter((row) => row.status === 'active').length;
+    }
+
     const refusal = refusePublish({
       isAuto: false,
       published: input.published,
       collectionType: input.collection_type,
       productIds: input.product_ids,
+      activeCount,
       mode: 'create',
     });
     if (refusal) return actionError(refusal.message, { product_ids: [refusal.fieldError] });

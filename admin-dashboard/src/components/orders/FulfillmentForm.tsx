@@ -59,7 +59,7 @@ export default function FulfillmentForm({ orderId }: { orderId: string }) {
         <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>
           {pending ? 'Saving…' : 'Record fulfillment'}
         </button>
-        <span className="helper">The order is marked fulfilled when this saves.</span>
+        <span className="helper">A successful save marks the order fulfilled.</span>
       </div>
     </form>
   );

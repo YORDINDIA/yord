@@ -81,6 +81,57 @@ describe('refusePublish', () => {
     ).toBeNull();
   });
 
+  it('refuses publishing when every submitted product is inactive', () => {
+    // The storefront filters inactive products out, so a published collection
+    // of drafts is the same linked empty page an empty one is — the picker
+    // just hides it, because it counts members, not live ones.
+    const refusal = refusePublish({
+      ...base,
+      published: true,
+      productIds: [11, 12],
+      activeCount: 0,
+    });
+    expect(refusal).not.toBeNull();
+    expect(refusal?.fieldError).toContain('no active products cannot be published');
+    expect(refusal?.message).toContain('inactive');
+    expect(refusal?.message).toContain('save it unpublished');
+  });
+
+  it('refuses an all-inactive smart collection with the same rule', () => {
+    const refusal = refusePublish({
+      ...base,
+      published: true,
+      collectionType: 'smart',
+      productIds: [11],
+      activeCount: 0,
+    });
+    expect(refusal).not.toBeNull();
+    expect(refusal?.fieldError).toContain('no active products');
+  });
+
+  it('allows publishing when at least one submitted product is active', () => {
+    expect(
+      refusePublish({ ...base, published: true, productIds: [11, 12], activeCount: 1 }),
+    ).toBeNull();
+  });
+
+  it('skips the active check when the caller did not look statuses up', () => {
+    // `activeCount` undefined = unknown, not zero: the check only fires when
+    // the action actually fetched the statuses.
+    expect(refusePublish({ ...base, published: true, productIds: [11, 12] })).toBeNull();
+  });
+
+  it('names the create form’s escape hatch for an all-inactive set too', () => {
+    const create = refusePublish({
+      ...base,
+      published: true,
+      mode: 'create',
+      productIds: [11],
+      activeCount: 0,
+    });
+    expect(create?.message).toContain('create it unpublished');
+  });
+
   it('never blocks an auto collection', () => {
     // `new-arrivals` / `all` are computed from `products`, so they are never
     // empty; the action preserves their publication state instead.

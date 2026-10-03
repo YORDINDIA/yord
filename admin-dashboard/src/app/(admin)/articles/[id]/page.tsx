@@ -7,6 +7,7 @@ import { articlePath, formatRelative } from '@/components/blogs/display';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getArticle, getBlogRef } from '@/lib/data/blogs';
+import { storefrontOrigin } from '@/lib/storefront-origin';
 import { formatDate } from '@/lib/utils/format';
 
 type Params = Promise<{ id: string }>;
@@ -39,8 +40,11 @@ export default async function ArticleDetailPage({ params }: { params: Params }) 
 
   const blogRef = await getBlogRef(article.blog_id);
   const path = articlePath(article.handle);
-  const storefrontBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ?? '';
-  const liveHref = article.published && storefrontBase && path ? `${storefrontBase}${path}` : null;
+  // `storefrontOrigin()` drops a same-origin `NEXT_PUBLIC_APP_URL`: with the
+  // repo's localhost setup both apps serve :3000, and this link would open the
+  // admin's own `/blog/...` route (not-found) instead of the storefront.
+  const origin = await storefrontOrigin();
+  const liveHref = article.published && origin && path ? `${origin}${path}` : null;
 
   return (
     <>

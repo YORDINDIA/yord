@@ -7,6 +7,21 @@ import TableSkeleton from '@/components/data/TableSkeleton';
 export default function ProductDetailLoading() {
   return (
     <div className="stack" aria-busy="true" aria-live="polite">
+      {/* PageHeader placeholder: the real header (icon tile, title, id line,
+          status pill, back button) renders above the split. */}
+      <div className="page-header" aria-hidden="true">
+        <div className="page-header-main">
+          <span className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div>
+            <span className="skeleton skeleton-title" style={{ width: 180 }} />
+            <span className="skeleton skeleton-line" style={{ width: 240, marginTop: 6 }} />
+          </div>
+        </div>
+        <div className="page-actions">
+          <span className="skeleton" style={{ width: 92, height: 28, borderRadius: 8 }} />
+          <span className="skeleton" style={{ width: 132, height: 28, borderRadius: 8 }} />
+        </div>
+      </div>
       <div className="layout-split">
         <div className="stack">
           <div className="card">

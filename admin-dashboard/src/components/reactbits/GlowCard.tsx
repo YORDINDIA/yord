@@ -27,6 +27,9 @@ export default function GlowCard({
   className,
   spotlightColor = 'var(--accent-local-soft, var(--accent-soft))',
   spotlight = true,
+  onMouseMove,
+  onMouseEnter,
+  onMouseLeave,
   ...rest
 }: GlowCardProps) {
   const reduce = useReducedMotion();
@@ -36,6 +39,7 @@ export default function GlowCard({
   const enabled = spotlight && !reduce;
 
   function handleMove(event: React.MouseEvent<HTMLDivElement>) {
+    onMouseMove?.(event);
     if (!enabled || !ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     setPosition({ x: event.clientX - rect.left, y: event.clientY - rect.top });
@@ -47,8 +51,14 @@ export default function GlowCard({
       {...rest}
       className={clsx('glow-card', className)}
       onMouseMove={handleMove}
-      onMouseEnter={() => setActive(true)}
-      onMouseLeave={() => setActive(false)}
+      onMouseEnter={(event) => {
+        setActive(true);
+        onMouseEnter?.(event);
+      }}
+      onMouseLeave={(event) => {
+        setActive(false);
+        onMouseLeave?.(event);
+      }}
     >
       {enabled && (
         <span

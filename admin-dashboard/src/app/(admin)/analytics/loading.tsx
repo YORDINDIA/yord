@@ -26,6 +26,14 @@ export default function AnalyticsLoading() {
         ))}
       </div>
 
+      {/* The page runs two KPI rows (commerce, then engagement); reserving
+          only one lets the second row push every chart down on arrival. */}
+      <div className={styles.kpiRow} aria-hidden="true">
+        {Array.from({ length: 4 }, (_, index) => (
+          <span key={index} className="skeleton skeleton-stat" />
+        ))}
+      </div>
+
       <div className="dash-grid">
         <div className="col-8">
           <section className="card">

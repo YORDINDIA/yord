@@ -112,7 +112,10 @@ export default function Sidebar({
                 chrome: the wordmark catches the accent light as it
                 passes, and goes perfectly still under reduced motion. */}
             <BrandShimmer text="Control Room" className="brand-title" />
-            <span className="brand-sub">YORD India</span>
+            <span className="brand-sub">
+              <span className="brand-dot" aria-hidden="true" />
+              YORD India
+            </span>
           </span>
         </div>
 

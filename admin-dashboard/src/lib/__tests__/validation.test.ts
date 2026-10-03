@@ -4,6 +4,7 @@ import {
   checkboxSchema,
   collectionSchema,
   discountSchema,
+  firstIssue,
   handleSchema,
   htmlSchema,
   newProductSchema,
@@ -199,6 +200,38 @@ describe('collectionSchema', () => {
     expect(collectionSchema.parse(base).image_src).toBe('');
     expect(collectionSchema.parse({ ...base, image_src: '/images/hero.png' }).image_src).toBe(
       '/images/hero.png',
+    );
+  });
+
+  it('rejects http:// and protocol-relative URLs the storefront cannot display', () => {
+    // Aligned with frontend/src/lib/media.ts: an http: cover is blocked as
+    // mixed content on the https page and a protocol-relative `//host/...`
+    // fails the storefront's displayability gate — saving either used to pass
+    // and the cover silently disappeared.
+    const base = { id: '7', title: 'T', handle: 't', body_html: '', product_ids: '' };
+    for (const image_src of [
+      'http://cdn.example.com/cover.jpg',
+      'HTTP://cdn.example.com/cover.jpg',
+      '//cdn.example.com/cover.jpg',
+    ]) {
+      expect(
+        collectionSchema.safeParse({ ...base, image_src }).success,
+        image_src,
+      ).toBe(false);
+      expect(
+        collectionSchema.safeParse({ ...base, storage_image_url: image_src }).success,
+        `storage_image_url: ${image_src}`,
+      ).toBe(false);
+    }
+  });
+
+  it('says what an accepted cover looks like in the field error', () => {
+    const base = { id: '7', title: 'T', handle: 't', body_html: '', product_ids: '' };
+    const result = collectionSchema.safeParse({ ...base, image_src: 'http://cdn.example.com/x.jpg' });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(firstIssue(result.error, 'fallback')).toBe(
+      'image_src: Use an https:// URL or a site-relative path starting with a single /.',
     );
   });
 

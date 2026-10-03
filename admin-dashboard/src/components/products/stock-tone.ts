@@ -52,3 +52,47 @@ export function stockToneName(quantity: number): 'rose' | 'amber' | 'emerald' {
       return 'emerald';
   }
 }
+
+/** Totals for the product rail's stock card, untracked variants kept distinct. */
+export interface StockCardSummary {
+  /** Sum of tracked quantities. Untracked variants contribute nothing. */
+  total: number;
+  /** Tracked variants at 1 … LOW_STOCK_THRESHOLD units. */
+  low: number;
+  /** Tracked variants at or below zero. */
+  out: number;
+  /** Variants with NULL inventory: unknown, never zero (mirrors `StockCell`). */
+  untracked: number;
+  /** Largest tracked quantity, floored at 1 so bar scaling never divides by zero. */
+  max: number;
+  /** Per-variant quantity with NULL preserved, in input order. */
+  quantities: (number | null)[];
+}
+
+/**
+ * Reduce a product's variants to the stock card's numbers.
+ *
+ * `inventory_quantity = null` means untracked, not zero: an uncounted variant
+ * is unknown stock, and folding it into `0` mislabeled it as sold out — both in
+ * the totals and in the low/out badge counts. The NULL rides through
+ * `quantities` so the card can render each untracked variant as its own state,
+ * the way `StockCell` does in the inventory table.
+ */
+export function stockCardSummary(
+  variants: { inventory_quantity: number | null | undefined }[],
+): StockCardSummary {
+  const quantities = variants.map((variant) =>
+    variant.inventory_quantity === null || variant.inventory_quantity === undefined
+      ? null
+      : Number(variant.inventory_quantity),
+  );
+  const tracked = quantities.filter((quantity): quantity is number => quantity !== null);
+  return {
+    quantities,
+    total: tracked.reduce((sum, quantity) => sum + quantity, 0),
+    max: Math.max(1, ...tracked),
+    low: tracked.filter((quantity) => quantity > 0 && quantity <= LOW_STOCK_THRESHOLD).length,
+    out: tracked.filter((quantity) => quantity <= 0).length,
+    untracked: quantities.length - tracked.length,
+  };
+}

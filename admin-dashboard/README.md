@@ -20,6 +20,9 @@ npm run dev    # localhost:3000
    - `admin-dashboard/sql/002_admin_next_id.sql`
    - `admin-dashboard/sql/003_admin_rls.sql`
    - `admin-dashboard/sql/004_atomic_writes.sql` (collection/variant writes + revenue analytics)
+   - `admin-dashboard/sql/005_positional_collection_products.sql` (replaces
+     004's `set_collection_products` so the picker's saved order — the
+     `manual` collection sort — survives a write)
 3. `003_admin_rls.sql` enables default-deny RLS on admin tables; all writes go through the Supabase secret key server-side.
 
 ## Commands
@@ -40,7 +43,7 @@ npm run clean  # rm -rf .next
 - `src/server/actions/` — **every write**, all returning `ActionState`
 - `src/components/` — `layout/` (shell, sidebar, topbar, command palette), `ui/` (PageHeader, StatCard, Avatar, Thumb, Tabs, ProgressBar, Tooltip, EmptyState, StatusBadge, ConfirmModal, ToastProvider), `charts/` (Recharts: ChartCard, AreaTrend, Bars, Donut, Sparkline), `data/` (DataTable, Pagination, FilterBar, SearchInput, BulkActions, TableSkeleton), `forms/` (ActionForm, ActionField, FormSection, FormActions), plus per-domain folders
 - `src/lib/sections.ts` — the section map behind nav, breadcrumbs and per-section accent colours
-- `sql/` — `001_admin_tables.sql`, `002_admin_next_id.sql`, `003_admin_rls.sql`, `004_atomic_writes.sql`
+- `sql/` — `001_admin_tables.sql`, `002_admin_next_id.sql`, `003_admin_rls.sql`, `004_atomic_writes.sql`, `005_positional_collection_products.sql`
 - `docs/` — full technical spec (start at `docs/README.md`); the UI system is `docs/06-ui-system.md`
 
 ## UI

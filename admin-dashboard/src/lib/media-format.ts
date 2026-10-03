@@ -6,7 +6,7 @@
  * Either way the *declared* MIME type comes from the client and cannot be
  * trusted, so the server decides what it is storing from the leading bytes:
  *
- * - JPEG (`ff d8 ff`)
+ * - JPEG (`ff d8 ff` + a plausible first marker byte)
  * - PNG (`89 50 4e 47 0d 0a 1a 0a`)
  * - WebP (`RIFF....WEBP`)
  *
@@ -24,9 +24,25 @@ export const CONTENT_TYPE_BY_FORMAT: Record<ImageFormat, string> = {
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/** Sniff the image format from its magic bytes, or `null` when unrecognised. */
+/**
+ * Sniff the image format from its magic bytes, or `null` when unrecognised.
+ *
+ * The full signature each format actually starts with must be present, not
+ * just its prefix: a three-byte `ff d8 ff` file is not a decodable JPEG, so
+ * the SOI marker must be followed by a plausible first-segment marker byte —
+ * E0-EF (APPn), DB (DQT), DD (DRI), or C0-CF (SOFn/Huffman).
+ */
 export function sniffImageFormat(bytes: Uint8Array): ImageFormat | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff &&
+    ((bytes[3] >= 0xe0 && bytes[3] <= 0xef) ||
+      bytes[3] === 0xdb ||
+      bytes[3] === 0xdd ||
+      (bytes[3] >= 0xc0 && bytes[3] <= 0xcf))
+  ) {
     return 'jpg';
   }
   if (bytes.length >= 8 && PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {

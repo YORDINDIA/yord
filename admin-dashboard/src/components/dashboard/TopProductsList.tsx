@@ -1,5 +1,6 @@
 import { BarChart3 } from 'lucide-react';
 import Link from 'next/link';
+import clsx from 'clsx';
 import EmptyState from '@/components/ui/EmptyState';
 import Thumb from '@/components/ui/Thumb';
 import type { TopProduct } from '@/lib/data/analytics';
@@ -40,7 +41,15 @@ export default function TopProductsList({
     <ul className={styles.list}>
       {rows.map((row, index) => (
         <li key={`${row.productId ?? 'none'}-${row.title}`} className={styles.listRow}>
-          <span className={styles.rank} aria-hidden="true">
+          <span
+            className={clsx(
+              styles.rank,
+              index === 0 && styles.rankTop1,
+              index === 1 && styles.rankTop2,
+              index === 2 && styles.rankTop3,
+            )}
+            aria-hidden="true"
+          >
             {index + 1}
           </span>
           <Thumb src={row.productId ? covers.get(row.productId) : undefined} size="md" />

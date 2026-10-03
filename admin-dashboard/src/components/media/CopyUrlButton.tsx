@@ -26,7 +26,9 @@ export default function CopyUrlButton({
   showText?: boolean;
 }) {
   const { toast } = useToast();
-  const accessibleLabel = label ? `Copy ${label} URL` : 'Copy public URL';
+  // Speech input targets a control by its visible label, so the
+  // accessible name keeps "Copy URL" verbatim before the asset name.
+  const accessibleLabel = label ? `Copy URL for ${label}` : 'Copy public URL';
 
   return (
     <button

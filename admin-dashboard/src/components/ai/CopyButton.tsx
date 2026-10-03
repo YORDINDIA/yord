@@ -40,12 +40,15 @@ export default function CopyButton({
     [],
   );
 
-  const text = (value ?? '').trim();
-  if (!text) return null;
+  // The clipboard receives the exact original string — generated HTML can
+  // begin or end with meaningful whitespace. trim() only decides whether
+  // there is anything to copy.
+  const raw = value ?? '';
+  if (!raw.trim()) return null;
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(raw);
       setCopied(true);
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setCopied(false), 2000);

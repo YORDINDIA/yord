@@ -35,6 +35,10 @@ export default function AmbientAurora({
     if (reduce) return;
     const onVisibility = () => setVisible(document.visibilityState === 'visible');
     document.addEventListener('visibilitychange', onVisibility);
+    // Mounting while the tab is already hidden fires no
+    // `visibilitychange` afterwards — sync once at registration so
+    // the WebGL renderer stays unmounted.
+    onVisibility();
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [reduce]);
 

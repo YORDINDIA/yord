@@ -68,7 +68,8 @@ export default function Sparkline({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={withAlpha(color, 0.32)} />
+                  <stop offset="0%" stopColor={withAlpha(color, 0.45)} />
+                  <stop offset="60%" stopColor={withAlpha(color, 0.12)} />
                   <stop offset="100%" stopColor={withAlpha(color, 0)} />
                 </linearGradient>
               </defs>
@@ -81,7 +82,7 @@ export default function Sparkline({
                 type="monotone"
                 dataKey="value"
                 stroke={color}
-                strokeWidth={1.5}
+                strokeWidth={2}
                 fill={`url(#${gradientId})`}
                 dot={false}
                 isAnimationActive={false}

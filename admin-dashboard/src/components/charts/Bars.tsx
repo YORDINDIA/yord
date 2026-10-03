@@ -133,7 +133,7 @@ export default function Bars({
                   tickFormatter={truncateLabel}
                 />
                 <Tooltip cursor={{ fill: theme.cursor }} content={<BarTooltip format={format} />} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={18}>
                   {data.map((row, index) => (
                     <Cell key={`${row.label}-${index}`} fill={colorFor(row, index)} />
                   ))}
@@ -154,7 +154,7 @@ export default function Bars({
                   tickFormatter={(value) => format(toNumber(value))}
                 />
                 <Tooltip cursor={{ fill: theme.cursor }} content={<BarTooltip format={format} />} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={28}>
                   {data.map((row, index) => (
                     <Cell key={`${row.label}-${index}`} fill={colorFor(row, index)} />
                   ))}

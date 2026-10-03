@@ -51,9 +51,15 @@ form.rowForm {
 }
 
 /* The diff modal is wider than `.modal-card`'s 460px: two JSON columns plus a
-   key column do not fit there. `div.` raises specificity above `.modal-card`. */
+   key column do not fit there. `div.` raises specificity above `.modal-card`.
+   It also bounds itself to the viewport: on a phone the Raw JSON panels stack
+   below the 42vh diff table and each `pre` may take 30vh, which can push the
+   Close button past the bottom edge — the modal scrolls inside instead. */
 div.auditModal {
   max-width: 760px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
 }
 
 .modalMeta {
@@ -95,12 +101,15 @@ div.auditModal {
 }
 
 /* Values are capped and ellipsized the way the other dense tables do it: an
-   uncapped cell is what silently turns a table into a horizontal scroller. The
-   full value stays in the cell's `title`, and the raw JSON below carries it
-   untruncated. */
+   uncapped cell is what silently turns a table into a horizontal scroller, and
+   a wrapping one turns long values into tall rows. The full value stays in the
+   cell's `title`, and the raw JSON below carries it untruncated. */
 .diffValue {
   display: inline-block;
   max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   vertical-align: middle;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;

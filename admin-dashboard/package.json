@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5",
-    "@opennextjs/cloudflare": "^1.20.7",
+    "@opennextjs/cloudflare": "1.15.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -56,6 +56,6 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4",
-    "wrangler": "^4.147.0"
+    "wrangler": "4.86.0"
   }
 }

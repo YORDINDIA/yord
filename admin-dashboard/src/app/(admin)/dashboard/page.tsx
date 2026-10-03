@@ -3,10 +3,10 @@ import {
   LayoutDashboard,
   Package,
   PackageCheck,
+  Receipt,
   Users,
 } from 'lucide-react';
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import ChartCard from '@/components/charts/ChartCard';
 import Sparkline from '@/components/charts/Sparkline';
@@ -28,6 +28,7 @@ import StatCard from '@/components/ui/StatCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { percentDelta } from '@/lib/chart-format';
 import { getDashboardData, type RecentOrder } from '@/lib/data/analytics';
+import { storefrontOrigin } from '@/lib/storefront-origin';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils/format';
 import styles from '@/components/dashboard/dashboard.module.css';
 
@@ -61,30 +62,6 @@ function labelForStatus(status: string): string {
 }
 
 /**
- * Storefront origin for the header action, or null when there is
- * nothing to link to.
- *
- * `NEXT_PUBLIC_APP_URL` is the storefront's address. A same-origin
- * value is dropped: in dev both apps serve :3000, and a "View
- * storefront" button that reloads the admin would be a lie.
- */
-async function storefrontHref(): Promise<string | null> {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (!configured) return null;
-
-  let url: URL;
-  try {
-    url = new URL(configured);
-  } catch {
-    return null;
-  }
-
-  const host = (await headers()).get('host');
-  if (host && url.host === host) return null;
-  return url.origin;
-}
-
-/**
  * Dashboard — the control room.
  *
  * All reads go through `getDashboardData()`; the money path stays in
@@ -100,7 +77,7 @@ async function storefrontHref(): Promise<string | null> {
  */
 export default async function DashboardPage() {
   const { orders, counts, customers, extras } = await getDashboardData();
-  const storefrontUrl = await storefrontHref();
+  const storefrontUrl = await storefrontOrigin();
 
   const spark7 = extras.byDay30.slice(-7).map((point) => point.total);
   const spark30 = extras.byDay30.map((point) => point.total);
@@ -348,6 +325,7 @@ export default async function DashboardPage() {
               rows={orders}
               rowKey={(order) => order.id}
               leading={(order) => <Avatar email={order.email} size="sm" />}
+              emptyIcon={<Receipt size={22} aria-hidden="true" />}
               emptyTitle="No orders yet"
               emptyHint="Orders appear here as soon as the storefront takes one."
             />

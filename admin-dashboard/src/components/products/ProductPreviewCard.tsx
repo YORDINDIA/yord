@@ -2,18 +2,21 @@ import Image from 'next/image';
 import clsx from 'clsx';
 import { ExternalLink, ImageIcon } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { storefrontOrigin } from '@/lib/storefront-origin';
 import { formatCurrency } from '@/lib/utils/format';
 import styles from './products.module.css';
 
 /**
  * Storefront preview for the product side rail.
  *
- * Server component: it renders static markup and reads `NEXT_PUBLIC_APP_URL` at
- * request time to build the product link. When that variable is unset (or the
- * product has no handle) the path is shown as plain text rather than a link to
- * somewhere that does not exist.
+ * Server component: it renders static markup and reads `NEXT_PUBLIC_APP_URL`
+ * at request time through `storefrontOrigin()` to build the product link. The
+ * helper suppresses the link when the configured origin is the admin's own
+ * (in dev both apps serve :3000, so the link would open the admin's
+ * `/products/<handle>`, which is not-found) or unset — the path is then shown
+ * as plain text rather than a link to somewhere that does not exist.
  */
-export default function ProductPreviewCard({
+export default async function ProductPreviewCard({
   product,
   imageUrl,
   price,
@@ -24,9 +27,10 @@ export default function ProductPreviewCard({
   price: number;
   compareAtPrice: number | null;
 }) {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') ?? '';
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? '';
+  const origin = await storefrontOrigin();
   const path = product.handle ? `/products/${product.handle}` : null;
-  const href = base && path ? `${base}${path}` : null;
+  const href = origin && path ? `${origin}${path}` : null;
   const showCompareAt = compareAtPrice !== null && compareAtPrice > price;
 
   return (
@@ -76,7 +80,13 @@ export default function ProductPreviewCard({
         ) : (
           <span
             className={clsx('helper', 'truncate', 'mono', styles.railRow)}
-            title={path ? 'Set NEXT_PUBLIC_APP_URL to open the storefront' : undefined}
+            title={
+              path
+                ? configured
+                  ? 'The admin and the storefront share this origin, so there is nothing to open from here'
+                  : 'Set NEXT_PUBLIC_APP_URL to open the storefront'
+                : undefined
+            }
           >
             {path ?? 'No handle yet'}
           </span>

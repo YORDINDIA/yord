@@ -36,9 +36,9 @@ const TONES = [
 ] as const;
 
 /**
- * Stable colour per person: the same name or email always hashes to the same
- * tone, so a customer keeps one colour across the orders list, the detail page,
- * and the dashboard activity feed.
+ * Stable colour per person: the same identity always hashes to the same
+ * tone, so a customer keeps one colour across the orders list, the detail
+ * page, and the dashboard activity feed.
  */
 function toneFor(identity: string): ToneName {
   let hash = 0;
@@ -77,9 +77,13 @@ export interface AvatarProps {
  * coloured circle rather than a hole.
  */
 export function Avatar({ name, email, src, size = "md", tone }: AvatarProps) {
-  const identity = name?.trim() || email?.trim() || "";
-  const resolvedTone = tone ?? toneFor(identity || "unknown");
-  const label = identity || "Account";
+  // The tone hashes email-first: the dashboard activity feed passes only an
+  // email while orders and customers pass name + email, and name-first
+  // hashing would give one person a different tone per view. The display
+  // label stays name-first.
+  const hashIdentity = email?.trim() || name?.trim() || "";
+  const label = name?.trim() || email?.trim() || "Account";
+  const resolvedTone = tone ?? toneFor(hashIdentity || "unknown");
   const url = src?.trim();
 
   return (

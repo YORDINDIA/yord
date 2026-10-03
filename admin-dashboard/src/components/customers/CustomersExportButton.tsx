@@ -22,9 +22,12 @@ export default function CustomersExportButton({
     const headers = Object.keys(rows[0]);
     const escape = (v: string | number) => {
       let value = String(v ?? '');
-      // Neutralize spreadsheet formula injection (=, +, -, @, tab, CR prefixes);
-      // an email or a tag is attacker-controlled text that lands in a cell.
-      if (/^[=+\-@\t\r]/.test(value)) value = `'${value}`;
+      // Neutralize spreadsheet formula injection (=, +, -, @, tab, CR, LF
+      // prefixes, and whitespace/line breaks before any of them — some
+      // spreadsheet apps strip leading whitespace or a leading newline before
+      // evaluating the rest as a formula). An email or a tag is
+      // attacker-controlled text that lands in a cell.
+      if (/^\s*[=+\-@\t\r]/.test(value)) value = `'${value}`;
       return `"${value.replace(/"/g, '""')}"`;
     };
     const csv = [

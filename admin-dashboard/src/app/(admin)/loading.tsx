@@ -14,7 +14,9 @@ import TableSkeleton from '@/components/data/TableSkeleton';
  */
 export default function AdminLoading() {
   return (
-    <div aria-busy="true" aria-live="polite">
+    // `stack` re-applies the `.content` gaps inside this wrapper —
+    // without it the header, stat row, and card sit flush together.
+    <div className="stack" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading…</span>
 
       {/* Page header: 32px icon tile, title, description, and action pills. */}

@@ -37,24 +37,35 @@ export function pageRange(
  *
  * Shared by every admin list search — products, orders, customers, blogs,
  * media, discounts, settings, inventory, collections and the global search —
- * so what it strips is the contract for all of them.
+ * so what it does to each character is the contract for all of them.
  *
- * Two groups, for two different reasons:
+ * Three groups:
  *
- *  - `%`, `(`, `)`, `,` and `"` are PostgREST filter syntax. Stripping them
- *    keeps a hostile query string from changing the shape of the filter.
- *  - `_` and `*` are LIKE wildcards, which silently widen a match instead of
- *    breaking it: `*` is PostgREST's alias for `%`, and a bare `_` matches any
- *    single character (both verified against the live endpoint). Searching
- *    `t_shirt` therefore matched `t-shirt` and `tXshirt`. Stripping them makes
- *    the typed text match itself, the same way `%` already does. The trade-off
- *    is deliberate: a query that used `_`/`*` as a wildcard no longer does.
+ *  - `(`, `)`, `,`, `"` are PostgREST filter syntax and `*` is PostgREST's
+ *    alias for `%`. Stripped, because the callers interpolate the term
+ *    unquoted into `.or("col.ilike.%term%")` and a hostile query string must
+ *    not be able to reshape the filter or act as a wildcard.
+ *  - `%` and `_` are PostgreSQL LIKE wildcards. They are escaped with a
+ *    backslash (LIKE's escape character) instead of deleted, so a literal
+ *    search for `t_shirt` still matches a stored `t_shirt` — deleting them
+ *    turned `t_shirt` into `tshirt`, which can never match its own title.
+ *    PostgREST passes the pattern through to PostgreSQL as a parameter, so
+ *    the backslash escapes survive the trip.
+ *  - `\` is the LIKE escape character itself, so it is doubled first; doing
+ *    it first is what keeps a typed backslash literal instead of an escape.
  *
- * The length is clamped so a 10k-character query cannot become a slow query.
+ * The length is clamped before escaping so a 10k-character query cannot
+ * become a slow query; escaping at most doubles the clamped length.
  */
 export function sanitizeSearch(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.replace(/[%(),"_*]/g, '').trim().slice(0, MAX_SEARCH_LENGTH);
+  const stripped = value
+    .replace(/[(),"*]/g, '')
+    .trim()
+    .slice(0, MAX_SEARCH_LENGTH);
+  // Escape order matters: the escape character itself first, then the
+  // wildcards it protects.
+  return stripped.replace(/\\/g, '\\\\').replace(/[%_]/g, (char) => `\\${char}`);
 }
 
 /**

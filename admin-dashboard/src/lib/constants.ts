@@ -79,6 +79,25 @@ export const COLLECTION_SORT_ORDER_LABELS: Record<
   manual: 'Manual — the picker’s saved order',
 };
 
+/**
+ * Options the "Default product order" select offers, `newest` already being the
+ * select's empty option.
+ *
+ * Auto collections (`new-arrivals` / `all`) have no `collects` rows to order by,
+ * so `manual` is meaningless for them — the storefront degrades it to `newest`
+ * no matter what the row says. The edit form hides the option for those handles
+ * (and the action normalises a stored `manual` away) so the saved setting never
+ * promises an order nothing can produce.
+ */
+export function collectionSortOrderOptions(
+  isAuto: boolean,
+): Exclude<(typeof COLLECTION_SORT_ORDERS)[number], 'newest'>[] {
+  return COLLECTION_SORT_ORDERS.filter(
+    (option): option is Exclude<(typeof COLLECTION_SORT_ORDERS)[number], 'newest'> =>
+      option !== 'newest' && (!isAuto || option !== 'manual'),
+  );
+}
+
 export const SMART_RULE_COLUMNS = [
   'title',
   'vendor',

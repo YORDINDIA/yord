@@ -85,11 +85,12 @@ for f in supabase/migrations/0*.sql; do
   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f" || break
 done
 
-# Admin support tables (001 and 002 first: 003 and 004 depend on them).
+# Admin support tables (001 and 002 first: 003, 004 and 005 depend on them).
 psql "$DATABASE_URL" -f admin-dashboard/sql/001_admin_tables.sql
 psql "$DATABASE_URL" -f admin-dashboard/sql/002_admin_next_id.sql
 psql "$DATABASE_URL" -f admin-dashboard/sql/003_admin_rls.sql
 psql "$DATABASE_URL" -f admin-dashboard/sql/004_atomic_writes.sql
+psql "$DATABASE_URL" -f admin-dashboard/sql/005_positional_collection_products.sql
 ```
 
 Why this order:
@@ -102,6 +103,10 @@ Why this order:
   the app deploy without 008 makes every product, article and media query fail.
 - `admin-dashboard/sql/003_admin_rls.sql` must run after
   `001_admin_tables.sql` and after migration `002_refund_idempotency.sql`.
+- `admin-dashboard/sql/005_positional_collection_products.sql` replaces the
+  004 body of `set_collection_products()` so `collects.position` follows the
+  submitted order; skipping it leaves `manual`-ordered collections numbered by
+  product id.
 - **Skip `scripts/schema_patches/` on a fresh database.** Those two files are
   historical fixes for the archive-era project; patch 002 re-creates the old
   `supabase_url` column names that 008 supersedes.

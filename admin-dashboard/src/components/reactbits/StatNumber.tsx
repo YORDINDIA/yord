@@ -74,12 +74,23 @@ export default function StatNumber({
     if (ref.current) ref.current.textContent = reduce ? format(to) : format(from);
   }, [reduce, from, to, format]);
 
-  // Trigger the spring once the figure is on screen.
+  // A late `from` change must move the MotionValue with the span:
+  // the hook only reads `from` on mount, so the value would
+  // otherwise stay at the old start and the next spring would run
+  // from below what the span shows. `jump` skips the spring (a
+  // plain `set` would send it chasing the new start).
+  useIsomorphicLayoutEffect(() => {
+    if (reduce) return;
+    motionValue.jump(from);
+  }, [reduce, from, motionValue]);
+
+  // Trigger the spring once the figure is on screen; `from` is a
+  // dependency so a changed start re-runs the count from it.
   useEffect(() => {
     if (!isInView || reduce) return;
     const id = setTimeout(() => motionValue.set(to), 120);
     return () => clearTimeout(id);
-  }, [isInView, reduce, motionValue, to]);
+  }, [isInView, reduce, motionValue, to, from]);
 
   // The spring writes through to the span on every tick.
   useEffect(() => {

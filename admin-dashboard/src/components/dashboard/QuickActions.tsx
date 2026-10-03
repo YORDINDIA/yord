@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowUpRight,
   FolderPlus,
   Image as ImageIcon,
   NotebookPen,
@@ -20,6 +21,7 @@ interface QuickAction {
   label: string;
   description: string;
   icon: LucideIcon;
+  tone: 'indigo' | 'fuchsia' | 'cyan' | 'violet' | 'amber' | 'emerald';
 }
 
 /** The six things an admin opens the dashboard in order to start. */
@@ -29,36 +31,42 @@ const ACTIONS: QuickAction[] = [
     label: 'New product',
     description: 'Add a product with variants and media',
     icon: PackagePlus,
+    tone: 'indigo',
   },
   {
     href: '/collections/new',
     label: 'New collection',
     description: 'Group products for the storefront',
     icon: FolderPlus,
+    tone: 'fuchsia',
   },
   {
     href: '/blogs/new',
     label: 'New blog',
     description: 'Write a blog and its first article',
     icon: NotebookPen,
+    tone: 'cyan',
   },
   {
     href: '/media',
     label: 'Media library',
     description: 'Upload and attach images',
     icon: ImageIcon,
+    tone: 'violet',
   },
   {
     href: '/ai/listing',
     label: 'AI listing',
     description: 'Draft copy and imagery',
     icon: Sparkles,
+    tone: 'amber',
   },
   {
     href: '/orders',
     label: 'Orders',
     description: 'Fulfil, refund, and inspect payments',
     icon: ShoppingBag,
+    tone: 'emerald',
   },
 ];
 
@@ -89,14 +97,20 @@ export default function QuickActions() {
         {ACTIONS.map((action) => {
           const Icon = action.icon;
           const tile = (
-            <Link key={action.href} className={styles.action} href={action.href}>
+            <Link
+              key={action.href}
+              className={styles.action}
+              href={action.href}
+              data-tone={action.tone}
+            >
               <span className={styles.actionIcon}>
-                <Icon size={14} aria-hidden="true" />
+                <Icon size={15} aria-hidden="true" />
               </span>
               <span className={styles.actionBody}>
                 <span className={styles.actionLabel}>{action.label}</span>
                 <span className={styles.actionDesc}>{action.description}</span>
               </span>
+              <ArrowUpRight size={13} className={styles.actionArrow} aria-hidden="true" />
             </Link>
           );
 

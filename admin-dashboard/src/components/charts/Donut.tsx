@@ -108,10 +108,12 @@ export default function Donut({
                 data={data}
                 dataKey="value"
                 nameKey="label"
-                innerRadius="62%"
+                innerRadius="64%"
                 outerRadius="88%"
-                paddingAngle={2}
-                stroke="none"
+                paddingAngle={3}
+                cornerRadius={4}
+                stroke="var(--surface-card)"
+                strokeWidth={2}
                 startAngle={90}
                 endAngle={-270}
                 // Recharts makes the pie layer a tab stop by default; the plot

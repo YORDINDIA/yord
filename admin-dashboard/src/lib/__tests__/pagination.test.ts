@@ -84,38 +84,46 @@ describe('pageCount', () => {
 
 describe('sanitizeSearch', () => {
   it('strips PostgREST filter syntax so a query cannot reshape the filter', () => {
-    // `%` is a wildcard, `(`/`)`, `,` and `"` are filter operators. Interpolated
-    // raw into `.or()`, a query of `a),id.not.is.null` would change the filter.
+    // `(`/`)`, `,` and `"` are filter operators. Interpolated raw into
+    // `.or()`, a query of `a),id.not.is.null` would change the filter.
     expect(sanitizeSearch('coldplay')).toBe('coldplay');
-    expect(sanitizeSearch('100%')).toBe('100');
     expect(sanitizeSearch('a)or(b')).toBe('aorb');
     expect(sanitizeSearch('x,y')).toBe('xy');
     expect(sanitizeSearch('say "hi"')).toBe('say hi');
-  });
-
-  it('strips LIKE wildcards too, so the typed text matches itself', () => {
-    // `_` and `*` are not filter grammar, but they are LIKE wildcards: `*` is
-    // PostgREST's alias for `%` and a bare `_` matches any character (both
-    // verified against the live endpoint). Left in, `t_shirt` matched `t-shirt`
-    // and `tXshirt` — a silently wider result set, not an error.
-    expect(sanitizeSearch('t_shirt')).toBe('tshirt');
+    // `*` is PostgREST's alias for `%` and the callers wrap the term in
+    // `%...%` themselves, so a typed `*` stays stripped.
     expect(sanitizeSearch('50*off')).toBe('50off');
-    expect(sanitizeSearch('a_b*c')).toBe('abc');
+    expect(sanitizeSearch('a_b*c')).toBe('a\\_bc');
   });
 
-  it('strips a mixed query down to its literal text', () => {
-    expect(sanitizeSearch('100%_x')).toBe('100x');
-    expect(sanitizeSearch('a_b%c,d*e')).toBe('abcde');
-    // Characters that are not PostgREST syntax or wildcards survive untouched.
+  it('escapes LIKE wildcards so the typed text matches itself', () => {
+    // `%` and `_` are PostgreSQL LIKE wildcards; escaping them with a
+    // backslash (not deleting them) keeps a literal search for `t_shirt`
+    // matching a stored `t_shirt`. The old version deleted them, turning
+    // `t_shirt` into `tshirt`, which can never match its own title.
+    expect(sanitizeSearch('t_shirt')).toBe('t\\_shirt');
+    expect(sanitizeSearch('100%')).toBe('100\\%');
+    expect(sanitizeSearch('a_b%c')).toBe('a\\_b\\%c');
+    expect(sanitizeSearch('100%_x')).toBe('100\\%\\_x');
+  });
+
+  it('doubles a typed backslash first, so it stays a literal backslash', () => {
+    // Backslash is LIKE's escape character; escaping it first keeps the
+    // escape order correct (`a\%b` must not turn `\%` into `\\%`'s escape).
+    expect(sanitizeSearch('a\\b')).toBe('a\\\\b');
+    expect(sanitizeSearch('a\\%b')).toBe('a\\\\\\%b');
+  });
+
+  it('leaves ordinary text untouched', () => {
     expect(sanitizeSearch('t-shirt 2025')).toBe('t-shirt 2025');
     expect(sanitizeSearch("honey singh's tour")).toBe("honey singh's tour");
   });
 
-  it('collapses to empty when nothing survives', () => {
-    expect(sanitizeSearch('%%%')).toBe('');
+  it('collapses to empty when only stripped syntax survives', () => {
+    expect(sanitizeSearch('***')).toBe('');
+    expect(sanitizeSearch('()*,"')).toBe('');
     expect(sanitizeSearch('   ')).toBe('');
     expect(sanitizeSearch('')).toBe('');
-    expect(sanitizeSearch('_*')).toBe('');
   });
 
   it('ignores non-strings', () => {

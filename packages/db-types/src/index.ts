@@ -288,6 +288,16 @@ export interface Database {
         Returns: number;
       };
       /**
+       * Lock-and-adjust inventory quantities in one transaction, returning
+       * each variant's previous quantity so the audit's `before` is the value
+       * that immediately preceded the adjustment.
+       * (supabase/migrations/011_adjust_inventory_atomic.sql)
+       */
+      adjust_inventory_quantities: {
+        Args: { p_variants: unknown };
+        Returns: { id: number; product_id: number; previous_quantity: number }[];
+      };
+      /**
        * Per-day INR revenue rollup (admin-dashboard/sql/004_atomic_writes.sql).
        * Replaces client-side summation over a `.limit(500)` fetch, which
        * silently under-reported any window holding more than 500 orders.

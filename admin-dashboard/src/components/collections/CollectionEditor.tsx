@@ -9,8 +9,8 @@ import ProductPicker from '@/components/collections/ProductPicker';
 import { updateCollectionAction } from '@/server/actions/collections';
 import {
   COLLECTION_SORT_ORDER_LABELS,
-  COLLECTION_SORT_ORDERS,
   COLLECTION_TYPES,
+  collectionSortOrderOptions,
   isAutoCollectionHandle,
 } from '@/lib/constants';
 import type { Collection } from '@yord/db-types';
@@ -164,17 +164,25 @@ export default function CollectionEditor({
           className="select"
           id="sort_order"
           name="sort_order"
-          defaultValue={collection.sort_order ?? ''}
+          // An auto handle with a stored `manual` (possible only from before
+          // this guard) falls back to the empty option: the storefront ignores
+          // `manual` for these collections and uses `newest`, and the action
+          // normalises the stored value on the next save.
+          defaultValue={
+            isAuto && collection.sort_order === 'manual' ? '' : (collection.sort_order ?? '')
+          }
         >
           <option value="">Newest first (default)</option>
-          {COLLECTION_SORT_ORDERS.filter((option) => option !== 'newest').map((option) => (
+          {collectionSortOrderOptions(isAuto).map((option) => (
             <option key={option} value={option}>
               {COLLECTION_SORT_ORDER_LABELS[option]}
             </option>
           ))}
         </select>
         <div className="helper" style={{ marginTop: 4 }}>
-          Used when a shopper has not picked a sort on the storefront.
+          {isAuto
+            ? 'Used when a shopper has not picked a sort. Manual is not offered: an auto collection has no saved picker order.'
+            : 'Used when a shopper has not picked a sort on the storefront.'}
         </div>
       </div>
 

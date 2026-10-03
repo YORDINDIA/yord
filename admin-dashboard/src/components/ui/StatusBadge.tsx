@@ -73,16 +73,17 @@ export function StatusBadge({
   label,
   tone,
   icon: Icon,
-  dot = false,
+  dot,
   size = "sm",
 }: StatusBadgeProps) {
   const text = label ?? value ?? "-";
   const resolved = tone ?? toneForStatus(value ?? label);
+  const showDot = dot ?? !Icon;
 
   return (
     <span className={clsx("badge", resolved, size === "md" && "badge-lg")}>
       {Icon && <Icon size={11} aria-hidden="true" />}
-      {dot && <span className="badge-dot" aria-hidden="true" />}
+      {showDot && <span className="badge-dot" aria-hidden="true" />}
       {text}
     </span>
   );

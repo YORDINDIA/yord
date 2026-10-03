@@ -36,6 +36,8 @@ interface Call {
 const h = vi.hoisted(() => ({
   calls: [] as Call[],
   row: null as Record<string, unknown> | null,
+  /** Rows the publish guard's status lookup (`products.select('id, status')`) answers with. */
+  productStatusRows: [] as Record<string, unknown>[],
   rpc: { data: 2, error: null } as { data: number | null; error: { message: string } | null },
 }));
 
@@ -58,7 +60,7 @@ vi.mock('@/server/actions/_shared', async () => {
   const actual =
     await vi.importActual<typeof import('@/server/actions/_shared')>('@/server/actions/_shared');
   const service = {
-    from: () => query(),
+    from: (table: string) => query(table),
     rpc: async (name: string, args: unknown) => {
       h.calls.push({ kind: 'rpc', name, args });
       return h.rpc;
@@ -72,7 +74,7 @@ vi.mock('@/server/actions/_shared', async () => {
   };
 });
 
-function query() {
+function query(table: string) {
   const builder = {
     select: () => builder,
     eq: () => builder,
@@ -88,9 +90,12 @@ function query() {
       h.calls.push({ kind: 'insert', payload });
       return builder;
     },
-    // `await query.update(...).eq(...)` resolves through the builder.
-    then: (resolve: (value: { data: null; error: null }) => unknown) =>
-      Promise.resolve({ data: null, error: null }).then(resolve),
+    // `await query.update(...).eq(...)` resolves through the builder; the
+    // publish guard's `products` lookup resolves the status rows instead.
+    then: (resolve: (value: { data: unknown; error: null }) => unknown) =>
+      Promise.resolve({ data: table === 'products' ? h.productStatusRows : null, error: null }).then(
+        resolve,
+      ),
   };
   return builder;
 }
@@ -126,6 +131,7 @@ describe('collection handle guards', () => {
   beforeEach(() => {
     h.calls = [];
     h.row = row({});
+    h.productStatusRows = [];
     h.rpc = { data: 2, error: null };
   });
 
@@ -215,6 +221,9 @@ describe('publish rollback when the membership write fails', () => {
   beforeEach(() => {
     h.calls = [];
     h.row = row({ published: false, published_at: null });
+    // The publish guard looks the submitted ids' statuses up before writing;
+    // the product exists and is active, so the flow reaches the RPC failure.
+    h.productStatusRows = [{ id: 999999999, status: 'active' }];
     // The foreign key rejects an id whose product no longer exists (a stale
     // editor form). This is NOT COLLECTION_NOT_FOUND, so it takes the generic
     // partial-write branch.

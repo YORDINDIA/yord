@@ -84,6 +84,48 @@ export default function DashboardLoading() {
         </div>
       </div>
 
+      {/* Quick actions / inventory health / customers, then the
+          computation-notes card — the page's last two bands. */}
+      <div className="dash-grid" aria-hidden="true">
+        <div className="col-4">
+          <section className="card">
+            <span className="skeleton skeleton-title" />
+            <div className="stack-sm">
+              {Array.from({ length: 3 }, (_, index) => (
+                <span key={index} className="skeleton skeleton-line" />
+              ))}
+            </div>
+          </section>
+        </div>
+        <div className="col-4">
+          <section className="card">
+            <span className="skeleton skeleton-title" />
+            <div className="stack-sm">
+              <span className="skeleton" style={{ height: 12, borderRadius: 6 }} />
+              <span className="skeleton skeleton-line" />
+            </div>
+          </section>
+        </div>
+        <div className="col-4">
+          <section className="card">
+            <span className="skeleton skeleton-title" />
+            <div className="stack-sm">
+              <span className="skeleton skeleton-stat" />
+              <span className="skeleton skeleton-line" />
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section className="card" aria-hidden="true">
+        <span className="skeleton skeleton-title" style={{ width: 240 }} />
+        <div className="stack-sm" style={{ marginTop: 10 }}>
+          {Array.from({ length: 3 }, (_, index) => (
+            <span key={index} className="skeleton skeleton-line" />
+          ))}
+        </div>
+      </section>
+
       <span className="sr-only">Loading the dashboard…</span>
     </>
   );

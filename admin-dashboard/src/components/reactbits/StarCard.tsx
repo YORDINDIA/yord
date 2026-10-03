@@ -53,12 +53,18 @@ export default function StarCard({
   const reduce = useReducedMotion();
   const Component = as ?? 'div';
   const beams = border && !reduce;
+  // Reduced motion keeps the frame: the accent ring stands still
+  // (a border in place of the padding the beams swept through) and
+  // only the orbit is removed — `beams === false` alone would leave
+  // zero padding on a frameless surface.
+  const ring = border && !beams;
 
   return (
     <Component
       className={clsx('star-card', className)}
       style={{
         padding: beams ? `${thickness}px` : 0,
+        ...(ring ? { border: `${thickness}px solid ${color}` } : null),
         borderRadius: radius,
       }}
       {...(rest as Record<string, unknown>)}
@@ -85,7 +91,12 @@ export default function StarCard({
       )}
       <div
         className={clsx('star-card-inner', innerClassName)}
-        style={{ borderRadius: Math.max(radius - (beams ? thickness : 0), 0) }}
+        style={{
+          borderRadius: Math.max(
+            radius - (beams || ring ? thickness : 0),
+            0,
+          ),
+        }}
       >
         {children}
       </div>
