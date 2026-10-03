@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PRICE_SORT_FETCH_LIMIT, sortProductsByPrice } from '@/lib/product';
+import {
+  PRICE_SORT_FETCH_LIMIT,
+  catalogOrder,
+  compareCatalogProducts,
+  sortProductsByPrice,
+} from '@/lib/product';
 import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
 import { logDbError } from '@/lib/logger';
 import type { ProductWithDetails } from '@yord/db-types';
@@ -32,7 +37,7 @@ export const PRODUCT_SELECT = `
     image_id, requires_shipping
   ),
   product_images (
-    id, src, supabase_url, alt, position, width, height
+    id, src, storage_url, alt, position, width, height
   ),
   product_options (
     id, name, position, values
@@ -42,6 +47,18 @@ export const PRODUCT_SELECT = `
 const CHUNK = 150;
 
 type SupabaseLike = SupabaseClient;
+
+/**
+ * PostgREST answers a `Range` whose offset is past the last row with HTTP 416
+ * (`PGRST103`) instead of an empty page, so an out-of-range `?page=` would look
+ * like a failed read: the collection page would render its error boundary and
+ * `GET /api/products` would answer 500. Callers use this to recognise that case
+ * and re-issue the identical query with `range(0, 0)`, whose `count` header is
+ * the real total — see `fetchProductsByIds` and `fetchAutoCollectionPage`.
+ */
+export function isRangePastEnd(error: unknown): boolean {
+  return postgrestCodeOf(error) === 'PGRST103';
+}
 
 /**
  * Fetch products by id list with chunked `.in()` + global sort + page slice.
@@ -71,17 +88,47 @@ export async function fetchProductsByIds(
       .select(PRODUCT_SELECT, { count: 'exact' })
       .in('id', chunkIds)
       .eq('status', 'active');
-    if (!isPriceSort && sort === 'title') q = q.order('title', { ascending: true });
-    else if (isPriceSort) q = q.order('min_price', { ascending: sort === 'price-asc', nullsFirst: false });
-    else q = q.order('published_at', { ascending: false });
+    // One order definition for every paged list (see `catalogOrder`): the
+    // `id desc` tie-break is what stops OFFSET paging from repeating or
+    // skipping rows inside a price/title tie group, and it must match the SQL
+    // order the JS merge below re-applies.
+    for (const clause of catalogOrder(sort)) {
+      q = q.order(clause.column, { ascending: clause.ascending, nullsFirst: clause.nullsFirst });
+    }
     return q.range(rangeFrom, rangeTo);
   };
+
+  if (sort === 'manual') {
+    // `manual` is the collection's `collects.position` order: the caller hands
+    // us ids already in that order, and no products-table ORDER BY can express
+    // it. So page in JS — fetch every chunk from offset 0 (a chunk holds at
+    // most CHUNK ids, far under the response limit, and a `range(0, n)` whose
+    // start is 0 can never 416), re-order by the caller's index, then slice.
+    const results = await Promise.all(chunks.map((c) => fetchChunk(c, 0, CHUNK - 1)));
+    const firstError = results.find((r) => r.error);
+    if (firstError?.error) {
+      logDbError('productsByIds:manual-sort', firstError.error);
+      throw new DatabaseError('products', 'Query failed', postgrestCodeOf(firstError.error));
+    }
+    const all = results.flatMap((r) => ((r.data || []) as ProductWithDetails[]));
+    const rank = new Map(ids.map((id, index) => [id, index]));
+    // A row the caller listed but that is no longer active (deleted/drafted
+    // between the two reads) sorts to the end and is sliced away — it must
+    // never displace a real product from the page.
+    all.sort((a, b) => (rank.get(a.id) ?? ids.length) - (rank.get(b.id) ?? ids.length));
+    const count = results.reduce((sum, r) => sum + (r.count || 0), 0);
+    return { data: all.slice(from, to + 1), count };
+  }
 
   if (isPriceSort) {
     const results = await Promise.all(
       chunks.map((c) => fetchChunk(c, 0, PRICE_SORT_FETCH_LIMIT - 1))
     );
-    const firstError = results.find((r) => r.error);
+    // Price sorts page in memory, so the SQL range never moves past 0: a 416
+    // (PGRST103) here means the chunk has no active products left, i.e. an
+    // empty chunk — it contributes no rows and no count, exactly like a chunk
+    // that answered with an empty page. Every other error still throws.
+    const firstError = results.find((r) => r.error && !isRangePastEnd(r.error));
     if (firstError?.error) {
       logDbError('productsByIds:price-sort', firstError.error);
       throw new DatabaseError('products', 'Query failed', postgrestCodeOf(firstError.error));
@@ -90,30 +137,40 @@ export async function fetchProductsByIds(
     const count = results.reduce((sum, r) => sum + (r.count || 0), 0);
     // min_price ordering is authoritative only when every row is backfilled;
     // otherwise re-sort client-side from variant prices so un-backfilled
-    // rows land in the right position instead of the NULL tail.
+    // rows land in the right position instead of the NULL tail. Both branches
+    // are total orders (min_price/variant price, then id desc).
     const sorted = all.every(hasMinPrice)
-      ? all.sort((a, b) => {
-          const pa = Number((a as { min_price?: unknown }).min_price);
-          const pb = Number((b as { min_price?: unknown }).min_price);
-          return sort === 'price-asc' ? pa - pb || a.id - b.id : pb - pa || a.id - b.id;
-        })
+      ? all.sort((a, b) => compareCatalogProducts(a, b, sort))
       : sortProductsByPrice(all, sort === 'price-asc' ? 'asc' : 'desc');
     return { data: sorted.slice(from, to + 1), count };
   }
 
-  const chunkFrom = chunks.length === 1 ? from : 0;
+  // Only a single-chunk id list is paged in SQL; a multi-chunk list fetches
+  // every chunk from 0 and slices in JS, so its range can never overshoot.
+  const pagedInSql = chunks.length === 1;
+  const chunkFrom = pagedInSql ? from : 0;
   const results = await Promise.all(chunks.map((c) => fetchChunk(c, chunkFrom, to)));
   const firstError = results.find((r) => r.error);
   if (firstError?.error) {
+    // `?page=` beyond the last row: PostgREST 416s instead of answering an
+    // empty page, which must read as "this page has nothing", not a failure.
+    // The 416 body only mentions the total in prose, so re-issue the identical
+    // chunk query for one row: its `count` header is the chunk's total, and a
+    // 0-0 range can never overshoot. `from >= count` keeps this from swallowing
+    // a 416 that is NOT an out-of-range offset.
+    if (pagedInSql && isRangePastEnd(firstError.error)) {
+      const probe = await fetchChunk(chunks[0], 0, 0);
+      if (!probe.error && from >= (probe.count ?? 0)) {
+        return { data: [], count: probe.count ?? 0 };
+      }
+    }
     logDbError('productsByIds', firstError.error);
     throw new DatabaseError('products', 'Query failed', postgrestCodeOf(firstError.error));
   }
   let merged = results.flatMap((r) => ((r.data || []) as ProductWithDetails[]));
-  if (sort === 'title') merged = merged.sort((a, b) => a.title.localeCompare(b.title));
-  else {
-    merged = merged.sort((a, b) => (a.published_at || '').localeCompare(b.published_at || ''));
-    merged = merged.reverse();
-  }
+  // Re-sort merged chunks with the same comparator the SQL used, so a
+  // multi-chunk page is ordered exactly like a single-chunk one.
+  merged = merged.sort((a, b) => compareCatalogProducts(a, b, sort));
   const count = results.reduce((sum, r) => sum + (r.count || 0), 0);
-  return { data: chunks.length === 1 ? merged : merged.slice(from, to + 1), count };
+  return { data: pagedInSql ? merged : merged.slice(from, to + 1), count };
 }

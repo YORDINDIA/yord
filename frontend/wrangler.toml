@@ -1,0 +1,30 @@
+# Cloudflare Workers deploy for the YORD storefront.
+# Build with: npm run build:worker  (runs opennextjs-cloudflare build)
+# Deploy with: npm run deploy:worker
+# Secrets (never in this file): SUPABASE_SECRET_KEY, RAZORPAY_KEY_ID,
+# RAZORPAY_KEY_SECRET. Public NEXT_PUBLIC_* values are inlined at build time,
+# so set them in the Worker dashboard AND in the build environment.
+name = "yord-frontend"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# Custom domain: the yordindia.com zone is active on this account, so the
+# deploy creates these routes (and their DNS) automatically. No workers.dev
+# subdomain needed.
+[[routes]]
+pattern = "yordindia.com/*"
+zone_id = "26d8d491decdc6f30b65bee92b7130be"
+
+[[routes]]
+pattern = "www.yordindia.com/*"
+zone_id = "26d8d491decdc6f30b65bee92b7130be"
+
+# Non-secret runtime vars. Real values come from the dashboard / .dev.vars.
+[vars]
+NEXT_PUBLIC_APP_NAME = "YORD India"
+NEXT_PUBLIC_POSTHOG_HOST = "https://us.i.posthog.com"

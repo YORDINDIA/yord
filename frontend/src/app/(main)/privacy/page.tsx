@@ -1,7 +1,7 @@
 import { Shield } from "lucide-react";
 
 export const metadata = {
-  title: "Privacy Policy | YORD India",
+  title: "Privacy Policy",
   description:
     "Read our privacy policy to understand how we collect, use, and protect your personal information.",
 };
@@ -119,7 +119,8 @@ export default function PrivacyPage() {
                     Shipping and logistics partners to deliver your orders
                   </li>
                   <li>Payment processors (Razorpay) to process transactions</li>
-                  <li>Analytics providers to understand website usage</li>
+                  <li>Analytics providers (Google Analytics and PostHog) to understand website usage</li>
+                  <li>Error monitoring (Sentry) to detect and fix problems on the site</li>
                   <li>Legal authorities when required by law</li>
                 </ul>
                 <p className="mt-4">

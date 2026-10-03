@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
-import { openai, textModel } from '@/lib/ai/openai';
-import { extractJson, getOutputText } from '@/lib/ai/parse';
+import { generateText } from '@/lib/ai/agnes';
+import { extractJson } from '@/lib/ai/parse';
 import { assertAiAllowed } from '@/lib/ai/guard';
 import { requireAdmin } from '@/lib/utils/admin';
 import { UNTRUSTED_DATA_GUARD, failJson, okJson, toPlainText, xmlBlock } from '@/lib/utils/prompt';
@@ -11,8 +11,8 @@ import { getCoverImage } from '@/lib/data/products';
 /**
  * Cover image for the AI studio.
  *
- * The studio used to read `product_images` from the browser with the anon key.
- * This GET runs the same read server-side, so the anon key never touches a
+ * The studio used to read `product_images` from the browser with the publishable
+ * key. This GET runs the same read server-side, so the key never touches a
  * product-images read and the lookup is not a second code path in the client.
  */
 export async function GET(req: Request) {
@@ -40,6 +40,12 @@ export async function POST(req: Request) {
 
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
+
+    // Same guard as the blog/image routes: the hub page promises NOT_CONFIGURED
+    // when the key is missing, not a model-quality error from a caught throw.
+    if (!process.env.AGNES_AI_API_KEY) {
+      return failJson('NOT_CONFIGURED', 'AI service not configured', 500);
+    }
 
     const parsed = aiListingRequestSchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -72,14 +78,20 @@ ${xmlBlock('tags', toPlainText(product.tags))}
 ${xmlBlock('description', toPlainText(product.body_html))}
 `;
 
-    const response = await openai.responses.create({
-      model: textModel,
-      input: prompt,
-    });
+    // A failed Agnes request (network, auth, model error) and unreadable model
+    // text are different failures: the first is an upstream outage, logged and
+    // reported as a request failure; only the second is 'invalid JSON'.
+    let raw: string;
+    try {
+      raw = await generateText(prompt);
+    } catch (error: unknown) {
+      console.error('Agnes listing request failed', error);
+      return failJson('UPSTREAM_ERROR', 'Model request failed', 502);
+    }
 
     let suggestion: unknown;
     try {
-      suggestion = extractJson(getOutputText(response) || '');
+      suggestion = extractJson(raw);
     } catch {
       return failJson('UPSTREAM_INVALID', 'Model returned invalid JSON', 502);
     }

@@ -28,12 +28,12 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
 
   if (!artist) {
     return {
-      title: 'Artist Not Found | YORD India',
+      title: 'Artist Not Found',
     };
   }
 
   return {
-    title: `${artist.name} Concert Merchandise India | YORD India`,
+    title: `${artist.name} Concert Merchandise India`,
     description: `Shop exclusive ${artist.name} concert merchandise in India. ${artist.tagline}. Premium quality fan-made designs. Free shipping above ₹1,999.`,
     openGraph: {
       title: `${artist.name} Concert Merchandise | YORD India`,

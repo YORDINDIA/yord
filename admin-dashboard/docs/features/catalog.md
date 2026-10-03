@@ -27,8 +27,16 @@
 - Image associations via `product_image_variants`.
 
 ## Media
-- Upload and reorder images; enforce alt text prompts.
-- Store in Supabase Storage and set `supabase_url`.
+- Product images are URL-based: the catalog form takes a public image URL,
+  validation requires `https://` (or a site-relative path), and the action
+  stores it in both `product_images` columns (`src` and `storage_url`).
+  Reordering, cover selection, and alt text are edited on the product's image
+  grid.
+- Media-library uploads (`uploadMediaAction`) go straight to Cloudflare R2 and
+  are tracked only through the audit log — they are *not* attached to
+  `product_images`. To use one on a product, copy its public URL into the
+  catalog form's image field.
+- Legacy Supabase Storage URLs (in `src`) remain valid.
 
 ## Validation Rules
 - Unique `handle` per product.

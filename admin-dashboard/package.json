@@ -13,9 +13,15 @@
     "lint": "eslint",
     "clean": "rm -rf .next",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:worker": "dotenv -e ../.env --no-expand -- opennextjs-cloudflare build",
+    "preview:worker": "dotenv -e ../.env --no-expand -- opennextjs-cloudflare preview",
+    "deploy:worker": "dotenv -e ../.env --no-expand -- opennextjs-cloudflare deploy",
+    "upload:worker": "dotenv -e ../.env --no-expand -- opennextjs-cloudflare upload"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@sentry/nextjs": "^11.4.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
     "@yord/auth": "*",
@@ -23,18 +29,23 @@
     "@yord/supabase-clients": "*",
     "@yord/ui": "*",
     "clsx": "^2.1.1",
+    "gsap": "^3.15.0",
     "lucide-react": "^0.562.0",
+    "motion": "^12.43.0",
     "next": "16.1.4",
+    "ogl": "^1.0.11",
     "openai": "^4.67.0",
     "posthog-js": "^1.351.1",
     "razorpay": "^2.9.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "^3.10.1",
     "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5",
+    "@opennextjs/cloudflare": "1.15.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -44,6 +55,7 @@
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "4.86.0"
   }
 }

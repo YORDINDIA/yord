@@ -1,7 +1,7 @@
 import { Cookie } from 'lucide-react';
 
 export const metadata = {
-  title: 'Cookie Policy | YORD India',
+  title: 'Cookie Policy',
   description: 'Learn about how we use cookies on the YORD India website.',
 };
 
@@ -62,8 +62,10 @@ export default function CookiesPage() {
                     ANALYTICS COOKIES
                   </h3>
                   <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                    These cookies help us understand how visitors interact with our website by collecting
-                    and reporting information anonymously. This helps us improve our website and services.
+                    These cookies help us understand how visitors interact with our website. We use
+                    Google Analytics and PostHog for this: they record pages viewed, referral source,
+                    device type, approximate location, and — for PostHog — session replays of how
+                    pages are used. This helps us improve our website and services.
                   </p>
                 </div>
                 <div>

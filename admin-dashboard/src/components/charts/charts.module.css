@@ -1,0 +1,40 @@
+/*
+  Chart-local styles.
+
+  Everything shared — the `--chart-*` ramp, `.chart-wrap`, `.chart-legend`,
+  `.chart-tooltip`, `.empty-state`, `.sr-only` — lives in `globals.css`, so it
+  stays themeable in one place. What is left here is the donut centre overlay,
+  which is positioned over a plot and has no meaning anywhere else.
+*/
+
+/* Sits over the plot box; the Pie is centred in the same box, so the hole and
+   the label line up without measuring anything. */
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 26%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donutValue {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.donutLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-subtle);
+}

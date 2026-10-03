@@ -142,7 +142,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             inventory_quantity, position
           ),
           product_images (
-            id, src, supabase_url, alt, position
+            id, src, storage_url, alt, position
           )
         `)
         .eq('status', 'active')
@@ -241,7 +241,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <div id="search-results-list" role="listbox" aria-label="Search results" className="divide-y divide-border-default">
                   {results.map((product) => {
                     const image = getFirstByPosition(product.product_images);
-                    const imageUrl = image?.supabase_url || image?.src;
+                    const imageUrl = image?.storage_url || image?.src;
                     const variant = getFirstByPosition(product.product_variants);
                     const price = variant?.price || 0;
 

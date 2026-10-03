@@ -1,0 +1,5 @@
+/* Concept B, Halftone. Parts are split by area; the two-tone variables are set in base.css. */
+@import './base.css';
+@import './hero.css';
+@import './sections.css';
+@import './closing.css';

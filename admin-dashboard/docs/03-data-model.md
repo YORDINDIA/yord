@@ -40,7 +40,8 @@ Operations
 ## Field Semantics to Preserve
 - `products.tags`, `collections.tags`, `articles.tags` are stored as comma-separated text.
 - `published`/`published_at` define visibility; `status` for products (active/draft/archived).
-- `product_images.supabase_url` is the preferred image URL (Storage), `src` is original.
+- `product_images.storage_url` is the preferred image URL (a public R2 URL for
+  new uploads; legacy Supabase Storage URLs remain valid), `src` is original.
 
 ## Known Data Issues (from migration audit)
 - `collects` migration failed without BIGINT schema fix.

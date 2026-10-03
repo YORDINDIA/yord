@@ -16,18 +16,31 @@ export function CollectionHeader({ title, description, handle, productCount }: C
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true });
 
-  // Accent colors for different collection types
+  /**
+   * Accent colours per collection type. Purely decorative (a blurred blob
+   * behind the header and the small bar next to the title), never text.
+   *
+   * The generic entries — the two computed collections and every unlisted
+   * handle — use `var(--accent)` rather than a gold literal, because the
+   * storefront default theme is light and light mode's accent is bronze: a
+   * #FFD966 blob at opacity-10 over `--surface-card` (#FBFBFA) is invisible,
+   * so the intended accent wash silently does not render. Brand-ish hooks
+   * (Bestsellers, Limited Editions, Sale, category colours) keep their own
+   * colour and are theme-invariant by design, like artist brand colours.
+   */
   const getAccentColor = (collectionHandle: string) => {
     const colors: Record<string, string> = {
-      'new-arrivals': '#FFD966',
-      'best-sellers': '#FFD700',
+      // Canonical handle for the Bestsellers nav target: the footer/header
+      // link to /collection/bestsellers. The old `best-sellers` twin was
+      // deleted from the database, so it must not keep an entry here.
+      'bestsellers': '#FFD700',
       'limited-edition': '#FF4444',
       'sale': '#FF6B6B',
       'hoodies': '#8B5CF6',
       't-shirts': '#3B82F6',
       'accessories': '#10B981',
     };
-    return colors[collectionHandle] || '#FFD966';
+    return colors[collectionHandle] || 'var(--accent)';
   };
 
   const accentColor = getAccentColor(handle);

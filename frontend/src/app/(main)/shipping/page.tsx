@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Truck, Package, Clock, MapPin, Shield, RefreshCw } from 'lucide-react';
 
 export const metadata = {
-  title: 'Shipping Information | YORD India',
+  title: 'Shipping Information',
   description: 'Learn about our shipping policies, delivery times, and shipping rates for orders across India.',
 };
 

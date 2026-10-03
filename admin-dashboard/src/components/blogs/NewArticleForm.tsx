@@ -1,17 +1,65 @@
 'use client';
 
 import { useRef } from 'react';
-import { useActionForm, FormError } from '@/components/forms/ActionForm';
+import { FilePlus2, FileText } from 'lucide-react';
+import {
+  FormActions,
+  FormError,
+  FormSection,
+  useActionForm,
+} from '@/components/forms/ActionForm';
 import { createArticleAction } from '@/server/actions/blogs';
 
 /**
- * Create-article form.
+ * Create-article form for a blog.
  *
  * The old inline `createArticle` returned early for a missing title or a failed
  * insert, so a rejected draft looked identical to a created one. It also wrote
  * `body_html`/`summary_html` unsanitized even though both are rendered with
  * `dangerouslySetInnerHTML`; `createArticleAction` sanitizes them.
+ *
+ * Unique ids (`article-*`): this form renders below BlogEditor on the same
+ * page, which already owns `title`/`handle`/`tags`. Sharing those ids made
+ * these labels focus the blog controls. `ActionField` renders
+ * `htmlFor={name}`, so it cannot point at a prefixed id — `DraftField` below
+ * replicates its markup (label + control + `field-error`) with matching ids.
+ * Field names are unchanged: `blog_id`, `title`, `handle`, `author`, `tags`,
+ * `summary_html`, `body_html`.
  */
+function DraftField({
+  name,
+  label,
+  controlId,
+  message,
+  hint,
+  children,
+}: {
+  name: string;
+  label: string;
+  /** Overrides the generated `article-<name>` id (readable ids for HTML fields). */
+  controlId?: string;
+  message?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  const id = controlId ?? `article-${name}`;
+  return (
+    <div className="field">
+      <label className="label" htmlFor={id}>
+        {label}
+      </label>
+      {children}
+      {message ? (
+        <div className="field-error" id={`${id}-error`} role="alert">
+          {message}
+        </div>
+      ) : (
+        hint && <div className="field-hint">{hint}</div>
+      )}
+    </div>
+  );
+}
+
 export default function NewArticleForm({ blogId }: { blogId: number }) {
   const formRef = useRef<HTMLFormElement>(null);
   const { state, pending, formAction, errorFor } = useActionForm<{ id: number }>(
@@ -27,133 +75,113 @@ export default function NewArticleForm({ blogId }: { blogId: number }) {
   );
 
   return (
-    <form ref={formRef} action={formAction} className="form-grid" style={{ marginTop: 16 }} noValidate>
+    <form ref={formRef} action={formAction} className="stack" noValidate>
       <input type="hidden" name="blog_id" value={blogId} />
 
       <FormError state={state} />
 
-      {/*
-        Unique ids (`article-*`): this form renders below BlogEditor on the same
-        page, which already uses `title`/`handle`/`tags`. Sharing those ids made
-        these labels focus the blog controls. `ActionField` renders
-        `htmlFor={name}`, so it cannot point at a prefixed id — these blocks
-        replicate its markup (label + control + `field-error`) with matching
-        ids instead.
-      */}
-      <div>
-        <label className="helper" htmlFor="article-title">
-          Article Title
-        </label>
-        <input
-          className="input"
-          id="article-title"
-          name="title"
-          aria-invalid={Boolean(errorFor('title'))}
-          aria-describedby={errorFor('title') ? 'article-title-error' : undefined}
-        />
-        {errorFor('title') && (
-          <div className="field-error" id="article-title-error" role="alert">
-            {errorFor('title')}
-          </div>
-        )}
-      </div>
+      <FormSection
+        title="New draft"
+        icon={FilePlus2}
+        description="Drafts are created unpublished — publish from the article editor once it is ready."
+      >
+        <div className="grid-2">
+          <DraftField name="title" label="Title" message={errorFor('title')}>
+            <input
+              className="input"
+              id="article-title"
+              name="title"
+              aria-invalid={Boolean(errorFor('title'))}
+              aria-describedby={errorFor('title') ? 'article-title-error' : undefined}
+            />
+          </DraftField>
 
-      <div>
-        <label className="helper" htmlFor="article-handle">
-          Handle
-        </label>
-        <input
-          className="input"
-          id="article-handle"
-          name="handle"
-          aria-invalid={Boolean(errorFor('handle'))}
-          aria-describedby={errorFor('handle') ? 'article-handle-error' : undefined}
-        />
-        {errorFor('handle') && (
-          <div className="field-error" id="article-handle-error" role="alert">
-            {errorFor('handle')}
-          </div>
-        )}
-      </div>
+          <DraftField
+            name="handle"
+            label="Handle"
+            message={errorFor('handle')}
+            hint="Generated from the title when left empty."
+          >
+            <input
+              className="input mono"
+              id="article-handle"
+              name="handle"
+              placeholder="auto-generated"
+              aria-invalid={Boolean(errorFor('handle'))}
+              aria-describedby={errorFor('handle') ? 'article-handle-error' : undefined}
+            />
+          </DraftField>
+        </div>
 
-      <div>
-        <label className="helper" htmlFor="article-author">
-          Author
-        </label>
-        <input
-          className="input"
-          id="article-author"
-          name="author"
-          defaultValue="YORD Team"
-          aria-invalid={Boolean(errorFor('author'))}
-          aria-describedby={errorFor('author') ? 'article-author-error' : undefined}
-        />
-        {errorFor('author') && (
-          <div className="field-error" id="article-author-error" role="alert">
-            {errorFor('author')}
-          </div>
-        )}
-      </div>
+        <div className="grid-2">
+          <DraftField name="author" label="Author" message={errorFor('author')}>
+            <input
+              className="input"
+              id="article-author"
+              name="author"
+              defaultValue="YORD Team"
+              aria-invalid={Boolean(errorFor('author'))}
+              aria-describedby={errorFor('author') ? 'article-author-error' : undefined}
+            />
+          </DraftField>
 
-      <div>
-        <label className="helper" htmlFor="article-tags">
-          Tags
-        </label>
-        <input
-          className="input"
-          id="article-tags"
-          name="tags"
-          aria-invalid={Boolean(errorFor('tags'))}
-          aria-describedby={errorFor('tags') ? 'article-tags-error' : undefined}
-        />
-        {errorFor('tags') && (
-          <div className="field-error" id="article-tags-error" role="alert">
-            {errorFor('tags')}
-          </div>
-        )}
-      </div>
+          <DraftField
+            name="tags"
+            label="Tags"
+            message={errorFor('tags')}
+            hint="Comma separated, up to 500 characters."
+          >
+            <input
+              className="input"
+              id="article-tags"
+              name="tags"
+              aria-invalid={Boolean(errorFor('tags'))}
+              aria-describedby={errorFor('tags') ? 'article-tags-error' : undefined}
+            />
+          </DraftField>
+        </div>
 
-      <div style={{ gridColumn: '1 / -1' }}>
-        <label className="helper" htmlFor="article-summary">
-          Summary
-        </label>
-        <textarea
-          className="textarea"
-          id="article-summary"
+        <DraftField
           name="summary_html"
-          rows={3}
-          aria-invalid={Boolean(errorFor('summary_html'))}
-          aria-describedby={errorFor('summary_html') ? 'article-summary-error' : undefined}
-        />
-        {errorFor('summary_html') && (
-          <div className="field-error" id="article-summary-error" role="alert">
-            {errorFor('summary_html')}
-          </div>
-        )}
-      </div>
+          controlId="article-summary"
+          label="Excerpt"
+          message={errorFor('summary_html')}
+          hint="Shown on the blog cards; 80–160 characters reads best."
+        >
+          <textarea
+            className="textarea"
+            id="article-summary"
+            name="summary_html"
+            rows={3}
+            aria-invalid={Boolean(errorFor('summary_html'))}
+            aria-describedby={errorFor('summary_html') ? 'article-summary-error' : undefined}
+          />
+        </DraftField>
 
-      <div style={{ gridColumn: '1 / -1' }}>
-        <label className="helper" htmlFor="article-body">
-          Body HTML
-        </label>
-        <textarea
-          className="textarea"
-          id="article-body"
+        <DraftField
           name="body_html"
-          rows={6}
-          aria-invalid={Boolean(errorFor('body_html'))}
-          aria-describedby={errorFor('body_html') ? 'article-body-error' : undefined}
-        />
-        {errorFor('body_html') && (
-          <div className="field-error" id="article-body-error" role="alert">
-            {errorFor('body_html')}
-          </div>
-        )}
-      </div>
+          controlId="article-body"
+          label="Body HTML"
+          message={errorFor('body_html')}
+        >
+          <textarea
+            className="textarea"
+            id="article-body"
+            name="body_html"
+            rows={6}
+            aria-invalid={Boolean(errorFor('body_html'))}
+            aria-describedby={errorFor('body_html') ? 'article-body-error' : undefined}
+          />
+        </DraftField>
+      </FormSection>
 
-      <button className="button" type="submit" disabled={pending} aria-busy={pending}>
-        {pending ? 'Creating…' : 'Create Draft'}
-      </button>
+      <FormActions>
+        <span className="helper">Saves a draft and keeps this form open for the next one.</span>
+        <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>
+          <FileText size={14} aria-hidden />
+          {pending ? 'Creating…' : 'Create draft'}
+        </button>
+      </FormActions>
     </form>
   );
 }

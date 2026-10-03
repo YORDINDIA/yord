@@ -22,7 +22,7 @@ from utils.supabase_helpers import get_supabase_client
 from utils.retry import retry_with_backoff
 from utils.cli import create_parser, resolve_execute, configure_logging
 from utils.config import BATCH_SIZE as CONFIG_BATCH_SIZE, RETRY_LIMIT, RETRY_WAIT
-from utils.config import resolve_supabase_url
+from utils.config import resolve_supabase_secret_key, resolve_supabase_url
 from utils.checkpoint import (
     load_checkpoint,
     mark_entity_done,
@@ -58,7 +58,7 @@ BASE_URL = f"https://{STORE_NAME}.myshopify.com/admin/api/{API_VERSION}"
 # Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
 # see root .env.example)
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_KEY = resolve_supabase_secret_key()
 
 # Request configuration (canonical defaults in utils.config)
 HEADERS = {
@@ -69,7 +69,7 @@ BATCH_SIZE = int(os.getenv('BATCH_SIZE', str(CONFIG_BATCH_SIZE)))
 RETRY_LIMIT = RETRY_LIMIT
 RETRY_WAIT = RETRY_WAIT
 
-# Supabase client is created in main() (validates SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
+# Supabase client is created in main() (validates SUPABASE_URL + SUPABASE_SECRET_KEY)
 supabase: Client | None = None  # type: ignore[assignment]
 
 CHECKPOINT_FILE = 'migration_checkpoint.json'
@@ -878,7 +878,7 @@ def main():
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("Error: Missing Supabase credentials "
-              "(SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)")
+              "(SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SECRET_KEY)")
         sys.exit(1)
 
     global supabase
@@ -975,7 +975,7 @@ def main():
         }, f, indent=2)
 
     print("\nResults saved to migration_results.json")
-    print("Run migrate_media.py to migrate images to Supabase Storage")
+    print("Run migrate_media.py to migrate images to Cloudflare R2")
 
 if __name__ == "__main__":
     main()

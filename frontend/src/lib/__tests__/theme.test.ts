@@ -431,6 +431,9 @@ describe('on-media context discipline', () => {
   const MEDIA_HERO_FILES = [
     'features/home/HeroSection.tsx',
     'features/artist/ArtistHero.tsx',
+    'features/concepts/poster/Hero.tsx',
+    'features/concepts/halftone/Hero.tsx',
+    'features/concepts/stagelight/Hero.tsx',
   ];
 
   const THEME_FOLLOWING_TEXT =

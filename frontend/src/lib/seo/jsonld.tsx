@@ -93,7 +93,7 @@ export function productSchema(product: ProductWithDetails) {
     '@type': 'Product',
     name: product.title,
     description,
-    image: image?.supabase_url || image?.src || undefined,
+    image: image?.storage_url || image?.src || undefined,
     url: `${BASE_URL}/product/${product.handle}`,
     brand: {
       '@type': 'Brand',
@@ -161,7 +161,7 @@ export function articleSchema(article: {
   body_html: string | null;
   published_at: string | null;
   image_src: string | null;
-  supabase_image_url: string | null;
+  storage_image_url: string | null;
 }) {
   return {
     '@context': 'https://schema.org',
@@ -177,7 +177,7 @@ export function articleSchema(article: {
       name: 'YORD India',
       url: BASE_URL,
     },
-    image: article.supabase_image_url || article.image_src || undefined,
+    image: article.storage_image_url || article.image_src || undefined,
     description: article.body_html
       ? stripHtml(article.body_html).slice(0, 160)
       : `Read ${article.title} on the YORD India blog.`,
@@ -207,13 +207,28 @@ export function faqSchema(faqs: { question: string; answer: string }[]) {
 // EVENT SCHEMA (for concert pages)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function eventSchema(concert: Concert) {
+export function eventSchema(concert: Concert, image?: string) {
   return {
     '@context': 'https://schema.org',
     '@type': 'MusicEvent',
     name: `${concert.artist} — ${concert.tourName}`,
     description: concert.description,
     startDate: concert.date,
+    ...(image
+      ? { image: image.startsWith('http') ? image : `${BASE_URL}${image}` }
+      : {}),
+    ...(concert.ticketUrl || concert.ticketPriceFrom
+      ? {
+          offers: {
+            '@type': 'Offer',
+            ...(concert.ticketUrl ? { url: concert.ticketUrl } : {}),
+            ...(concert.ticketPriceFrom
+              ? { price: concert.ticketPriceFrom.toFixed(2), priceCurrency: 'INR' }
+              : {}),
+            availability: 'https://schema.org/InStock',
+          },
+        }
+      : {}),
     eventStatus:
       concert.status === 'completed'
         ? 'https://schema.org/EventScheduled'

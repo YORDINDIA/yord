@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Instagram, Youtube, Twitter, Loader2, CheckCircle } from 'lucide-react';
-import { ARTISTS } from '@yord/db-types';
+import type { ArtistData } from '@yord/db-types';
 
 const FOOTER_LINKS = {
   shop: [
@@ -40,7 +40,13 @@ const SOCIAL_LINKS = [
   { label: 'Twitter', href: 'https://twitter.com/yordindia', icon: Twitter },
 ];
 
-export function Footer() {
+/**
+ * Artist links come from the caller (`getArtistsWithMetadata()` in the `(main)`
+ * layout), not the static `ARTISTS` record, so every link here resolves to a
+ * real artist page. The static record's first six entries mixed published
+ * artists with handles that have no collection at all.
+ */
+export function Footer({ artists }: { artists: ArtistData[] }) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
@@ -223,7 +229,7 @@ export function Footer() {
               ARTISTS
             </h4>
             <ul className="flex flex-wrap gap-x-6 gap-y-2">
-              {Object.values(ARTISTS).slice(0, 6).map((artist) => (
+              {artists.slice(0, 6).map((artist) => (
                 <li key={artist.handle}>
                   <Link
                     href={`/artist/${artist.handle}`}

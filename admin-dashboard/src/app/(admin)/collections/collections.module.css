@@ -1,0 +1,10 @@
+/* Collections list page.
+ *
+ * Only overrides the design system lacks a global class for: the truncation
+ * notice's spacing. globals.css' `.form-alert` carries `margin-bottom: 10px`
+ * for form contexts; on the list page the notice sits between the card header
+ * and the filter bar, which wants top spacing and no extra bottom gap.
+ */
+.truncatedNote {
+  margin: 8px 0 0;
+}

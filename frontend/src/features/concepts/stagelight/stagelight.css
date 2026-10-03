@@ -1,0 +1,343 @@
+/* Concept C "Stagelight". One light language: directional gold beams with
+   falloff. No radial halos, no blurred blobs. Stage chapters stay dark in both
+   themes (scrim + on-media tokens); commerce chapters follow the page theme. */
+
+.sl {
+  --sl-gold: var(--accent-on-media);
+  --sl-t2: color-mix(in srgb, var(--sl-gold) 5%, var(--scrim));
+  --sl-t3: color-mix(in srgb, var(--sl-gold) 8%, var(--scrim));
+  --sl-t6: color-mix(in srgb, var(--sl-gold) 4%, var(--scrim));
+  --sl-duo: color-mix(in srgb, var(--sl-gold) 86%, #8a5a00);
+  --sl-num: clamp(5rem, 10.5vw, 10.5rem);
+  --sl-gutter: calc(var(--sl-num) * 1.6);
+  --sl-pad-l: 20px;
+  --sl-pad-r: 20px;
+  --sl-feather-h: clamp(150px, 26svh, 280px);
+  overflow-x: clip;
+}
+
+@media (min-width: 1024px) {
+  .sl {
+    --sl-pad-l: clamp(20px, 2.5vw, 40px);
+    --sl-pad-r: clamp(24px, 3.5vw, 56px);
+  }
+}
+
+.sl [data-tone='stage'] :focus-visible {
+  outline-color: var(--accent-on-media);
+}
+
+/* Headings: the global unlayered h1-h6 rule beats Tailwind's layered utilities,
+   so the display face is set here with higher specificity. */
+.sl h1,
+.sl h2,
+.sl h3 {
+  font-family: var(--font-bevellier), serif;
+}
+
+/* ---------- shared atoms ---------- */
+
+.sl-h2 {
+  font-family: var(--font-bevellier), serif;
+  font-weight: 700;
+  font-size: clamp(2rem, 4.4vw, 3.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.sl-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 28px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.sl-textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: color 0.2s ease;
+}
+
+.sl-textlink__arrow {
+  flex: none;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sl-textlink:hover .sl-textlink__arrow {
+  transform: translate(2px, -2px);
+}
+
+/* Chamfered frame with a self-coloured edge: the inner layer is inset by --e
+   and its cuts are pulled in by e * (2 - sqrt 2), so the edge stays an even width. */
+.sl-chamfer {
+  --c: 28px;
+  --e: 2px;
+  --ci: calc(var(--c) - var(--e) * 0.586);
+  position: relative;
+  display: block;
+  background: color-mix(in srgb, var(--sl-gold) 62%, var(--scrim));
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+}
+
+.sl-chamfer__in {
+  position: absolute;
+  inset: var(--e);
+  display: block;
+  overflow: hidden;
+  background: var(--scrim);
+  clip-path: polygon(var(--ci) 0, 100% 0, 100% calc(100% - var(--ci)), calc(100% - var(--ci)) 100%, 0 100%, 0 var(--ci));
+}
+
+.sl-chamfer--flip {
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
+}
+
+.sl-chamfer--flip > .sl-chamfer__in {
+  clip-path: polygon(0 0, calc(100% - var(--ci)) 0, 100% var(--ci), 100% 100%, var(--ci) 100%, 0 calc(100% - var(--ci)));
+}
+
+.sl-pgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(12px, 1.6vw, 24px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .sl-pgrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .sl-pgrid--wide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .sl-pgrid--wide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- film grain: on the substrate, behind all content ---------- */
+
+.sl-chapter[data-tone='stage']::before,
+.sl-grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .86 0 0 0 0 .55 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 240px;
+  opacity: 0.075;
+}
+
+.sl-chapter[data-feather='out']::before {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sl-feather-h)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sl-feather-h)), transparent);
+}
+
+.sl-chapter[data-feather='in']::before {
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - var(--sl-feather-h)), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - var(--sl-feather-h)), transparent);
+}
+
+/* ---------- chapters ---------- */
+
+.sl-chapter {
+  position: relative;
+  min-height: 100svh;
+  padding-block: clamp(120px, 16svh, 190px);
+}
+
+.sl-chapter__grid {
+  position: relative;
+  z-index: 1;
+  padding-inline: var(--sl-pad-l) var(--sl-pad-r);
+}
+
+.sl-chapter__body {
+  min-width: 0;
+}
+
+.sl-chapter__body > * + * {
+  margin-top: clamp(56px, 8vw, 120px);
+}
+
+.sl-ch-tonight { background: linear-gradient(to bottom, var(--scrim), var(--sl-t2)); }
+.sl-ch-lineup { background: linear-gradient(to bottom, var(--sl-t2), var(--sl-t3)); }
+.sl-ch-collection { background: var(--surface-page); }
+.sl-ch-backstage { background: var(--surface-card); }
+.sl-ch-story { background: linear-gradient(to bottom, var(--sl-t3), var(--sl-t6)); }
+
+.sl-chapter[data-tone='stage'] { color: var(--text-on-media); }
+
+/* Tone hand-off into / out of a theme surface: smoothstep stops, so no band. */
+.sl-feather {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--sl-feather-h);
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--f-from) 0%,
+    color-mix(in srgb, var(--f-to) 2.8%, var(--f-from)) 10%,
+    color-mix(in srgb, var(--f-to) 10.4%, var(--f-from)) 20%,
+    color-mix(in srgb, var(--f-to) 21.6%, var(--f-from)) 30%,
+    color-mix(in srgb, var(--f-to) 35.2%, var(--f-from)) 40%,
+    color-mix(in srgb, var(--f-to) 50%, var(--f-from)) 50%,
+    color-mix(in srgb, var(--f-to) 64.8%, var(--f-from)) 60%,
+    color-mix(in srgb, var(--f-to) 78.4%, var(--f-from)) 70%,
+    color-mix(in srgb, var(--f-to) 89.6%, var(--f-from)) 80%,
+    color-mix(in srgb, var(--f-to) 97.2%, var(--f-from)) 90%,
+    var(--f-to) 100%
+  );
+}
+
+[data-feather='out'] > .sl-feather {
+  bottom: 0;
+  --f-from: var(--sl-t3);
+  --f-to: var(--surface-page);
+}
+
+[data-feather='in'] > .sl-feather {
+  top: 0;
+  --f-from: var(--surface-card);
+  --f-to: var(--sl-t3);
+}
+
+[data-feather='out'] { padding-bottom: calc(clamp(120px, 16svh, 190px) + var(--sl-feather-h) * 0.6); }
+[data-feather='in'] { padding-top: calc(clamp(120px, 16svh, 190px) + var(--sl-feather-h) * 0.6); }
+
+/* ---------- chapter numeral ---------- */
+
+.sl-chapter[data-tone='stage'],
+.sl-hero {
+  --sl-fig: color-mix(in srgb, var(--accent-on-media) 84%, var(--scrim));
+  --sl-fig-mute: var(--text-on-media-muted);
+}
+
+.sl-chapter[data-tone='surface'] {
+  --sl-fig: var(--accent);
+  --sl-fig-mute: var(--text-muted);
+}
+
+.sl-numeral {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 28px;
+  font-family: var(--font-bevellier), serif;
+}
+
+.sl-numeral__fig {
+  font-weight: 800;
+  font-size: clamp(3.6rem, 18vw, 5.5rem);
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--sl-fig);
+}
+
+.sl-numeral__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--sl-fig-mute);
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.sl-numeral__of { font-weight: 300; }
+
+@media (min-width: 1024px) {
+  .sl-chapter__grid {
+    display: grid;
+    grid-template-columns: var(--sl-gutter) minmax(0, 1fr);
+  }
+
+  .sl-chapter__body {
+    align-self: center;
+  }
+
+  .sl-gutter {
+    margin: 0;
+  }
+
+  .sl-chapter[data-feather='out'] .sl-gutter { margin-bottom: calc(var(--sl-feather-h) * 0.6); }
+  .sl-chapter[data-feather='in'] .sl-gutter { margin-top: calc(var(--sl-feather-h) * 0.6); }
+
+  .sl-numeral {
+    position: sticky;
+    top: calc(100svh - var(--sl-num) * 0.8 - 7rem);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 0;
+  }
+
+  .sl-numeral__fig { font-size: var(--sl-num); }
+  .sl-numeral__meta { font-size: 1.1rem; }
+}
+
+/* ---------- light sweep across a chapter boundary ---------- */
+
+.sl-sweep {
+  --sl-sweep-h: clamp(180px, 30svh, 300px);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--sl-sweep-h) / -2);
+  height: var(--sl-sweep-h);
+  z-index: 2;
+  pointer-events: none;
+  overflow-x: clip;
+  --sl-sweep-c: color-mix(in srgb, var(--accent-on-media) 26%, transparent);
+}
+
+.sl-sweep[data-tone='surface'] {
+  --sl-sweep-c: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.sl-sweep__beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 20%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--sl-sweep-c) 6%, transparent) 22%,
+    color-mix(in srgb, var(--sl-sweep-c) 20%, transparent) 42%,
+    color-mix(in srgb, var(--sl-sweep-c) 52%, transparent) 62%,
+    color-mix(in srgb, var(--sl-sweep-c) 88%, transparent) 80%,
+    var(--sl-sweep-c) 94%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+}
+
+/* ---------- motion preferences ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-sweep__beam { transform: translateX(220%) skewX(-24deg) !important; }
+  .sl-textlink__arrow,
+  .sl-cta,
+  .sl-textlink { transition: none; }
+}

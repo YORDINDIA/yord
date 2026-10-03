@@ -185,13 +185,19 @@ function decodeEntitiesOnce(html: string): string {
 }
 
 function decodeEntities(html: string): string {
+  // Loop to a fixpoint instead of a fixed pass count. A fixed cap is a bypass:
+  // five nested `&amp;` layers around `&colon;` need six passes, so the old
+  // five-pass loop left `href="javascript&colon;alert(1)"` standing — no
+  // literal colon for the scheme check to see, but the browser decodes it
+  // before navigating. The loop always terminates: every entity expands to
+  // fewer characters than its source, so any pass that changes the string
+  // strictly shrinks it.
   let out = html;
-  for (let i = 0; i < 5; i += 1) {
+  for (;;) {
     const next = decodeEntitiesOnce(out);
     if (next === out) return out;
     out = next;
   }
-  return out;
 }
 /**
  * Sanitize admin-authored HTML before it is stored.

@@ -1,9 +1,12 @@
 'use client';
 
 import { ErrorState } from '@/features/ui/ErrorState';
+import { useReportError } from '@/hooks/useReportError';
 
 /** Artist page failures render here; an unknown handle calls `notFound()`. */
-export default function ArtistError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ArtistError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useReportError(error);
+
   return (
     <main className="min-h-[60vh] bg-scrim px-6 flex items-center justify-center">
       {/* Dark scrim keeps the transparent on-media header legible; the card keeps

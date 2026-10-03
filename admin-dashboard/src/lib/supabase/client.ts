@@ -10,7 +10,7 @@ export function createClient() {
   // `NEXT_PUBLIC_` vars stay literal here so Next can inline them.
   return createBrowserSupabase<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
 }
 

@@ -6,7 +6,7 @@ Verifies the completeness of media migration:
 - Checks article featured images migration status
 - Scans body_html for remaining Shopify CDN URLs
 - Checks metafield file references
-- Verifies Supabase URLs are accessible
+- Verifies storage URLs (Cloudflare R2 + legacy Supabase) are accessible
 - Generates comprehensive report
 
 Usage:
@@ -24,7 +24,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Any
+from typing import Dict
 
 import requests
 from dotenv import load_dotenv
@@ -35,7 +35,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.supabase_helpers import get_supabase_client
 from utils.html_parser import HTMLImageExtractor
-from utils.image_processor import is_shopify_cdn_url, is_supabase_url
+from utils.image_processor import is_supabase_url
+from utils.r2_helpers import is_r2_url, public_url_like_pattern
 
 # Load environment variables
 load_dotenv()
@@ -58,6 +59,9 @@ class MediaMigrationAuditor:
     def __init__(self, supabase_client=None):
         self.supabase = supabase_client or get_supabase_client()
         self.extractor = HTMLImageExtractor()
+        # Matches the configured R2 delivery host, so the counts follow the
+        # bucket from the r2.dev URL to a custom domain.
+        self.r2_pattern = public_url_like_pattern()
 
         self.results = {
             'timestamp': datetime.now().isoformat(),
@@ -88,7 +92,7 @@ class MediaMigrationAuditor:
         self.audit_metafield_files()
 
         if verify_urls:
-            self.verify_supabase_urls(sample_size)
+            self.verify_storage_urls(sample_size)
 
         # Generate summary
         self._generate_summary()
@@ -108,17 +112,17 @@ class MediaMigrationAuditor:
         ).execute()
         total = total_response.count or 0
 
-        # Count with Supabase URL
+        # Count with a storage URL (Cloudflare R2 or legacy Supabase)
         migrated_response = self.supabase.table('product_images').select(
             'id', count='exact'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').execute()
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').execute()
         migrated = migrated_response.count or 0
 
         # Count with Shopify URL still (not migrated)
         shopify_response = self.supabase.table('product_images').select(
             'id', count='exact'
         ).like('src', '%cdn.shopify.com%').or_(
-            'supabase_url.is.null,supabase_url.eq.'
+            'storage_url.is.null,storage_url.eq.'
         ).execute()
         remaining = shopify_response.count or 0
 
@@ -147,20 +151,18 @@ class MediaMigrationAuditor:
         ).not_.is_('image_src', 'null').neq('image_src', '').execute()
         total = total_response.count or 0
 
-        # Count with Supabase URL in image_src
+        # Migrated = tracked in storage_image_url, or image_src already holds a
+        # storage URL (rows migrated before the tracking column existed).
         migrated_src = self.supabase.table('collections').select(
             'id', count='exact'
-        ).like('image_src', '%supabase.co/storage%').execute()
+        ).or_(
+            f'image_src.like.{self.r2_pattern},image_src.like.%supabase.co/storage%'
+        ).execute()
 
-        # Try to check supabase_image_url column (may not exist)
-        try:
-            migrated_col = self.supabase.table('collections').select(
-                'id', count='exact'
-            ).not_.is_('supabase_image_url', 'null').neq('supabase_image_url', '').execute()
-            migrated = max(migrated_src.count or 0, migrated_col.count or 0)
-        except Exception:
-            # Column doesn't exist, just use image_src check
-            migrated = migrated_src.count or 0
+        migrated_col = self.supabase.table('collections').select(
+            'id', count='exact'
+        ).not_.is_('storage_image_url', 'null').neq('storage_image_url', '').execute()
+        migrated = max(migrated_src.count or 0, migrated_col.count or 0)
 
         # Count with Shopify URL still
         shopify_response = self.supabase.table('collections').select(
@@ -193,17 +195,17 @@ class MediaMigrationAuditor:
         ).not_.is_('image_src', 'null').neq('image_src', '').execute()
         total = total_response.count or 0
 
-        # Count with Supabase URL
+        # Count with a storage URL
         migrated_response = self.supabase.table('articles').select(
             'id', count='exact'
-        ).not_.is_('supabase_image_url', 'null').neq('supabase_image_url', '').execute()
+        ).not_.is_('storage_image_url', 'null').neq('storage_image_url', '').execute()
         migrated = migrated_response.count or 0
 
-        # Count with Shopify URL and no Supabase URL
+        # Count with Shopify URL and no storage URL
         shopify_response = self.supabase.table('articles').select(
             'id', count='exact'
         ).like('image_src', '%cdn.shopify.com%').or_(
-            'supabase_image_url.is.null,supabase_image_url.eq.'
+            'storage_image_url.is.null,storage_image_url.eq.'
         ).execute()
         remaining = shopify_response.count or 0
 
@@ -305,23 +307,27 @@ class MediaMigrationAuditor:
             ).eq('type', file_type).like('value', '%cdn.shopify.com%').execute()
             remaining += response.count or 0
 
-        # Count with Supabase URLs in value (since supabase_url column may not exist)
-        migrated = 0
-        try:
-            # Try to check supabase_url column first
-            migrated_response = self.supabase.table('metafields').select(
+        # Migrated = tracked in storage_url, or the value already holds an
+        # R2/legacy Supabase URL. `migrate_all_media.py` rewrites the
+        # value in place and never writes the tracking column, so both halves
+        # are needed for this number to mean anything.
+        migrated_response = self.supabase.table('metafields').select(
+            'id', count='exact'
+        ).in_('type', FILE_TYPES).not_.is_('storage_url', 'null').neq(
+            'storage_url', ''
+        ).execute()
+        tracked = migrated_response.count or 0
+
+        in_value = 0
+        for file_type in FILE_TYPES:
+            response = self.supabase.table('metafields').select(
                 'id', count='exact'
-            ).in_('type', FILE_TYPES).not_.is_('supabase_url', 'null').neq(
-                'supabase_url', ''
+            ).eq('type', file_type).or_(
+                f'value.like.{self.r2_pattern},value.like.%supabase.co/storage%'
             ).execute()
-            migrated = migrated_response.count or 0
-        except Exception:
-            # Column doesn't exist, check value column for Supabase URLs instead
-            for file_type in FILE_TYPES:
-                response = self.supabase.table('metafields').select(
-                    'id', count='exact'
-                ).eq('type', file_type).like('value', '%supabase.co/storage%').execute()
-                migrated += response.count or 0
+            in_value += response.count or 0
+
+        migrated = max(tracked, in_value)
 
         self.results['metafields'] = {
             'total': total,
@@ -336,10 +342,10 @@ class MediaMigrationAuditor:
 
         return self.results['metafields']
 
-    def verify_supabase_urls(self, sample_size: int = 50) -> Dict:
-        """Verify that Supabase URLs are accessible."""
+    def verify_storage_urls(self, sample_size: int = 50) -> Dict:
+        """Verify that storage URLs (Cloudflare R2 + legacy Supabase) are accessible."""
         print("\n" + "-" * 40)
-        print("Verifying Supabase URL Accessibility...")
+        print("Verifying Storage URL Accessibility...")
         print("-" * 40)
 
         # Collect sample URLs from different tables
@@ -347,55 +353,42 @@ class MediaMigrationAuditor:
 
         # Product images
         response = self.supabase.table('product_images').select(
-            'id, supabase_url'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').limit(
+            'id, storage_url'
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').limit(
             sample_size // 3
         ).execute()
         for row in response.data or []:
             urls_to_check.append({
                 'source': 'product_images',
                 'id': row['id'],
-                'url': row['supabase_url']
+                'url': row['storage_url']
             })
 
         # Article featured images
         response = self.supabase.table('articles').select(
-            'id, supabase_image_url'
-        ).not_.is_('supabase_image_url', 'null').neq('supabase_image_url', '').limit(
+            'id, storage_image_url'
+        ).not_.is_('storage_image_url', 'null').neq('storage_image_url', '').limit(
             sample_size // 3
         ).execute()
         for row in response.data or []:
             urls_to_check.append({
                 'source': 'articles',
                 'id': row['id'],
-                'url': row['supabase_image_url']
+                'url': row['storage_image_url']
             })
 
-        # Collections - check image_src for Supabase URLs (supabase_image_url column may not exist)
-        try:
-            response = self.supabase.table('collections').select(
-                'id, supabase_image_url'
-            ).not_.is_('supabase_image_url', 'null').neq('supabase_image_url', '').limit(
-                sample_size // 3
-            ).execute()
-            for row in response.data or []:
+        # Collections — storage_image_url, falling back to image_src for rows
+        # migrated before the tracking column existed.
+        response = self.supabase.table('collections').select(
+            'id, storage_image_url, image_src'
+        ).limit(sample_size // 3).execute()
+        for row in response.data or []:
+            url = row.get('storage_image_url') or row.get('image_src')
+            if url and (is_r2_url(url) or is_supabase_url(url)):
                 urls_to_check.append({
                     'source': 'collections',
                     'id': row['id'],
-                    'url': row['supabase_image_url']
-                })
-        except Exception:
-            # Fallback: check image_src for Supabase URLs
-            response = self.supabase.table('collections').select(
-                'id, image_src'
-            ).like('image_src', '%supabase.co/storage%').limit(
-                sample_size // 3
-            ).execute()
-            for row in response.data or []:
-                urls_to_check.append({
-                    'source': 'collections',
-                    'id': row['id'],
-                    'url': row['image_src']
+                    'url': url
                 })
 
         if not urls_to_check:
@@ -539,7 +532,7 @@ Examples:
     parser.add_argument(
         '--verify',
         action='store_true',
-        help='Verify Supabase URLs are accessible'
+        help='Verify storage URLs are accessible'
     )
     parser.add_argument(
         '--sample',
@@ -551,7 +544,7 @@ Examples:
     args = parser.parse_args()
 
     # Validate environment
-    required_vars = ['SUPABASE_SERVICE_ROLE_KEY']
+    required_vars = ['SUPABASE_SECRET_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
     if not (os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')):
         missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')

@@ -1,22 +1,28 @@
-import Sidebar from './Sidebar';
-import Topbar from './Topbar';
+import ShellScope from './ShellScope';
 
+/**
+ * The admin shell, rendered by `(admin)/layout.tsx` after the auth gate.
+ *
+ * A server component on purpose: it takes the badge counts (read server-side)
+ * and the signed-in email, then hands the interactive parts to `ShellScope`.
+ *
+ * `title` is accepted for compatibility but not rendered — each page's own
+ * `PageHeader` owns the visible title, and the topbar shows breadcrumbs only.
+ */
 export default function AdminShell({
-  title,
   email,
+  badges,
   children,
 }: {
-  title: string;
+  /** Accepted for compatibility; the page's `PageHeader` renders the title. */
+  title?: string;
   email: string | null;
+  badges: { fulfillmentQueue: number; lowStock: number };
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-shell">
-      <Sidebar />
-      <div className="shell-main">
-        <Topbar title={title} email={email} />
-        <main className="content">{children}</main>
-      </div>
-    </div>
+    <ShellScope badges={badges} email={email}>
+      {children}
+    </ShellScope>
   );
 }

@@ -1,0 +1,23 @@
+# Cloudflare Workers deploy for the YORD admin panel.
+# Build with: npm run build:worker  (runs opennextjs-cloudflare build)
+# Deploy with: npm run deploy:worker
+# Secrets (never in this file — use `wrangler secret put` or the dashboard):
+# SUPABASE_SECRET_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+# R2_BUCKET, R2_PUBLIC_BASE_URL, AGNES_AI_API_KEY, RAZORPAY_KEY_ID,
+# RAZORPAY_KEY_SECRET.
+name = "yord-admin"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[routes]]
+pattern = "admin.yordindia.com/*"
+zone_id = "26d8d491decdc6f30b65bee92b7130be"
+
+[vars]
+NEXT_PUBLIC_APP_NAME = "YORD Admin"
+NEXT_PUBLIC_POSTHOG_HOST = "https://us.i.posthog.com"

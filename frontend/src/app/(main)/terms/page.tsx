@@ -1,7 +1,7 @@
 import { FileText } from "lucide-react";
 
 export const metadata = {
-  title: "Terms of Service | YORD India",
+  title: "Terms of Service",
   description:
     "Read our terms of service for using YORD India website and purchasing merchandise.",
 };

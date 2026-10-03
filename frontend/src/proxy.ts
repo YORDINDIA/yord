@@ -1,11 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { conceptsEnabled } from '@/features/concepts/gate';
 
 export async function proxy(request: NextRequest) {
-  // Supabase unconfigured (no URL/anon key): there is no session to refresh and
-  // no user to redirect on, so skip auth entirely instead of constructing a
-  // client that would throw. Reads degrade via lib/result.ts as they do in RSC.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // Design concepts are dev-only unless NEXT_PUBLIC_SHOW_CONCEPTS=1. A layout
+  // notFound() would stream a 200 under (main)/loading.tsx, so answer a real
+  // 404 here by rewriting to a path that does not exist.
+  if (!conceptsEnabled && request.nextUrl.pathname.startsWith('/concepts')) {
+    return NextResponse.rewrite(new URL('/concepts-disabled', request.url));
+  }
+
+  // Supabase unconfigured (no URL/publishable key): there is no session to
+  // refresh and no user to redirect on, so skip auth entirely instead of
+  // constructing a client that would throw. Reads degrade via lib/result.ts
+  // as they do in RSC.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     console.warn('[proxy] Supabase env not set — skipping session refresh.');
     return NextResponse.next({ request });
   }
@@ -16,7 +25,7 @@ export async function proxy(request: NextRequest) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {

@@ -50,7 +50,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
         .select(`
           id, title, handle, published_at,
           product_variants (id, title, price, compare_at_price, inventory_quantity, position),
-          product_images (id, src, supabase_url, position)
+          product_images (id, src, storage_url, position)
         `)
         .eq('status', 'active')
         .neq('id', currentProductId)
@@ -76,7 +76,7 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
           title: p.title,
           price: variant?.price || 0,
           compareAtPrice: variant?.compare_at_price || null,
-          image: image?.supabase_url || image?.src || null,
+          image: image?.storage_url || image?.src || null,
           badge: getProductBadge(p, variant),
           variantId: variant?.id ?? null,
           variantTitle: variant?.title ?? null,

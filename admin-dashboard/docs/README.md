@@ -19,6 +19,7 @@ This document set defines the Admin Panel for managing YORD India data in Supaba
 - `admin-dashboard/docs/03-data-model.md`
 - `admin-dashboard/docs/04-auth-roles-security.md`
 - `admin-dashboard/docs/05-ux-navigation.md`
+- `admin-dashboard/docs/06-ui-system.md`
 
 Features:
 - `admin-dashboard/docs/features/catalog.md`

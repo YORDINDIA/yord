@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  COLLECTION_SORT_ORDERS,
   COLLECTION_TYPES,
   DISCOUNT_VALUE_TYPES,
   PRODUCT_STATUSES,
@@ -65,12 +66,22 @@ export const checkboxSchema = z.preprocess(
   z.boolean(),
 );
 
-/** Comma-separated product ids, as typed in the collection form. */
+/**
+ * Comma-separated product ids, as the collection picker submits them.
+ *
+ * Optional: the new-collection form renders the picker only for a custom
+ * collection, so a smart collection's submission carries no `product_ids` field
+ * at all (the browser omits the input entirely). Requiring the string made
+ * "create a smart collection" fail validation with a field error for a control
+ * that is not on the page — the documented smart-collection workflow was
+ * unreachable. Absent means "no products", which is what the transform returns.
+ */
 export const productIdsSchema = z
   .string()
   .trim()
+  .optional()
   .transform((value) =>
-    value
+    (value ?? '')
       .split(',')
       .map((part) => Number(part.trim()))
       .filter((n) => Number.isFinite(n) && n > 0),
@@ -173,26 +184,87 @@ export function parseVariantRows(
 
 // ─── Collections ──────────────────────────────────────────────────────────────
 
-export const collectionSchema = z.object({
-  id: z.coerce.number().int().positive(),
+/**
+ * Optional image URL for a collection (absolute URL or site-relative path).
+ *
+ * Aligned with what the storefront can actually display
+ * (frontend/src/lib/media.ts): an absolute URL must be `https:` (an `http:`
+ * cover is blocked as mixed content on the https page) and a relative path
+ * must start with a single `/` (a protocol-relative `//host/...` value fails
+ * the storefront's displayability gate). Saving either used to pass and the
+ * cover silently disappeared.
+ */
+export const imageSrcSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine(
+    (v) =>
+      v === '' ||
+      (v.startsWith('/') && !v.startsWith('//')) ||
+      /^https:\/\/\S+$/i.test(v),
+    {
+      message: 'Use an https:// URL or a site-relative path starting with a single /.', 
+    },
+  );
+
+/**
+ * Fields shared by the create and edit forms.
+ *
+ * `product_ids` stays a comma-joined string: the editor's product picker
+ * submits a hidden input in exactly the format the schema already parsed, so
+ * the atomic `set_collection_products` RPC and its 1000-row paging contract
+ * are untouched.
+ */
+const collectionBaseSchema = z.object({
   title: z.string().trim().min(1, 'Title is required.').max(255),
   handle: handleSchema,
+  collection_type: z.enum(COLLECTION_TYPES).default('custom'),
   published: checkboxSchema,
   body_html: htmlSchema,
   product_ids: productIdsSchema,
+  image_src: imageSrcSchema.default(''),
+  // Cover chosen from the media library. The storefront resolves a cover as
+  // `storage_image_url` → `image_src` → a static hero, so this is the column the
+  // picker writes and `image_src` stays the legacy/override field.
+  storage_image_url: imageSrcSchema.default(''),
+  // Default storefront order for this collection's products; '' = newest.
+  sort_order: z.enum(['', ...COLLECTION_SORT_ORDERS]).default(''),
+  // Smart collections whose rules are ORed instead of ANDed (the DB column is
+  // `disjunctive`; Shopify uses the same name for "any condition").
+  disjunctive: checkboxSchema.default(false),
 });
 
-export const newCollectionSchema = collectionSchema
-  .omit({ id: true })
-  .extend({
-    collection_type: z.enum(COLLECTION_TYPES).default('custom'),
-  });
+export const collectionSchema = collectionBaseSchema.extend({
+  id: z.coerce.number().int().positive(),
+});
+
+export const newCollectionSchema = collectionBaseSchema;
 
 export const smartRuleSchema = z.object({
   collection_id: z.coerce.number().int().positive(),
   column_name: z.enum(SMART_RULE_COLUMNS),
   relation: z.enum(SMART_RULE_RELATIONS),
   condition: z.string().trim().min(1, 'Condition is required.').max(255),
+});
+
+/** Removes one smart rule from a collection. */
+export const smartRuleIdSchema = z.object({
+  collection_id: z.coerce.number().int().positive(),
+  rule_id: z.coerce.number().int().positive(),
+});
+
+/** Targets a whole collection (preview / apply rules). */
+export const collectionIdSchema = z.object({
+  collection_id: z.coerce.number().int().positive(),
+});
+
+/** Query params for the admin product picker. */
+export const productPickerQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+  pageSize: z.coerce.number().int().min(1).max(48).default(20),
+  status: z.enum(['all', ...PRODUCT_STATUSES]).default('active'),
 });
 
 // ─── Blogs and articles ───────────────────────────────────────────────────────

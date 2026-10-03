@@ -39,7 +39,7 @@ export async function UpcomingConcertsSection() {
             artist: p.vendor || artistData.name,
             price: variant?.price || 0,
             compareAtPrice: variant?.compare_at_price || null,
-            image: image?.supabase_url || image?.src || null,
+            image: image?.storage_url || image?.src || null,
             badge: getProductBadge(p, variant),
             accentColor: artistData.accentColor || 'var(--accent)',
             originalProduct: p,

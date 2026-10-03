@@ -15,7 +15,7 @@
 - Publish now or schedule using `published_at`.
 
 ## Media
-- Upload article images to Supabase Storage, set `supabase_image_url`.
+- Upload article images to Cloudflare R2, set `storage_image_url`.
 
 ## SEO
 - Handle, title, summary, tags.

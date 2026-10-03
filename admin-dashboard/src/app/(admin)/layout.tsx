@@ -1,6 +1,24 @@
 import AdminShell from '@/components/layout/AdminShell';
+import { getNavBadges } from '@/lib/data/nav';
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+
+/**
+ * Sidebar counts, degraded on purpose.
+ *
+ * The data layer never reports a failed read as zero (`getNavBadges` throws),
+ * and nothing else in the shell catches it: this is chrome, not page data, so a
+ * badge query failing must not blank the whole admin. The page renders with
+ * empty badges and the error is logged.
+ */
+async function navBadgesOrEmpty(): Promise<{ fulfillmentQueue: number; lowStock: number }> {
+  try {
+    return await getNavBadges();
+  } catch (error) {
+    console.error('Sidebar badges unavailable', error);
+    return { fulfillmentQueue: 0, lowStock: 0 };
+  }
+}
 
 export default async function AdminLayout({
   children,
@@ -28,7 +46,11 @@ export default async function AdminLayout({
   }
 
   return (
-    <AdminShell title="YORD Admin" email={user.email ?? null}>
+    <AdminShell
+      title="YORD Admin"
+      email={user.email ?? null}
+      badges={await navBadgesOrEmpty()}
+    >
       {children}
     </AdminShell>
   );

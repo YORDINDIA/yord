@@ -1,14 +1,20 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { MapPin, Calendar, Music, ChevronRight } from 'lucide-react';
+import { MapPin, Music } from 'lucide-react';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES, getCityBySlug } from '@/lib/data/cities';
+import { getConcertProductsCached } from '@/lib/supabase/cached-queries';
+import { degrade, isSupabaseUnconfigured } from '@/lib/result';
+import { ConcertCard } from '@/features/concerts/ConcertCard';
+import { merchArtistsFromMap } from '@/features/concerts/concertProducts';
 import { JsonLd, breadcrumbSchema, itemListSchema } from '@/lib/seo/jsonld';
 
 interface CityPageProps {
   params: Promise<{ city: string }>;
 }
+
+export const revalidate = 3600;
 
 export function generateStaticParams() {
   return CITIES.map((c) => ({ city: c.slug }));
@@ -23,8 +29,8 @@ export async function generateMetadata({ params }: CityPageProps): Promise<Metad
   }
 
   return {
-    title: `Concerts in ${city.name} 2025-2026 | Buy Concert Merchandise`,
-    description: `All concerts and music events in ${city.name}, India. Buy premium concert merchandise for ${city.name} shows at YORD India. ${city.description.slice(0, 100)}`,
+    title: `Concerts in ${city.name} 2026-2027 | Buy Concert Merchandise`,
+    description: `Upcoming concerts and music events in ${city.name}, India. Buy premium concert merchandise for ${city.name} shows at YORD India. ${city.description.slice(0, 100)}`,
     openGraph: {
       title: `Concerts in ${city.name} | YORD India`,
       description: `Browse concerts in ${city.name} and shop exclusive concert merchandise.`,
@@ -44,7 +50,24 @@ export default async function CityPage({ params }: CityPageProps) {
 
   const cityConcerts = CONCERTS.filter(
     (c) => c.city.toLowerCase() === city.name.toLowerCase()
-  );
+  ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
+
+  // Cards no longer render products; this read only gates the SHOP MERCH
+  // link, because `/artist/[handle]` 404s without a collection row.
+  let merchArtists: Set<string> = new Set();
+  if (!isSupabaseUnconfigured()) {
+    const handles = [...new Set(cityConcerts.map((c) => c.artistHandle))];
+    const result = await degrade(
+      getConcertProductsCached(handles, 1),
+      {},
+      `concerts:city-${citySlug}`,
+      'products'
+    );
+    if (result.ok) merchArtists = merchArtistsFromMap(result.value);
+  }
 
   return (
     <main className="min-h-screen bg-surface-page pt-24 pb-16">
@@ -101,44 +124,14 @@ export default async function CityPage({ params }: CityPageProps) {
         {/* Concerts */}
         {cityConcerts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-            {cityConcerts.map((concert) => (
-              <Link
+            {cityConcerts.map((concert, i) => (
+              <ConcertCard
                 key={concert.slug}
-                href={`/concerts/${concert.slug}`}
-                className="group block bg-surface-card border border-border-default p-6 hover:border-accent/40 transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <span
-                    className={`px-2 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider ${
-                      concert.status === 'completed'
-                        ? 'bg-surface-raised text-text-muted'
-                        : concert.status === 'upcoming'
-                          ? 'bg-accent-tint-strong text-accent'
-                          : 'bg-accent-tint text-accent'
-                    }`}
-                  >
-                    {concert.status.toUpperCase()}
-                  </span>
-                  <span className="text-xs text-text-muted">{concert.year}</span>
-                </div>
-                <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-primary mb-1 group-hover:text-accent transition-colors">
-                  {concert.artist}
-                </h3>
-                <p className="font-[family-name:var(--font-cormorant)] text-text-muted mb-3">
-                  {concert.tourName}
-                </p>
-                <div className="flex items-center gap-2 text-sm text-text-muted">
-                  <Calendar size={14} />
-                  {new Date(concert.date).toLocaleDateString('en-IN', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </div>
-                <div className="mt-4 flex items-center gap-1 text-accent text-sm font-[family-name:var(--font-bebas)] tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
-                  SHOP MERCH <ChevronRight size={14} />
-                </div>
-              </Link>
+                concert={concert}
+                hasMerch={merchArtists.has(concert.artistHandle)}
+                now={now}
+                priority={i < 3}
+              />
             ))}
           </div>
         ) : (

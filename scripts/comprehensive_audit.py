@@ -9,17 +9,17 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
-from utils.config import resolve_supabase_url
+from utils.config import resolve_supabase_secret_key, resolve_supabase_url
 
 load_dotenv()
 
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
 
 
 class DataAuditor:
     def __init__(self):
-        self.supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        self.supabase = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
         self.results = {
             'timestamp': datetime.now().isoformat(),
             'tables': {},
@@ -134,7 +134,7 @@ class DataAuditor:
         }
 
     def audit_product_images(self):
-        """Audit product images for Supabase URL migration status."""
+        """Audit product images for storage URL migration status."""
         print("\n--- Auditing PRODUCT_IMAGES ---")
 
         total = self.count_table('product_images')
@@ -144,40 +144,40 @@ class DataAuditor:
             self.results['tables']['product_images'] = {'error': 'count query failed'}
             return
 
-        # Count with supabase_url
+        # Count with storage_url (Cloudflare R2 or legacy Supabase)
         with_url = self.supabase.table('product_images').select(
             '*', count='exact'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').limit(0).execute()
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').limit(0).execute()
         migrated = with_url.count or 0
 
-        # Count without supabase_url
+        # Count without storage_url
         without_url = total - migrated
 
-        print(f"Migrated to Supabase storage: {migrated}")
-        print(f"Missing Supabase URL: {without_url}")
+        print(f"Migrated to storage: {migrated}")
+        print(f"Missing storage URL: {without_url}")
         print(f"Migration percentage: {migrated/total*100:.1f}%" if total > 0 else "N/A")
 
         # Sample of images without URL
         if without_url > 0:
             missing = self.supabase.table('product_images').select(
                 'id, product_id, src'
-            ).or_('supabase_url.is.null,supabase_url.eq.').limit(5).execute()
+            ).or_('storage_url.is.null,storage_url.eq.').limit(5).execute()
 
-            print("\nImages without Supabase URL (sample):")
+            print("\nImages without storage URL (sample):")
             for img in missing.data:
                 print(f"  Image {img['id']} (Product {img['product_id']})")
 
         self.results['tables']['product_images'] = {
             'total': total,
-            'migrated_to_supabase': migrated,
-            'missing_supabase_url': without_url,
+            'migrated_to_storage': migrated,
+            'missing_storage_url': without_url,
             'migration_percentage': round(migrated / total * 100, 2) if total > 0 else 0
         }
 
         if without_url > 10:
             self.results['issues'].append({
                 'table': 'product_images',
-                'issue': f'{without_url} images not migrated to Supabase storage',
+                'issue': f'{without_url} images not migrated to storage',
                 'severity': 'MEDIUM'
             })
 

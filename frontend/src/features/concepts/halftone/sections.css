@@ -1,0 +1,275 @@
+/* Concept B, Halftone: sections below the hero. Colours come from the
+   --ht-* pair set in base.css. */
+
+.ht-section {
+  padding-block: clamp(80px, 11vw, 176px);
+}
+
+.ht-h2 {
+  font-size: clamp(2.75rem, 6.4vw, 6.25rem);
+  text-wrap: balance;
+}
+
+.ht-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 40px;
+  margin-bottom: clamp(36px, 5vw, 72px);
+}
+
+.ht-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(28px, 4vw, 64px) clamp(14px, 2.6vw, 44px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 1024px) {
+  .ht-products--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.ht-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 24px;
+  font-size: 1rem;
+  color: var(--ht-soft);
+}
+
+/* Artists ----------------------------------------------------------------- */
+
+.ht-artists__head {
+  display: grid;
+  gap: 12px 56px;
+  align-items: end;
+  margin-bottom: clamp(48px, 7vw, 112px);
+}
+
+@media (min-width: 900px) {
+  .ht-artists__head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+.ht-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2em;
+  margin: 0;
+}
+
+.ht-count__n {
+  font-size: clamp(8rem, 24vw, 21rem);
+  line-height: 0.8;
+  letter-spacing: 0.01em;
+}
+
+.ht-count__u {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  color: var(--ht-soft);
+}
+
+.ht-artists__title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 0.4em;
+}
+
+.ht-gallery {
+  columns: 2;
+  column-gap: clamp(14px, 2.4vw, 40px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 700px) {
+  .ht-gallery {
+    columns: 3;
+  }
+}
+
+@media (min-width: 1000px) {
+  .ht-gallery {
+    columns: 4;
+  }
+}
+
+@media (min-width: 1280px) {
+  .ht-gallery {
+    columns: 5;
+  }
+}
+
+.ht-tile {
+  margin-bottom: clamp(32px, 4.6vw, 72px);
+  break-inside: avoid;
+}
+
+.ht-tile__link {
+  display: block;
+  color: inherit;
+}
+
+.ht-tile__link:focus-visible {
+  outline: 2px solid var(--ht-tone);
+  outline-offset: 6px;
+}
+
+.ht-tile__img {
+  width: 100%;
+}
+
+.ht-tile__name {
+  display: block;
+  margin-top: 14px;
+  font-size: clamp(1.35rem, 1.9vw, 1.75rem);
+  line-height: 1.05;
+  transition: color 0.25s;
+}
+
+.ht-tile__link:hover .ht-tile__name {
+  color: var(--ht-deep);
+}
+
+.ht-tile__tag {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ht-soft);
+}
+
+/* Concerts ---------------------------------------------------------------- */
+
+.ht-concerts__title {
+  margin-bottom: clamp(48px, 7vw, 104px);
+}
+
+.ht-shows {
+  display: grid;
+  gap: clamp(72px, 10vw, 150px);
+}
+
+.ht-show__head {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 2.4vw, 32px);
+  margin-bottom: clamp(28px, 4vw, 56px);
+}
+
+.ht-show__photo {
+  flex: none;
+  width: clamp(88px, 11vw, 144px);
+  aspect-ratio: 1;
+}
+
+.ht-show__info {
+  min-width: 0;
+}
+
+.ht-show__city {
+  font-size: clamp(3rem, 9vw, 8.5rem);
+  line-height: 0.92;
+  overflow-wrap: anywhere;
+}
+
+.ht-show__who {
+  margin-top: 14px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.ht-show__who span {
+  margin-left: 0.6em;
+  font-weight: 400;
+  color: var(--ht-soft);
+}
+
+.ht-show__when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: var(--ht-soft);
+}
+
+.ht-show__when strong {
+  font-weight: 600;
+  color: var(--ht-tone);
+}
+
+/* Artist rails ------------------------------------------------------------ */
+
+.ht-rails .ht-wrap {
+  display: grid;
+  gap: clamp(88px, 12vw, 190px);
+}
+
+.ht-rail {
+  display: grid;
+  gap: clamp(28px, 4vw, 56px) clamp(32px, 5vw, 80px);
+  align-items: start;
+}
+
+.ht-rail__portrait {
+  display: block;
+}
+
+.ht-rail__img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+}
+
+.ht-rail__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: clamp(28px, 4vw, 52px);
+}
+
+.ht-rail__name {
+  font-size: clamp(3rem, 7.4vw, 7rem);
+}
+
+.ht-rail__tag {
+  max-width: 36ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ht-soft);
+}
+
+@media (min-width: 1024px) {
+  .ht-rail {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  }
+
+  .ht-rail[data-flip] {
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+  }
+
+  .ht-rail[data-flip] .ht-rail__portrait {
+    order: 2;
+  }
+
+  .ht-rail__portrait {
+    position: sticky;
+    top: 112px;
+  }
+}
+
+.ht-artists__more {
+  display: flex;
+  justify-content: center;
+  margin-top: clamp(40px, 6vw, 80px);
+}

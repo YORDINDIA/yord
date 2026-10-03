@@ -1,0 +1,196 @@
+/* Chapter 06: story, values, newsletter ticket. */
+
+/* ---------- 06 the story ---------- */
+
+.sl-story { display: flex; flex-direction: column; gap: clamp(64px, 9vw, 128px); }
+
+.sl-story__lead {
+  display: grid;
+  gap: clamp(36px, 5vw, 72px);
+  align-items: start;
+}
+
+.sl-story__text { display: flex; flex-direction: column; gap: 20px; max-width: 54ch; }
+.sl-story__text p { margin: 0; line-height: 1.7; font-size: 1.02rem; }
+.sl-story__title { font-size: clamp(2.6rem, 6.4vw, 5.6rem); margin-bottom: 8px; }
+
+.sl-story__pull {
+  margin-top: 8px !important;
+  font-weight: 400;
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  line-height: 1.12 !important;
+}
+
+.sl-story__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; font-size: 0.88rem; }
+
+.sl-story__frame {
+  --c: 36px;
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 3 / 4;
+  justify-self: center;
+}
+
+.sl-monogram {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@media (min-width: 900px) {
+  .sl-story__lead { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+  .sl-story__frame { margin-top: 56px; justify-self: end; }
+}
+
+.sl-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(28px, 4vw, 56px) clamp(20px, 3vw, 40px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 900px) { .sl-values { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.sl-value { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.sl-value__glyph { margin-bottom: 6px; }
+.sl-value h3 { margin: 0; font-weight: 600; font-size: 1.15rem; line-height: 1.2; }
+.sl-value p { margin: 0; font-size: 0.92rem; line-height: 1.6; max-width: 26ch; }
+
+/* ---------- newsletter ticket ---------- */
+
+.sl-ticket {
+  --r: 15px;
+  --stub: 240px;
+  --ink: var(--scrim);
+  --paper: color-mix(in srgb, var(--text-on-media) 93%, var(--sl-gold));
+  --paper-stub: color-mix(in srgb, var(--text-on-media) 82%, var(--sl-gold));
+  --px: calc(100% - var(--stub) - 3px);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6px var(--stub);
+  color: var(--ink);
+  background: linear-gradient(90deg, var(--paper) var(--px), var(--paper-stub) var(--px));
+  -webkit-mask-image:
+    radial-gradient(circle var(--r) at 0 50%, #0000 97%, #000),
+    radial-gradient(circle var(--r) at 100% 50%, #0000 97%, #000),
+    radial-gradient(circle var(--r) at var(--px) 0, #0000 97%, #000),
+    radial-gradient(circle var(--r) at var(--px) 100%, #0000 97%, #000);
+  mask-image:
+    radial-gradient(circle var(--r) at 0 50%, #0000 97%, #000),
+    radial-gradient(circle var(--r) at 100% 50%, #0000 97%, #000),
+    radial-gradient(circle var(--r) at var(--px) 0, #0000 97%, #000),
+    radial-gradient(circle var(--r) at var(--px) 100%, #0000 97%, #000);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.sl-ticket :focus-visible { outline-color: var(--ink); }
+
+.sl-ticket__main { padding: clamp(28px, 4vw, 52px); min-width: 0; }
+
+.sl-ticket__title { margin: 0; font-weight: 800; font-size: clamp(2rem, 4.2vw, 3.4rem); line-height: 1; letter-spacing: -0.01em; }
+.sl-ticket__copy { margin: 14px 0 28px; max-width: 46ch; font-size: 0.98rem; line-height: 1.6; }
+
+.sl-ticket__field {
+  display: block;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 2px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.1rem;
+}
+
+.sl-ticket__field::placeholder { color: color-mix(in srgb, var(--ink) 58%, transparent); }
+.sl-ticket__field[aria-invalid='true'] { border-bottom-color: #8f1d1d; }
+
+.sl-ticket__note { min-height: 1.6em; margin: 10px 0 0; font-size: 0.9rem; font-weight: 600; }
+.sl-ticket[data-status='error'] .sl-ticket__note { color: #8f1d1d; }
+
+.sl-ticket__perf {
+  margin-block: calc(var(--r) + 10px);
+  background: radial-gradient(circle at 50% 50%, var(--ink) 1.7px, transparent 2.1px) 50% 0 / 6px 14px repeat-y;
+  opacity: 0.7;
+}
+
+.sl-ticket__stub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: clamp(28px, 3vw, 40px) 26px;
+}
+
+.sl-ticket__admit { margin: 0; font-weight: 800; font-size: 2.1rem; line-height: 0.95; transition: opacity 0.3s ease; }
+.sl-ticket[data-status='success'] .sl-ticket__admit { opacity: 0.16; }
+.sl-ticket__club { margin: 0; font-size: 0.82rem; font-weight: 600; }
+
+.sl-ticket__btn {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--text-on-media);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+}
+
+.sl-ticket__btn:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 72%, var(--sl-gold)); }
+.sl-ticket__btn:disabled { cursor: progress; opacity: 0.7; }
+
+.sl-stamp {
+  position: absolute;
+  top: 30%;
+  left: 18px;
+  padding: 6px 12px;
+  border: 3px solid #8f1d1d;
+  color: #8f1d1d;
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-transform: uppercase;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+@media (max-width: 719px) {
+  .sl-ticket {
+    --stub: 176px;
+    --py: calc(100% - var(--stub) - 3px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 6px var(--stub);
+    background: linear-gradient(180deg, var(--paper) var(--py), var(--paper-stub) var(--py));
+    -webkit-mask-image:
+      radial-gradient(circle var(--r) at 0 var(--py), #0000 97%, #000),
+      radial-gradient(circle var(--r) at 100% var(--py), #0000 97%, #000);
+    mask-image:
+      radial-gradient(circle var(--r) at 0 var(--py), #0000 97%, #000),
+      radial-gradient(circle var(--r) at 100% var(--py), #0000 97%, #000);
+  }
+  .sl-ticket__perf {
+    margin: 0 calc(var(--r) + 10px);
+    background: radial-gradient(circle at 50% 50%, var(--ink) 1.7px, transparent 2.1px) 0 50% / 14px 6px repeat-x;
+  }
+  .sl-ticket__stub { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 22px 28px; }
+  .sl-ticket__club { order: 3; width: 100%; }
+  .sl-stamp { top: 18px; left: auto; right: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-ticket__btn,
+  .sl-ticket__admit { transition: none; }
+}

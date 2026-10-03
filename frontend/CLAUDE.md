@@ -13,8 +13,13 @@ npm run dev      # Start development server (localhost:3000)
 npm run build    # Production build
 npm run start    # Start production server
 npm run lint     # Run ESLint
+npm run typecheck # tsc --noEmit
+npm run clean    # rm -rf .next
 npm run test     # Run vitest suites (src/lib/__tests__/ + src/**/*.test.ts)
 ```
+
+`dev`/`build`/`start` load the repo-root `.env` via `dotenv -e ../.env --no-expand`
+(see the root `.env.example`); there are no per-app env files.
 
 ## Architecture
 
@@ -23,24 +28,28 @@ npm run test     # Run vitest suites (src/lib/__tests__/ + src/**/*.test.ts)
 - **Database/Auth**: Supabase (PostgreSQL + Auth with SSR cookies)
 - **Payments**: Razorpay (Indian payment gateway)
 - **State**: Zustand with localStorage persistence (cart, wishlist)
-- **Styling**: Tailwind CSS 4 with custom "Noir Luxe" dark theme
+- **Styling**: Tailwind CSS 4 driven by the design tokens in
+  `packages/ui/src/tokens.css` (light "Alabaster & Bronze" is the default,
+  dark "Noir Luxe" is selectable) — see the design-system section below
 
 ### Key Directories
 ```
 src/
-├── app/                 # Next.js App Router pages and API routes
-│   ├── api/             # API routes (checkout, contact, newsletter, search)
-│   └── [handle]/        # Dynamic routes for products, collections, artists
-├── components/          # React components (ui/, layout/, home/, product/, etc.)
-├── hooks/               # Custom hooks (useAuth, useRazorpay)
+├── app/                 # Next.js App Router routes and API handlers
+│   ├── api/             # API routes (checkout, contact, newsletter, products, search, health)
+│   └── (main)/          # product/[handle], collection/[handle], artist/[handle], catalog, blog, account, …
+├── features/            # feature slices (catalog, product, artist, collection, cart,
+│                        # checkout, home, layout, ui, auth, support, concerts, blog)
+├── hooks/               # useAuth, useRazorpay, useProductsInfinite, useHydrated, useReportError
 ├── lib/
-│   ├── supabase/        # Supabase clients and query functions
-│   │   ├── client.ts    # Browser client
-│   │   ├── server.ts    # Server clients (regular, service, static)
-│   │   └── queries.ts   # Database query functions
+│   ├── data/            # autoCollections.ts (computed collections)
+│   ├── supabase/        # client.ts / server.ts (regular, service, static) + queries.ts
 │   └── stores/          # Zustand stores (cartStore, wishlistStore)
-└── types/database.ts    # TypeScript types for Supabase schema
+├── providers/           # ThemeProvider, PostHog/React Query providers
+└── proxy.ts             # Next 16 middleware: guards /account/*
 ```
+
+Schema types come from `@yord/db-types` — there is no local `types/database.ts`.
 
 ### Path Alias
 Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/ui/Button'`).
@@ -51,7 +60,7 @@ Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/u
 - Zustand stores are client-side only with localStorage persistence
 
 ### Authentication Flow
-- Middleware (`src/middleware.ts`) protects `/account/*` routes
+- Middleware (`src/proxy.ts` — Next 16's renamed `middleware.ts`) protects `/account/*` routes
 - Uses Supabase Auth with SSR cookie-based sessions
 - Auth pages redirect authenticated users to `/account`
 
@@ -132,17 +141,49 @@ concatenated onto a token.
 ### Database Schema (Main Tables)
 - `products` - Product catalog with status, handle (URL slug)
 - `product_variants` - Size/color variants with pricing and inventory
-- `product_images` - Images with `supabase_url` for storage
-- `collections` / `collects` - Collections and product-collection mappings
+- `product_images` - Images with `storage_url` (R2 public URL) and `src` (original)
+- `collections` / `collects` - Collections and product-collection mappings.
+  `new-arrivals` and `all` are computed, not stored: `lib/data/autoCollections.ts`
+  answers them from `products` (active, newest first, same sorts and paging as any
+  other collection), because both are linked from the header/footer and a stored
+  list would go empty or stale. This app ignores their `collects` rows, so seeding
+  them is unnecessary and `scripts/tidy_collections.py` clears them on its next
+  `--execute`. Interim rows may exist in the database as a stopgap for a deployed
+  build that predates the auto path — do not treat them as the source of truth, and
+  do not delete them without checking which build is live. A collection's
+  `sort_order` is used as the default order when the shopper passes no `?sort=`;
+  `manual` means the admin picker's saved order (`collects.position`, written by
+  the `set_collection_products()` RPC): the id-list fetch reads the ids in
+  position order and preserves them in JS, and it is never a shopper dropdown
+  choice (the grid shows "Curated" when active). The auto collections have no
+  `collects` rows, so they treat `manual` as `newest`.
+  `newest` sorts on `products.published_at`.
 - `customers` / `orders` / `line_items` - User and order data
+
+### Images
+Delivery runs through Cloudflare R2, not Next's optimizer:
+`src/lib/media-loader.ts` is wired as `images.loaderFile` in `next.config.ts`.
+R2 stores one web-optimized WebP variant per image (max 1600px, built on upload),
+so the loader returns stored URLs unchanged and rewrites stored `*.r2.dev`
+origins to `NEXT_PUBLIC_MEDIA_BASE_URL` when it is set; every other source
+(Shopify CDN, legacy Supabase, local `/public` files such as
+`/placeholder-product.png`) passes through untouched. `remotePatterns` is
+deliberately absent — a custom loader owns all URLs, so add hosts or rewrites in
+the loader, with tests in `src/lib/__tests__/media-loader.test.ts`.
 
 ## Environment Variables
 
 Copy the root `.env.example` to root `.env` and configure (loaded automatically via dotenv-cli):
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase server-only (never expose to client)
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` - Supabase public
+- `SUPABASE_SECRET_KEY` - Supabase server-only (never expose to client)
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `NEXT_PUBLIC_RAZORPAY_KEY_ID` - Payments
-- `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME` - App config
+- `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME` - App config (not read by code yet)
+- `NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST` - Analytics
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` - GA4 stream id; unset = no GA script (root layout)
+- `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` - Search Console meta tag; unset = tag omitted
+- `NEXT_PUBLIC_SENTRY_DSN` (+ build-only `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`) - Sentry errors only; see `src/sentry-options.ts`
+- `NEXT_PUBLIC_MEDIA_BASE_URL` - optional; rewrites stored `*.r2.dev` image URLs to a custom domain (see Images)
+- `NEXT_PUBLIC_SHOW_CONCEPTS` - `true` enables the `/concepts/*` design routes; leave unset in production
 
 ## Deployment
 

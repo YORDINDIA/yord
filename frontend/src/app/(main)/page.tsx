@@ -8,10 +8,24 @@ import { BrandStory } from '@/features/home/BrandStory';
 import { NewsletterSection } from '@/features/home/NewsletterSection';
 import { SectionDivider } from '@/features/ui/SectionDivider';
 import { JsonLd, organizationSchema, websiteSchema } from '@/lib/seo/jsonld';
+import { getArtistsWithMetadata } from '@/lib/supabase/queries';
+import { degrade } from '@/lib/result';
 
 export const revalidate = 3600; // Revalidate every hour to keep upcoming concerts fresh
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Artist rail links are resolved against the database: only handles with a
+  // published, non-empty collection become tiles, so no link can land on the
+  // "Artist not found" page. Static (cookie-free) client keeps the route
+  // prerenderable; a failed read hides the rail instead of failing the page.
+  const artistsResult = await degrade(
+    getArtistsWithMetadata(true),
+    [],
+    'home:artists',
+    'collections',
+  );
+  const artists = artistsResult.ok ? artistsResult.value : [];
+
   return (
     <main>
       <JsonLd data={organizationSchema()} />
@@ -31,7 +45,7 @@ export default function HomePage() {
       <SectionDivider variant="ornament" />
 
       {/* Artist Showcase - Horizontal scroll of featured artists */}
-      <ArtistShowcase />
+      <ArtistShowcase artists={artists} />
 
       {/* Divider - Artists to Products */}
       <SectionDivider variant="ornament" />

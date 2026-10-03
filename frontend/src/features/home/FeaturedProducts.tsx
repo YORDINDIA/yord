@@ -35,7 +35,7 @@ export async function FeaturedProducts() {
       artist: p.vendor || 'YORD',
       price: variant?.price || 0,
       compareAtPrice: variant?.compare_at_price || null,
-      image: image?.supabase_url || image?.src || null,
+      image: image?.storage_url || image?.src || null,
       badge: getProductBadge(p, variant),
       accentColor,
       originalProduct: p,

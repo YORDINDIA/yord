@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useReportError } from '@/hooks/useReportError';
 
 /** Root fallback for errors thrown outside route segments (layout failures). */
-export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useReportError(error);
+
   return (
     <html lang="en-IN">
       <body className="antialiased bg-surface-page">
