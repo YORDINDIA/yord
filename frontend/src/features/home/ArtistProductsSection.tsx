@@ -1,10 +1,9 @@
 import { getTopProductsCached } from '@/lib/supabase/cached-queries';
 import { ARTISTS } from '@yord/db-types';
-import type { TransformedProductWithSource } from '@yord/db-types';
-import { getFirstByPosition, getProductBadge } from '@/lib/product';
 import { degrade } from '@/lib/result';
 import { SectionRetry } from '@/features/ui/SectionRetry';
-import { ArtistProductsSectionClient } from './ArtistProductsSectionClient';
+import { toTransformedProducts } from './productTransform';
+import { ArtistProductsSectionView } from './ArtistProductsSectionView';
 
 interface ArtistProductsSectionProps {
   artistHandle: string;
@@ -23,42 +22,27 @@ export async function ArtistProductsSection({ artistHandle, limit = 4 }: ArtistP
   if (!result.ok) {
     return <SectionRetry title="Could not load this collection" />;
   }
-  const products = result.value;
 
   // Get artist metadata
   const artistData = ARTISTS[artistHandle];
 
-  if (!artistData || products.length === 0) {
+  if (!artistData || result.value.length === 0) {
     return null;
   }
 
-  // Transform Supabase data for the client component
-  const transformedProducts: TransformedProductWithSource[] = products.map((p) => {
-    const variant = getFirstByPosition(p.product_variants);
-    const image = getFirstByPosition(p.product_images);
-
-    return {
-      id: p.id.toString(),
-      handle: p.handle ?? '',
-      title: p.title,
-      artist: p.vendor || artistData.name,
-      price: variant?.price || 0,
-      compareAtPrice: variant?.compare_at_price || null,
-      image: image?.storage_url || image?.src || null,
-      badge: getProductBadge(p, variant),
-      accentColor: artistData.accentColor || 'var(--accent)',
-      originalProduct: p,
-    };
-  });
+  const accentColor = artistData.accentColor || 'var(--accent)';
 
   return (
-    <ArtistProductsSectionClient
+    <ArtistProductsSectionView
       artistHandle={artistHandle}
       artistName={artistData.name}
       artistTagline={artistData.tagline}
       artistImage={artistData.heroImage}
-      accentColor={artistData.accentColor || 'var(--accent)'}
-      products={transformedProducts}
+      accentColor={accentColor}
+      products={toTransformedProducts(result.value, {
+        accentColor,
+        fallbackArtist: artistData.name,
+      })}
     />
   );
 }

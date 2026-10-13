@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Public catalog reads use the anon client (RLS applies); no service key needed.
-    // buildSearchOrFilter sanitizes user input (escaped quotes/wildcards, 100-char cap).
+    // buildSearchOrFilter escapes quotes/wildcards so the filter cannot break.
     const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('products')
@@ -35,12 +35,15 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       logDbError('search', error);
-      return NextResponse.json({ products: [] });
+      // A failed read is not "no matches": 502 keeps the search page's error
+      // state reachable (it treats any non-ok response as an error), so a
+      // Supabase outage cannot render "No products found".
+      return NextResponse.json({ error: 'Search unavailable' }, { status: 502 });
     }
 
     return NextResponse.json({ products: data || [] });
   } catch (error) {
     logDbError('search', error);
-    return NextResponse.json({ products: [] });
+    return NextResponse.json({ error: 'Search unavailable' }, { status: 502 });
   }
 }

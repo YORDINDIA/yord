@@ -3,12 +3,16 @@ import Image from 'next/image';
 import { getCollections } from '@/lib/supabase/queries';
 import { isGridListedCollection } from '@/lib/data/autoCollections';
 import { firstDisplayableImageUrl } from '@/lib/media';
+import { Container } from '@/features/ui/Container';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { SectionHeading } from '@/features/ui/SectionHeading';
 import { stripHtml } from '@yord/ui';
 import { Layers } from 'lucide-react';
 
 export const metadata = {
   title: 'Collections',
   description: 'Browse our curated collections of official artist merchandise.',
+  alternates: { canonical: '/collections' },
 };
 
 export default async function CollectionsPage() {
@@ -19,19 +23,19 @@ export default async function CollectionsPage() {
   const collections = published.filter((c) => isGridListedCollection(c.handle));
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+    <div className="min-h-screen bg-surface-page">
+      <Container className="pt-24 pb-16">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <Layers className="w-8 h-8 text-accent" />
+        <div className="mb-12 flex flex-col items-center">
+          <div className="w-16 h-16 mb-6 bg-accent-tint rounded-full flex items-center justify-center">
+            <Layers aria-hidden="true" className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-4">
-            Collections
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
-            Explore our curated collections featuring the best in concert fashion and artist merchandise.
-          </p>
+          <SectionHeading
+            as="h1"
+            align="center"
+            title="Collections"
+            description="Explore our curated collections featuring the best in concert fashion and artist merchandise."
+          />
         </div>
 
         {/* Collections Grid */}
@@ -54,11 +58,14 @@ export default async function CollectionsPage() {
                         src={cover}
                         alt={collection.image_alt || collection.title}
                         fill
+                        // The grid is 3 columns at lg; the default `100vw`
+                        // fetched a full-width file for a third-width tile.
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         className="object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-surface-raised to-surface-card">
-                        <Layers className="w-16 h-16 text-text-muted" />
+                        <Layers aria-hidden="true" className="w-16 h-16 text-text-muted" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-scrim/80 via-scrim/20 to-transparent" />
@@ -66,11 +73,11 @@ export default async function CollectionsPage() {
                       {/* On-media tones: this caption sits on the from-scrim/80
                           wash over the image, so it must not follow the theme or it
                           becomes near-black on a near-black scrim. */}
-                      <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-on-media mb-2 group-hover:text-accent-on-media transition-colors">
+                      <h2 className="font-display text-2xl text-text-on-media mb-2 group-hover:text-accent-on-media transition-colors">
                         {collection.title}
                       </h2>
                       {collection.body_html && (
-                        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-on-media-muted line-clamp-2">
+                        <p className="font-body text-sm text-text-on-media-muted line-clamp-2">
                           {stripHtml(collection.body_html).slice(0, 100) + '...'}
                         </p>
                       )}
@@ -81,14 +88,12 @@ export default async function CollectionsPage() {
             })}
           </div>
         ) : (
-          <div className="text-center py-16">
-            <Layers className="w-16 h-16 mx-auto text-text-muted mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-              No collections available at the moment.
-            </p>
-          </div>
+          <EmptyState
+            title="No collections yet"
+            message="Collections appear here as soon as they are published."
+          />
         )}
-      </div>
-    </main>
+      </Container>
+    </div>
   );
 }

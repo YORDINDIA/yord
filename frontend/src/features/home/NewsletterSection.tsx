@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { motion, useInView, AnimatePresence } from 'framer-motion';
-import { Mail, CheckCircle, Loader2, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Mail, CheckCircle, Sparkles } from 'lucide-react';
+import { Button } from '@/features/ui/Button';
+import { SectionHeading } from '@/features/ui/SectionHeading';
+import { SECTION_PADDING } from './section';
+import '@/features/ui/reveal.css';
 
 // Static burst layout computed once at module scope (not during render);
 // identical particles for every success animation, no per-render regeneration.
@@ -18,69 +21,42 @@ const SUCCESS_PARTICLES = Array.from({ length: 12 }, (_, i) => {
   };
 });
 
-// Success particle component for burst animation
+// Success particle burst. CSS keyframes, driven by the --particle-x/y offsets
+// the component computes; the wrapper only exists while the burst runs.
 function SuccessParticles({ show }: { show: boolean }) {
-  const particles = SUCCESS_PARTICLES;
+  if (!show) return null;
 
   return (
-    <AnimatePresence>
-      {show && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible">
-          {particles.map((particle) => (
-            <motion.div
-              key={particle.id}
-              className="absolute w-2 h-2 rounded-full bg-accent"
-              style={{ width: particle.size, height: particle.size }}
-              initial={{
-                x: 0,
-                y: 0,
-                scale: 1,
-                opacity: 1
-              }}
-              animate={{
-                x: Math.cos((particle.angle * Math.PI) / 180) * particle.distance,
-                y: Math.sin((particle.angle * Math.PI) / 180) * particle.distance,
-                scale: 0,
-                opacity: 0,
-              }}
-              exit={{ opacity: 0 }}
-              transition={{
-                duration: 1.2,
-                delay: particle.delay,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </AnimatePresence>
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible">
+      {SUCCESS_PARTICLES.map((particle) => (
+        <div
+          key={particle.id}
+          className="newsletter-particle absolute rounded-full bg-accent"
+          style={{
+            width: particle.size,
+            height: particle.size,
+            '--particle-x': `${Math.cos((particle.angle * Math.PI) / 180) * particle.distance}px`,
+            '--particle-y': `${Math.sin((particle.angle * Math.PI) / 180) * particle.distance}px`,
+            animationDelay: `${particle.delay}s`,
+          } as React.CSSProperties}
+        />
+      ))}
+    </div>
   );
 }
 
-// Animated sparkle icon with rotation and pulse
+// Animated sparkle icon with rotation and pulse (CSS keyframes).
+// `inline-flex`, not a div: this sits inside the eyebrow's `<p>`, where a
+// block element is invalid HTML — and an inline one cannot be transformed.
 function AnimatedSparkle({ delay = 0 }: { delay?: number }) {
   return (
-    <motion.div
-      animate={{
-        rotate: [0, 15, -15, 0],
-        scale: [1, 1.2, 1, 1.1, 1],
-      }}
-      transition={{
-        duration: 3,
-        repeat: Infinity,
-        delay,
-        ease: 'easeInOut',
-      }}
-    >
+    <span className="newsletter-sparkle inline-flex" style={{ animationDelay: `${delay}s` }}>
       <Sparkles size={14} className="text-accent" />
-    </motion.div>
+    </span>
   );
 }
 
 export function NewsletterSection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-100px' });
-
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -124,124 +100,82 @@ export function NewsletterSection() {
 
       setStatus('success');
       setEmail('');
-    } catch (err) {
+    } catch {
       setStatus('error');
       setErrorMessage('Failed to subscribe. Please try again.');
     }
   };
 
   return (
-    <section ref={containerRef} className="relative py-24 overflow-hidden">
+    <section className={`reveal-clip relative ${SECTION_PADDING}`}>
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-surface-page via-surface-card to-surface-page" />
 
       {/* Decorative Elements */}
       <div className="absolute inset-0">
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-accent-tint blur-[150px] animate-liquid-morph"
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.05, 0.08, 0.05],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
+        {/* The wrapper owns the (composited) breathing scale/opacity; the orb
+            itself is static. It used to run `animate-liquid-morph`, which
+            animates `border-radius` on an 800px blurred layer — a repaint of
+            the whole blur on every frame, and invisible under a 150px blur. */}
+        <div className="newsletter-orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px]">
+          <div className="w-full h-full rounded-full bg-accent-tint blur-[150px]" />
+        </div>
       </div>
 
       {/* Content */}
-      <div className="relative max-w-[1440px] mx-auto px-6 lg:px-12">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
-          className="max-w-2xl mx-auto text-center"
-        >
+      <div className="relative container-page">
+        <div className="max-w-2xl mx-auto text-center">
           {/* Icon */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={isInView ? { scale: 1 } : {}}
-            transition={{ duration: 0.5, delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center w-16 h-16 mb-8 border border-accent/30 bg-surface-card/50"
-            whileHover={{
-              boxShadow: `0 0 30px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 60px color-mix(in srgb, var(--accent) 15%, transparent)`,
-              borderColor: 'var(--accent)',
-            }}
-          >
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            >
+          <div className="reveal-scale newsletter-icon inline-flex items-center justify-center w-16 h-16 mb-8 border border-accent/30 bg-surface-card/50">
+            <div className="newsletter-icon-pulse">
               <Mail size={24} className="text-accent" />
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
           {/* Heading */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <AnimatedSparkle delay={0} />
-              <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent">
+          <SectionHeading
+            className="reveal-up mb-8"
+            align="center"
+            eyebrow={
+              <span className="inline-flex items-center gap-2">
+                <AnimatedSparkle delay={0} />
                 JOIN THE INNER CIRCLE
-              </p>
-              <AnimatedSparkle delay={1.5} />
-            </div>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary mb-4">
-              Be First in Line
-            </h2>
-            <p className="font-[family-name:var(--font-cormorant)] text-xl text-text-secondary mb-8">
-              Get exclusive early access to new drops, limited editions, and VIP-only offers.
-              Plus, enjoy 10% off your first order.
-            </p>
-          </motion.div>
+                <AnimatedSparkle delay={1.5} />
+              </span>
+            }
+            title="Be First in Line"
+            description="Get exclusive early access to new drops, limited editions, and VIP-only offers. Plus, enjoy 10% off your first order."
+          />
 
           {/* Form */}
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            onSubmit={handleSubmit}
-            className="relative"
-          >
+          <form className="reveal-up relative" onSubmit={handleSubmit}>
+            {/* `--success` is the themed pair (light 4.94:1 on the page,
+                dark 10.9:1). The emerald-400/-500 palette values it used
+                before are bright-only: 1.7:1 on the light page. */}
             {status === 'success' ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative flex items-center justify-center gap-3 py-4 px-6 bg-emerald-500/10 border border-emerald-500/30 overflow-visible"
-              >
+              <div className="newsletter-success relative flex items-center justify-center gap-3 py-4 px-6 bg-success/10 border border-success/30 overflow-visible">
                 <SuccessParticles show={showParticles} />
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: 'spring', stiffness: 400 }}
-                >
-                  <CheckCircle size={20} className="text-emerald-500" />
-                </motion.div>
-                <span className="font-[family-name:var(--font-jakarta)] text-emerald-400">
+                <div className="newsletter-success-icon">
+                  <CheckCircle size={20} className="text-success" />
+                </div>
+                <span className="font-body text-success">
                   Welcome to the inner circle! Check your inbox for your 10% discount code.
                 </span>
-              </motion.div>
+              </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1 relative">
                     {/* Input glow layers */}
-                    <motion.div
-                      className="absolute -inset-[2px] bg-gradient-to-r from-accent/50 via-accent-hover/50 to-accent/50 blur-sm pointer-events-none"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: isFocused ? 1 : 0 }}
-                      transition={{ duration: 0.3 }}
+                    <div
+                      className={`absolute -inset-[2px] bg-gradient-to-r from-accent/50 via-accent-hover/50 to-accent/50 blur-sm pointer-events-none transition-opacity duration-300 ${
+                        isFocused ? 'opacity-100' : 'opacity-0'
+                      }`}
                     />
-                    <motion.div
-                      className="absolute -inset-[1px] bg-gradient-to-r from-accent via-accent-hover to-accent pointer-events-none"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: isFocused ? 0.6 : 0 }}
-                      transition={{ duration: 0.3 }}
+                    <div
+                      className={`absolute -inset-[1px] bg-gradient-to-r from-accent via-accent-hover to-accent pointer-events-none transition-opacity duration-300 ${
+                        isFocused ? 'opacity-60' : 'opacity-0'
+                      }`}
                     />
                     <input
                       type="email"
@@ -253,6 +187,9 @@ export function NewsletterSection() {
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}
                       placeholder="Enter your email address"
+                      aria-label="Email address"
+                      aria-invalid={status === 'error'}
+                      aria-describedby={status === 'error' ? 'newsletter-error' : undefined}
                       className="relative w-full bg-surface-card border border-border-default text-text-primary px-6 py-4 text-base placeholder:text-text-muted focus:border-accent transition-all duration-300"
                       style={{
                         boxShadow: isFocused
@@ -261,52 +198,34 @@ export function NewsletterSection() {
                       }}
                       disabled={status === 'loading'}
                     />
+                    {/* `--danger` is the themed pair; the red-700/dark:red-400
+                        palette values it used before were the only raw palette
+                        classes left in this file. */}
                     {status === 'error' && (
-                      <motion.p
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="absolute left-0 -bottom-6 text-sm text-red-400"
+                      <p
+                        id="newsletter-error"
+                        role="alert"
+                        className="newsletter-error absolute left-0 -bottom-6 text-sm text-danger"
                       >
                         {errorMessage}
-                      </motion.p>
+                      </p>
                     )}
                   </div>
-                  <button
-                    type="submit"
-                    disabled={status === 'loading'}
-                    className="inline-flex items-center justify-center gap-2 bg-accent text-text-on-accent px-8 py-4 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {status === 'loading' ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        SUBSCRIBING...
-                      </>
-                    ) : (
-                      'SUBSCRIBE'
-                    )}
-                  </button>
+                  <Button type="submit" size="lg" isLoading={status === 'loading'} className="shrink-0">
+                    SUBSCRIBE
+                  </Button>
                 </div>
               </>
             )}
-          </motion.form>
+          </form>
 
           {/* Privacy Note */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={isInView ? { opacity: 1 } : {}}
-            transition={{ duration: 0.6, delay: 0.7 }}
-            className="mt-6 font-[family-name:var(--font-jakarta)] text-xs text-text-muted"
-          >
+          <p className="reveal-fade mt-6 font-body text-xs text-text-muted">
             By subscribing, you agree to our Privacy Policy. No spam, ever. Unsubscribe anytime.
-          </motion.p>
+          </p>
 
           {/* Benefits */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.6, delay: 0.9 }}
-            className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-text-muted"
-          >
+          <div className="reveal-up mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-text-muted">
             <div className="flex items-center gap-2">
               <CheckCircle size={14} className="text-accent" />
               <span>Early Access</span>
@@ -326,8 +245,8 @@ export function NewsletterSection() {
               <CheckCircle size={14} className="text-accent" />
               <span>No Spam</span>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   );

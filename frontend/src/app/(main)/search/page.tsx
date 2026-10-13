@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { ProductCard } from '@/features/ui/ProductCard';
+import { Container } from '@/features/ui/Container';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { ErrorState } from '@/features/ui/ErrorState';
+import { IconButton } from '@/features/ui/IconButton';
+import { Skeleton } from '@/features/ui/Skeleton';
 import { track } from '@/lib/analytics/track';
 import type { ProductWithDetails } from '@yord/db-types';
 
@@ -14,32 +20,39 @@ function SearchContent() {
 
   const [products, setProducts] = useState<ProductWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
   const [searchInput, setSearchInput] = useState(query);
 
   const searchProducts = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setProducts([]);
+      setIsError(false);
       return;
     }
 
     setIsLoading(true);
+    setIsError(false);
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const results = data.products || [];
-        setProducts(results);
-        // One event per submitted query (this runs from the URL-sync effect,
-        // never per keystroke). Zero-result searches feed the admin's
-        // merchandising-gap list, so the term is tracked even at 0.
-        track({
-          type: 'search_performed',
-          term: searchQuery.trim().slice(0, 128),
-          results: results.length,
-        });
-      }
+      // A non-ok response is a failed read, not "no matches": rendering the
+      // empty copy for it told the shopper their term had no results when the
+      // request had actually failed.
+      if (!response.ok) throw new Error(`Search failed (${response.status})`);
+      const data = await response.json();
+      const results = data.products || [];
+      setProducts(results);
+      // One event per submitted query (this runs from the URL-sync effect,
+      // never per keystroke). Zero-result searches feed the admin's
+      // merchandising-gap list, so the term is tracked even at 0.
+      track({
+        type: 'search_performed',
+        term: searchQuery.trim().slice(0, 128),
+        results: results.length,
+      });
     } catch (error) {
       console.error('Search error:', error);
+      setIsError(true);
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }
@@ -66,46 +79,54 @@ function SearchContent() {
   const clearSearch = () => {
     setSearchInput('');
     setProducts([]);
+    setIsError(false);
     router.push('/search');
   };
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+    <div className="min-h-screen bg-surface-page pt-24 pb-16">
+      <Container>
         {/* Search Header */}
         <div className="mb-12">
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-text-primary mb-6">
+          <h1 className="font-display text-3xl md:text-4xl lg:text-5xl text-text-primary mb-6">
             Search
           </h1>
 
           {/* Search Form */}
-          <form onSubmit={handleSearch} className="max-w-2xl">
+          <form onSubmit={handleSearch} role="search" className="max-w-2xl">
             <div className="relative">
               <input
-                type="text"
+                type="search"
+                name="q"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search for products, artists..."
-                className="w-full h-14 pl-14 pr-12 bg-surface-card border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
+                aria-label="Search products and artists"
+                autoComplete="off"
+                className="w-full h-14 pl-14 pr-14 bg-surface-card border border-border-strong text-text-primary font-body placeholder:text-text-muted focus:border-accent"
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+              <Search
+                aria-hidden="true"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted"
+              />
               {searchInput && (
-                <button
-                  type="button"
+                <IconButton
+                  label="Clear search"
+                  variant="ghost"
                   onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
                 >
                   <X size={20} />
-                </button>
+                </IconButton>
               )}
             </div>
           </form>
         </div>
 
         {/* Results */}
-        {query && (
+        {query && !isError && (
           <div className="mb-8">
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
+            <p role="status" aria-live="polite" className="font-body text-text-muted">
               {isLoading ? (
                 'Searching...'
               ) : (
@@ -120,57 +141,49 @@ function SearchContent() {
 
         {/* Product Grid */}
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-[3/4] bg-surface-raised" />
-                <div className="pt-4 space-y-2">
-                  <div className="h-4 bg-surface-raised w-1/3" />
-                  <div className="h-5 bg-surface-raised w-2/3" />
-                  <div className="h-4 bg-surface-raised w-1/4" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <Skeleton variant="product-grid" count={8} />
+        ) : isError ? (
+          <ErrorState
+            as="h2"
+            title="Search failed"
+            message="We could not reach the catalogue. Check your connection and try again."
+            onRetry={() => searchProducts(query)}
+            retryLabel="Retry search"
+            showHomeLink={false}
+          />
         ) : products.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+            {products.map((product, index) => (
+              <ProductCard key={product.id} product={product} priority={index < 4} />
             ))}
           </div>
         ) : query ? (
-          <div className="text-center py-16">
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-4">
-              No products found matching your search.
-            </p>
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-              Try different keywords or browse our collections.
-            </p>
-          </div>
+          <EmptyState
+            title="No products found"
+            message={`Nothing matches "${query}". Try different keywords, or browse the full catalogue.`}
+          >
+            <CtaLink href="/products">Browse all products</CtaLink>
+          </EmptyState>
         ) : (
-          <div className="text-center py-16">
-            <Search className="w-16 h-16 mx-auto text-text-muted mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-              Enter a search term to find products
-            </p>
-          </div>
+          <EmptyState
+            title="Search the catalogue"
+            message="Enter a term above to find products and artists."
+          />
         )}
-      </div>
-    </main>
+      </Container>
+    </div>
   );
 }
 
 export default function SearchPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen bg-surface-page pt-24 pb-16">
-        <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-          <div className="animate-pulse">
-            <div className="h-12 bg-surface-raised w-48 mb-6" />
-            <div className="h-14 bg-surface-raised max-w-2xl" />
-          </div>
-        </div>
-      </main>
+      <div className="min-h-screen bg-surface-page pt-24 pb-16">
+        <Container>
+          <Skeleton variant="text-block" className="mb-6 max-w-xs" />
+          <Skeleton variant="product-grid" count={8} />
+        </Container>
+      </div>
     }>
       <SearchContent />
     </Suspense>

@@ -1,9 +1,9 @@
-'use client';
-
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { ArrowRight, MapPin, Calendar, Music } from 'lucide-react';
 import { ProductCard } from '@/features/ui/ProductCard';
+import { SectionHeading } from '@/features/ui/SectionHeading';
+import { SECTION_PADDING } from './section';
+import '@/features/ui/reveal.css';
 import type { TransformedProductWithSource } from '@yord/db-types';
 
 export interface ConcertArtistData {
@@ -20,19 +20,21 @@ export interface ConcertArtistData {
   products: TransformedProductWithSource[];
 }
 
-interface UpcomingConcertsSectionClientProps {
+interface UpcomingConcertsSectionViewProps {
   concertArtists: ConcertArtistData[];
-  initialTimestamp: number;
+  /** Server render time. Passed in (rather than read here) so the countdown
+   *  labels are computed once, from the same instant as the cached data. */
+  currentTimestamp: number;
 }
 
 function getDaysUntil(dateStr: string, currentTimestamp: number): number {
   const target = new Date(dateStr);
   // Reset time part to ensure day calculation is accurate relative to midnight
   const targetDate = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  
+
   const now = new Date(currentTimestamp);
   const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
+
   const diff = targetDate.getTime() - currentDate.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
@@ -60,64 +62,51 @@ function getGridClassName(count: number): string {
   return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
 }
 
-export function UpcomingConcertsSectionClient({
+/**
+ * The concert cards are pure presentation — no state, no effects, no
+ * handlers — so this is a server component. It used to carry `'use client'`
+ * only because the day-countdown was computed in the browser; it was already
+ * computed from a server timestamp that the client never re-read, so the
+ * client boundary bought nothing and shipped the whole section's JS.
+ */
+export function UpcomingConcertsSectionView({
   concertArtists,
-  initialTimestamp
-}: UpcomingConcertsSectionClientProps) {
-  // Use initial server timestamp directly - this ensures hydration matches
-  // The timestamp is passed from server to client, preventing hydration mismatch
-  const timestamp = initialTimestamp;
-
+  currentTimestamp
+}: UpcomingConcertsSectionViewProps) {
   if (concertArtists.length === 0) return null;
 
   const count = concertArtists.length;
   const isSingle = count === 1;
 
   return (
-    <section className="py-24 bg-surface-page">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6 }}
-          className="flex items-end justify-between mb-12"
-        >
-          <div>
-            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
-              UPCOMING CONCERTS
-            </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
-              Shop for Upcoming Concerts
-            </h2>
-          </div>
-          <Link
-            href="/concerts"
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
-            data-cursor="pointer"
-          >
-            VIEW ALL CONCERTS
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </motion.div>
+    <section className={SECTION_PADDING}>
+      <div className="container-page">
+        <SectionHeading
+          className="reveal-up mb-12"
+          eyebrow="UPCOMING CONCERTS"
+          title="Shop for Upcoming Concerts"
+          action={
+            <Link
+              href="/concerts"
+              className="hidden sm:flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
+              data-cursor="pointer"
+            >
+              VIEW ALL CONCERTS
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+          }
+        />
 
         {/* Concert Cards - Adaptive Grid */}
         <div className={getGridClassName(count)}>
-          {concertArtists.map((concert, index) => (
-            <motion.div
-              key={concert.artistHandle}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-            >
+          {concertArtists.map((concert) => (
+            <div key={concert.artistHandle} className="reveal-up">
               {isSingle ? (
-                <SingleConcertCard concert={concert} currentTimestamp={timestamp} />
+                <SingleConcertCard concert={concert} currentTimestamp={currentTimestamp} />
               ) : (
-                <ConcertArtistCard concert={concert} currentTimestamp={timestamp} />
+                <ConcertArtistCard concert={concert} currentTimestamp={currentTimestamp} />
               )}
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -125,7 +114,7 @@ export function UpcomingConcertsSectionClient({
         <div className="sm:hidden mt-8 text-center">
           <Link
             href="/concerts"
-            className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
+            className="inline-flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
           >
             VIEW ALL CONCERTS
             <ArrowRight size={16} />
@@ -137,12 +126,12 @@ export function UpcomingConcertsSectionClient({
 }
 
 /** Expanded card for when there's only 1 upcoming concert — horizontal layout on desktop */
-function SingleConcertCard({ 
-  concert, 
-  currentTimestamp 
-}: { 
-  concert: ConcertArtistData, 
-  currentTimestamp: number 
+function SingleConcertCard({
+  concert,
+  currentTimestamp
+}: {
+  concert: ConcertArtistData,
+  currentTimestamp: number
 }) {
   const daysUntil = getDaysUntil(concert.nextShowDate, currentTimestamp);
   const urgencyLabel = getUrgencyLabel(daysUntil);
@@ -158,7 +147,7 @@ function SingleConcertCard({
               className="h-0.5 w-16 mb-5"
               style={{ backgroundColor: concert.accentColor }}
             />
-            <h3 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary mb-2 flex items-center gap-4">
+            <h3 className="font-display text-3xl md:text-4xl text-text-primary mb-2 flex items-center gap-4">
               {concert.artistImage && (
                 <div className="relative w-12 h-12 rounded-full overflow-hidden border border-border-default shrink-0">
                   <div
@@ -169,19 +158,19 @@ function SingleConcertCard({
               )}
               {concert.artistName}
             </h3>
-            <p className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted mb-6">
+            <p className="font-accent text-sm tracking-[0.15em] text-text-muted mb-6">
               {concert.tourName.toUpperCase()}
             </p>
 
             <div className="flex items-center gap-3 mb-4">
               <div className="flex items-center gap-1.5 text-text-secondary">
                 <Calendar size={16} className="text-text-muted" />
-                <span className="font-[family-name:var(--font-jakarta)] text-base">
+                <span className="font-body text-base">
                   {formatConcertDate(concert.nextShowDate)}
                 </span>
               </div>
               <span
-                className={`px-3 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-accent-tint-strong text-accent ${isUrgent ? 'animate-pulse' : ''}`}
+                className={`px-3 py-1 text-xs font-accent tracking-wider bg-accent-tint text-accent ${isUrgent ? 'animate-pulse motion-reduce:animate-none' : ''}`}
               >
                 {urgencyLabel}
               </span>
@@ -189,7 +178,7 @@ function SingleConcertCard({
 
             <div className="flex items-center gap-1.5 text-text-muted mb-4">
               <MapPin size={16} />
-              <span className="font-[family-name:var(--font-jakarta)] text-sm">
+              <span className="font-body text-sm">
                 {concert.nextShowCity}
                 {concert.nextShowVenue !== 'TBA' && ` — ${concert.nextShowVenue}`}
               </span>
@@ -198,17 +187,23 @@ function SingleConcertCard({
             {concert.totalUpcomingShows > 1 && (
               <div className="flex items-center gap-1.5 text-text-muted">
                 <Music size={16} />
-                <span className="font-[family-name:var(--font-jakarta)] text-sm">
+                <span className="font-body text-sm">
                   {concert.totalUpcomingShows} shows across India
                 </span>
               </div>
             )}
           </div>
 
+          {/* The artist colour is a decorative tint, not ink: on the light card
+              a bright brand colour as text is ~1.3:1. `color-mix` also fixes
+              the `${accentColor}20` form, which silently dropped the
+              background whenever the colour was the `var(--accent)` fallback. */}
           <Link
             href={`/artist/${concert.artistHandle}`}
-            className="mt-8 flex items-center justify-center gap-2 w-full py-3.5 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] uppercase transition-all duration-300 hover:brightness-110"
-            style={{ backgroundColor: `${concert.accentColor}20`, color: concert.accentColor }}
+            className="mt-8 flex items-center justify-center gap-2 w-full py-3.5 font-accent text-sm tracking-[0.15em] uppercase text-text-primary transition-all duration-300 hover:brightness-110"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${concert.accentColor} 14%, transparent)`,
+            }}
             data-cursor="pointer"
           >
             SHOP {concert.artistName.toUpperCase()} COLLECTION
@@ -247,12 +242,12 @@ function SingleConcertCard({
 }
 
 /** Standard card for multi-concert grids */
-function ConcertArtistCard({ 
-  concert, 
-  currentTimestamp 
-}: { 
-  concert: ConcertArtistData, 
-  currentTimestamp: number 
+function ConcertArtistCard({
+  concert,
+  currentTimestamp
+}: {
+  concert: ConcertArtistData,
+  currentTimestamp: number
 }) {
   const daysUntil = getDaysUntil(concert.nextShowDate, currentTimestamp);
   const urgencyLabel = getUrgencyLabel(daysUntil);
@@ -267,7 +262,7 @@ function ConcertArtistCard({
           style={{ backgroundColor: concert.accentColor }}
         />
 
-        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-1 flex items-center gap-3">
+        <h3 className="font-display text-2xl text-text-primary mb-1 flex items-center gap-3">
           {concert.artistImage && (
             <div className="relative w-10 h-10 rounded-full overflow-hidden border border-border-default shrink-0">
               <div
@@ -279,19 +274,19 @@ function ConcertArtistCard({
           {concert.artistName}
         </h3>
 
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-text-muted mb-4">
+        <p className="font-accent text-xs tracking-[0.15em] text-text-muted mb-4">
           {concert.tourName.toUpperCase()}
         </p>
 
         <div className="flex items-center gap-3 mb-3">
           <div className="flex items-center gap-1.5 text-text-secondary">
             <Calendar size={14} className="text-text-muted" />
-            <span className="font-[family-name:var(--font-jakarta)] text-sm">
+            <span className="font-body text-sm">
               {formatConcertDate(concert.nextShowDate)}
             </span>
           </div>
           <span
-            className={`px-2.5 py-0.5 text-xs font-[family-name:var(--font-bebas)] tracking-wider bg-accent-tint-strong text-accent ${isUrgent ? 'animate-pulse' : ''}`}
+            className={`px-2.5 py-0.5 text-xs font-accent tracking-wider bg-accent-tint text-accent ${isUrgent ? 'animate-pulse motion-reduce:animate-none' : ''}`}
           >
             {urgencyLabel}
           </span>
@@ -299,7 +294,7 @@ function ConcertArtistCard({
 
         <div className="flex items-center gap-1.5 text-text-muted mb-3">
           <MapPin size={14} />
-          <span className="font-[family-name:var(--font-jakarta)] text-sm truncate">
+          <span className="font-body text-sm truncate">
             {concert.nextShowCity}
             {concert.nextShowVenue !== 'TBA' && ` — ${concert.nextShowVenue}`}
           </span>
@@ -308,7 +303,7 @@ function ConcertArtistCard({
         {concert.totalUpcomingShows > 1 && (
           <div className="flex items-center gap-1.5 text-text-muted">
             <Music size={14} />
-            <span className="font-[family-name:var(--font-jakarta)] text-xs">
+            <span className="font-body text-xs">
               {concert.totalUpcomingShows} shows across India
             </span>
           </div>
@@ -335,12 +330,13 @@ function ConcertArtistCard({
         </div>
       </div>
 
-      {/* CTA */}
+      {/* CTA — same treatment as the single card: the artist colour is a tint
+          behind readable `--text-primary` copy, never the text colour itself. */}
       <div className="px-6 pb-6 mt-auto">
         <Link
           href={`/artist/${concert.artistHandle}`}
-          className="flex items-center justify-center gap-2 w-full py-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] uppercase transition-all duration-300 hover:brightness-110"
-          style={{ backgroundColor: `${concert.accentColor}20`, color: concert.accentColor }}
+          className="flex items-center justify-center gap-2 w-full py-3 font-accent text-sm tracking-[0.15em] uppercase text-text-primary transition-all duration-300 hover:brightness-110"
+          style={{ backgroundColor: `color-mix(in srgb, ${concert.accentColor} 14%, transparent)` }}
           data-cursor="pointer"
         >
           SHOP {concert.artistName.toUpperCase()} COLLECTION

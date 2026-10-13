@@ -364,7 +364,7 @@ async function uploadAssetWindow(
   term: string,
   depth: number,
 ): Promise<{ rows: MediaAsset[]; count: number }> {
-  const service = await reader({ service: true });
+  const service = await reader();
   const request = service
     .from('admin_audit_log')
     .select('after, created_at', { count: 'exact' })
@@ -481,7 +481,6 @@ function clampPageSize(value: unknown): number {
  */
 export async function getMediaStats(): Promise<MediaStats> {
   const supabase = await reader();
-  const service = await reader({ service: true });
 
   const [productImages, articleImages, uploadRows] = await Promise.all([
     runCount(
@@ -497,7 +496,7 @@ export async function getMediaStats(): Promise<MediaStats> {
     ),
     rows<UploadAuditRow>(
       'admin_audit_log',
-      service
+      supabase
         .from('admin_audit_log')
         .select('after, created_at')
         .eq('action', 'upload_media')

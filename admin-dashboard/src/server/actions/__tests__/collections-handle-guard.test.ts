@@ -5,19 +5,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * `collections.handle` is the storefront route: `/collection/all` and
  * `/collection/new-arrivals` are linked from the header/footer and answered by
- * the storefront itself, gated on the row that carries the handle. Three writes
- * used to be able to break that route, all of them one form submit away:
+ * the storefront itself, gated on the row that carries the handle. Four writes
+ * used to be able to break a `/collection/<handle>` route, all of them one form
+ * submit away:
  *
  *  1. renaming the `all` row (the handle disappears → the link 404s);
  *  2. renaming another collection INTO `all` (two rows, and the storefront
  *     resolves a handle with `.maybeSingle()`, which errors on two matches —
- *     `collections.handle` has no unique constraint);
+ *     `collections.handle` carried no unique constraint before migration 014);
  *  3. creating a collection whose handle (typed or derived from a title) is
- *     `all`.
+ *     `all`;
+ *  4. creating or renaming onto a handle another *normal* collection already
+ *     holds — the same two-rows-one-handle shape, reachable without anyone
+ *     typing a handle, because the form slugs the title into one. Migration 014
+ *     makes that structurally impossible; the action refuses it readably first.
  *
- * The fourth case is not about handles: `updateCollectionAction` writes the
- * detail row, then replaces `collects` in a second statement. A failed replace
- * (a nonexistent product id answers a foreign-key error, not
+ * The publish-rollback case below is not about handles: `updateCollectionAction`
+ * writes the detail row, then replaces `collects` in a second statement. A
+ * failed replace (a nonexistent product id answers a foreign-key error, not
  * COLLECTION_NOT_FOUND) left `published = true` on a collection whose members
  * were never written — the linked empty page `refusePublish` exists to prevent.
  *
@@ -38,6 +43,8 @@ const h = vi.hoisted(() => ({
   row: null as Record<string, unknown> | null,
   /** Rows the publish guard's status lookup (`products.select('id, status')`) answers with. */
   productStatusRows: [] as Record<string, unknown>[],
+  /** Rows the duplicate-handle lookup (`collections.select('id')`) answers with. */
+  handleRows: [] as Record<string, unknown>[],
   rpc: { data: 2, error: null } as { data: number | null; error: { message: string } | null },
 }));
 
@@ -75,9 +82,24 @@ vi.mock('@/server/actions/_shared', async () => {
 });
 
 function query(table: string) {
+  // The duplicate-handle lookup is the only read that asks this table for `id`
+  // alone: the stored row comes back through `maybeSingle`, and every other
+  // `collections` read asks for more columns.
+  let selected = '';
+  // The self-exclusion on that lookup. The fake honours it rather than ignoring
+  // it, so a collection keeping its own handle is provably not refused — with
+  // the filter dropped the test below passes either way and proves nothing.
+  let excludedId: number | null = null;
   const builder = {
-    select: () => builder,
+    select: (columns?: string) => {
+      selected = columns ?? '';
+      return builder;
+    },
     eq: () => builder,
+    neq: (column: string, value: unknown) => {
+      if (column === 'id') excludedId = Number(value);
+      return builder;
+    },
     in: () => builder,
     order: () => builder,
     range: () => builder,
@@ -93,9 +115,15 @@ function query(table: string) {
     // `await query.update(...).eq(...)` resolves through the builder; the
     // publish guard's `products` lookup resolves the status rows instead.
     then: (resolve: (value: { data: unknown; error: null }) => unknown) =>
-      Promise.resolve({ data: table === 'products' ? h.productStatusRows : null, error: null }).then(
-        resolve,
-      ),
+      Promise.resolve({
+        data:
+          table === 'products'
+            ? h.productStatusRows
+            : table === 'collections' && selected === 'id'
+              ? h.handleRows.filter((r) => excludedId === null || r.id !== excludedId)
+              : null,
+        error: null,
+      }).then(resolve),
   };
   return builder;
 }
@@ -127,13 +155,24 @@ const updates = () => h.calls.filter((call) => call.kind === 'update').map((call
 const inserts = () => h.calls.filter((call) => call.kind === 'insert').map((call) => call.payload);
 const rpcCalls = () => h.calls.filter((call) => call.kind === 'rpc');
 
+/**
+ * Reset every field the fakes read.
+ *
+ * Shared by both describe blocks on purpose: a block that resets only the
+ * fields it knows about leaks the rest, so adding a harness field breaks an
+ * unrelated block. `handleRows` did exactly that when it was first added — the
+ * rollback tests below started refusing on a handle left over from here.
+ */
+function resetHarness() {
+  h.calls = [];
+  h.row = row({});
+  h.productStatusRows = [];
+  h.handleRows = [];
+  h.rpc = { data: 2, error: null };
+}
+
 describe('collection handle guards', () => {
-  beforeEach(() => {
-    h.calls = [];
-    h.row = row({});
-    h.productStatusRows = [];
-    h.rpc = { data: 2, error: null };
-  });
+  beforeEach(resetHarness);
 
   it('refuses renaming the auto row away from its handle', async () => {
     h.row = row({ id: 77, title: 'All', handle: 'all', published: true });
@@ -215,11 +254,74 @@ describe('collection handle guards', () => {
     expect(state.status).toBe('success');
     expect(inserts()[0]).toMatchObject({ handle: 'monsoon-drop', published: false });
   });
+
+  it('refuses creating a collection on a handle another one holds', async () => {
+    // The derived-title collision: nobody types a handle, two collections
+    // titled the same slug to one handle. Before the unique index both inserts
+    // committed, and the storefront's `.maybeSingle()` then errored on both
+    // rows — `/collection/<handle>` 404s for the merchant, nothing logged.
+    h.handleRows = [{ id: 42 }];
+    const { createCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await createCollectionAction(
+      { status: 'idle' },
+      form({ title: 'Monsoon Drop', handle: '', collection_type: 'custom', body_html: '' }),
+    );
+
+    expect(state.status).toBe('error');
+    expect(state.fieldErrors?.handle?.[0]).toContain('already used');
+    expect(inserts()).toEqual([]);
+  });
+
+  it('refuses moving a collection onto a handle another one holds', async () => {
+    h.row = row({ id: 88, handle: 'premium-store', published: true });
+    h.handleRows = [{ id: 42 }];
+    const { updateCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await updateCollectionAction(
+      { status: 'idle' },
+      form({
+        id: '88',
+        title: 'Premium Store',
+        handle: 'monsoon-drop',
+        body_html: '',
+        image_src: '',
+      }),
+    );
+
+    expect(state.status).toBe('error');
+    expect(state.fieldErrors?.handle?.[0]).toContain('already used');
+    expect(updates()).toEqual([]);
+    expect(rpcCalls()).toHaveLength(0);
+  });
+
+  it('does not refuse a collection that keeps its own handle', async () => {
+    // The lookup excludes the row being edited, so the only match is the row
+    // itself. Without that exclusion every save of an unchanged handle would
+    // refuse itself, which is the whole edit form's happy path.
+    h.row = row({ id: 42, handle: 'monsoon-drop', published: true });
+    h.handleRows = [{ id: 42 }];
+    const { updateCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await updateCollectionAction(
+      { status: 'idle' },
+      form({
+        id: '42',
+        title: 'Monsoon Drop',
+        handle: 'monsoon-drop',
+        body_html: '',
+        image_src: '',
+      }),
+    );
+
+    expect(state.status).toBe('success');
+    expect(updates()[0]).toMatchObject({ handle: 'monsoon-drop' });
+  });
 });
 
 describe('publish rollback when the membership write fails', () => {
   beforeEach(() => {
-    h.calls = [];
+    resetHarness();
     h.row = row({ published: false, published_at: null });
     // The publish guard looks the submitted ids' statuses up before writing;
     // the product exists and is active, so the flow reaches the RPC failure.

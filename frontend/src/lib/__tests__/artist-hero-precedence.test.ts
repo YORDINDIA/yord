@@ -89,7 +89,7 @@ describe('artist hero precedence', () => {
 
     const artist = await getArtistByHandle('coldplay', true);
 
-    expect(artist?.heroImage).toBe('/artists/coldplay-hero.png');
+    expect(artist?.heroImage).toBe('/artists/coldplay-hero.webp');
   });
 
   it('falls back to the generated storage cover when no static portrait exists', async () => {

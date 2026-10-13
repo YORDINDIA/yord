@@ -1,11 +1,33 @@
+import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Package, Calendar, Truck } from 'lucide-react';
+import { ArrowLeft, Calendar, Package, Truck } from 'lucide-react';
+import { cn, formatDate, formatPrice } from '@yord/ui';
 import { createServerClient } from '@/lib/supabase/server';
-import { formatDate, formatPrice } from '@yord/ui';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { AccountPageHeader } from '../../_components/AccountPageHeader';
+import { financialStatusLabel, fulfillmentStatusLabel } from '../../orders/_lib/orders';
+
+const STATUS_TONES = {
+  success: 'text-success bg-success/10',
+  danger: 'text-danger bg-danger/10',
+  muted: 'text-text-muted bg-surface-inset',
+} as const;
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * The canonical is the resolved order URL, not the list's: `orders/layout.tsx`
+ * declares `/account/orders` for the list and this page has to override it, or
+ * every order detail page would name the list as its canonical.
+ */
+export async function generateMetadata({ params }: OrderDetailPageProps): Promise<Metadata> {
+  const { id } = await params;
+  return {
+    alternates: { canonical: `/account/orders/${id}` },
+  };
 }
 
 export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
@@ -57,74 +79,78 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     quantity: number;
   }[];
 
+  const financial = financialStatusLabel(o.financial_status);
+
   return (
     <div className="space-y-6">
       <Link
         href="/account/orders"
-        className="inline-flex items-center gap-2 text-text-muted hover:text-text-secondary font-[family-name:var(--font-jakarta)] text-sm transition-colors"
+        className="inline-flex items-center gap-2 text-text-muted hover:text-text-secondary font-body text-sm transition-colors"
       >
-        <ArrowLeft size={16} />
+        <ArrowLeft size={16} aria-hidden="true" />
         Back to orders
       </Link>
 
-      <div className="flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
-          Order {o.name}
-        </h2>
-        <span className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-green-400">
-          {o.financial_status?.toUpperCase()}
-        </span>
-      </div>
+      <AccountPageHeader
+        title={`Order ${o.name}`}
+        action={
+          <span
+            className={cn(
+              'inline-block px-2 py-0.5 text-xs font-body rounded',
+              STATUS_TONES[financial.tone]
+            )}
+          >
+            {financial.label}
+          </span>
+        }
+      />
 
       <div className="bg-surface-card border border-border-default p-6 space-y-4">
         <div className="flex items-center gap-3 text-text-muted">
-          <Calendar size={18} />
-          <span className="font-[family-name:var(--font-jakarta)] text-sm">
-            Ordered on{' '}
-            {formatDate(o.created_at)}
-          </span>
+          <Calendar size={18} aria-hidden="true" />
+          <span className="font-body text-sm">Ordered on {formatDate(o.created_at)}</span>
         </div>
         <div className="flex items-center gap-3 text-text-muted">
-          <Truck size={18} />
-          <span className="font-[family-name:var(--font-jakarta)] text-sm">
-            Fulfillment: {o.fulfillment_status?.toUpperCase() || 'PROCESSING'}
+          <Truck size={18} aria-hidden="true" />
+          <span className="font-body text-sm">
+            Fulfillment: {fulfillmentStatusLabel(o.fulfillment_status)}
           </span>
         </div>
       </div>
 
       <div className="bg-surface-card border border-border-default p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-4 flex items-center gap-2">
-          <Package size={18} /> ITEMS
+        <h3 className="font-accent text-lg tracking-wider text-text-secondary mb-4 flex items-center gap-2">
+          <Package size={18} aria-hidden="true" /> ITEMS
         </h3>
         {items.length === 0 ? (
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-            No line items recorded for this order.
-          </p>
+          <EmptyState
+            as="p"
+            title="No line items recorded"
+            message="This order has no item rows in our records. Contact support if that looks wrong."
+          />
         ) : (
           <ul className="divide-y divide-border-default">
             {items.map((item) => (
               <li key={item.id} className="py-3 flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
-                    {item.title}
-                  </p>
+                  <p className="font-body text-sm text-text-secondary">{item.title}</p>
                   {item.variant_title && (
-                    <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
+                    <p className="font-body text-xs text-text-muted">
                       {item.variant_title} × {item.quantity}
                     </p>
                   )}
                 </div>
-                <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
-                  {formatPrice(Number(item.price) * item.quantity)}
+                <span className="font-body text-sm text-text-secondary">
+                  {formatPrice(Number(item.price) * item.quantity, o.currency)}
                 </span>
               </li>
             ))}
           </ul>
         )}
         <div className="border-t border-border-default mt-4 pt-4 flex justify-between items-center">
-          <span className="font-[family-name:var(--font-jakarta)] text-text-muted">Total</span>
-          <span className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
-            {formatPrice(Number(o.total_price))}
+          <span className="font-body text-text-muted">Total</span>
+          <span className="font-heading text-2xl text-text-primary">
+            {formatPrice(Number(o.total_price), o.currency)}
           </span>
         </div>
       </div>

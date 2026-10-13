@@ -99,18 +99,22 @@ export function track(event: TrackableEvent): void {
   }
 }
 
-/** Last key seen by `trackIfNew`, so repeated mounts of a tracker (React
- * StrictMode double-invokes effects in dev) fire once per navigation. */
-let lastTrackedKey: string | null = null;
+/** Last key seen by `trackIfNew`, per event type. One shared slot let the page
+ * tracker (`page_viewed`, keyed by pathname) and the product tracker
+ * (`product_viewed`, keyed by `product:<id>`) overwrite each other's key on a
+ * product page, so React StrictMode's double-invoked effects counted both
+ * events twice — the exact case this exists to prevent. */
+const lastTrackedKeys = new Map<TrackableEvent['type'], string>();
 
 /**
- * Fire `event` only when `key` differs from the previous call. Page and
- * product views are navigation-scoped: the same page remounting must not
- * count twice, but navigating away and back is a real view.
+ * Fire `event` only when `key` differs from the last key seen for the same
+ * event type. Page and product views are navigation-scoped: the same view
+ * remounting must not count twice, and the two trackers no longer clobber
+ * each other's key.
  */
 export function trackIfNew(key: string, event: TrackableEvent): void {
-  if (lastTrackedKey === key) return;
-  lastTrackedKey = key;
+  if (lastTrackedKeys.get(event.type) === key) return;
+  lastTrackedKeys.set(event.type, key);
   track(event);
 }
 

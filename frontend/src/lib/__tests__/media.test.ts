@@ -5,7 +5,7 @@
  * `collections.image_src` holds pre-migration Shopify URLs
  * (`http://www.yordindia.com/cdn/shop/...`) for 29 of 34 collections and all
  * seven distinct values 404. `getArtistsWithMetadata` used to prefer it over
- * the local `/artists/<handle>-hero.png`, so the artist cards rendered broken
+ * the local `/artists/<handle>-hero.webp`, so the artist cards rendered broken
  * images. These tests pin the rules the caller relies on: legacy hosts and
  * non-https URLs are rejected, root-relative paths and https URLs pass.
  */
@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { LEGACY_IMAGE_HOSTS, firstDisplayableImageUrl, isDisplayableImageUrl } from '@/lib/media';
 
 const DEAD_SHOPIFY = 'http://www.yordindia.com/cdn/shop/files/HaSJ_pMiS9-VL1kSvnyQ.png';
-const LOCAL_HERO = '/artists/coldplay-hero.png';
+const LOCAL_HERO = '/artists/coldplay-hero.webp';
 const R2_IMAGE = 'https://pub-1b4ba83ceb0f448d85b64fc95d8847bb.r2.dev/products/coldplay-tee/01.webp';
 
 describe('isDisplayableImageUrl', () => {

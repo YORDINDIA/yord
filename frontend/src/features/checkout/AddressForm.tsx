@@ -1,20 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { cn } from '@yord/ui';
+import { Field, TextInput, SelectInput } from '@/features/ui/Field';
+import { INDIAN_STATES } from './constants';
+import type { AddressData } from './types';
 
-export interface AddressData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  address1: string;
-  address2: string;
-  city: string;
-  state: string;
-  pincode: string;
-  country: string;
-}
+export type { AddressData } from './types';
 
 interface AddressFormProps {
   type: 'shipping' | 'billing';
@@ -23,179 +13,149 @@ interface AddressFormProps {
   errors?: Partial<Record<keyof AddressData, string>>;
 }
 
-const INDIAN_STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Chandigarh',
-  'Andaman and Nicobar Islands', 'Dadra and Nagar Haveli and Daman and Diu', 'Lakshadweep'
-];
-
+/**
+ * Shipping / billing address, built from `Field`.
+ *
+ * Every label here used to be a bare `<label>` with no `htmlFor` and every
+ * control a bare `<input>` with no `id`, so all ten of them were unlabelled to
+ * a screen reader and clicking a label did not focus its field. `Field` owns
+ * the id and the `htmlFor` together, so the association cannot drift again.
+ *
+ * The billing instance is the same component with `type="billing"`, which is
+ * why the ids must be generated: two hand-written `id="email"` on one page
+ * would collide.
+ *
+ * `autoComplete` and `inputMode` are the highest-leverage attributes on this
+ * form — it is the highest-friction screen in the app, and without them every
+ * shopper types their full address, phone and PIN by hand on a phone keypad.
+ */
 export function AddressForm({ type, data, onChange, errors = {} }: AddressFormProps) {
   const handleChange = (field: keyof AddressData, value: string) => {
     onChange({ ...data, [field]: value });
   };
 
-  const inputClass = (field: keyof AddressData) => cn(
-    'w-full px-4 py-3 bg-surface-card border text-text-secondary placeholder:text-text-muted',
-    'font-[family-name:var(--font-jakarta)] text-sm',
-    'focus:border-accent transition-colors',
-    errors[field] ? 'border-red-500' : 'border-border-strong'
-  );
-
-  const labelClass = 'block text-text-muted font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider mb-2';
-
   return (
     <div className="space-y-6">
-      <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-primary mb-6">
+      <h3 className="font-display text-xl text-text-primary mb-6">
         {type === 'shipping' ? 'Shipping Address' : 'Billing Address'}
       </h3>
 
       {/* Name Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>First Name *</label>
-          <input
+        <Field label="First Name" name="firstName" required error={errors.firstName}>
+          <TextInput
             type="text"
+            autoComplete="given-name"
             value={data.firstName}
             onChange={(e) => handleChange('firstName', e.target.value)}
-            className={inputClass('firstName')}
             placeholder="John"
           />
-          {errors.firstName && (
-            <p className="text-red-400 text-xs mt-1">{errors.firstName}</p>
-          )}
-        </div>
-        <div>
-          <label className={labelClass}>Last Name *</label>
-          <input
+        </Field>
+        <Field label="Last Name" name="lastName" required error={errors.lastName}>
+          <TextInput
             type="text"
+            autoComplete="family-name"
             value={data.lastName}
             onChange={(e) => handleChange('lastName', e.target.value)}
-            className={inputClass('lastName')}
             placeholder="Doe"
           />
-          {errors.lastName && (
-            <p className="text-red-400 text-xs mt-1">{errors.lastName}</p>
-          )}
-        </div>
+        </Field>
       </div>
 
       {/* Contact Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Email *</label>
-          <input
+        <Field label="Email" name="email" required error={errors.email}>
+          <TextInput
             type="email"
+            autoComplete="email"
+            inputMode="email"
             value={data.email}
             onChange={(e) => handleChange('email', e.target.value)}
-            className={inputClass('email')}
             placeholder="john@example.com"
           />
-          {errors.email && (
-            <p className="text-red-400 text-xs mt-1">{errors.email}</p>
-          )}
-        </div>
-        <div>
-          <label className={labelClass}>Phone *</label>
-          <input
+        </Field>
+        <Field label="Phone" name="phone" required error={errors.phone}>
+          <TextInput
             type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             value={data.phone}
             onChange={(e) => handleChange('phone', e.target.value)}
-            className={inputClass('phone')}
             placeholder="+91 98765 43210"
           />
-          {errors.phone && (
-            <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
-          )}
-        </div>
+        </Field>
       </div>
 
       {/* Address */}
-      <div>
-        <label className={labelClass}>Address Line 1 *</label>
-        <input
+      <Field label="Address Line 1" name="address1" required error={errors.address1}>
+        <TextInput
           type="text"
+          autoComplete="address-line1"
           value={data.address1}
           onChange={(e) => handleChange('address1', e.target.value)}
-          className={inputClass('address1')}
-          placeholder="Street address, apartment, suite, unit, etc."
+          placeholder="House / flat number, street, area"
         />
-        {errors.address1 && (
-          <p className="text-red-400 text-xs mt-1">{errors.address1}</p>
-        )}
-      </div>
+      </Field>
 
-      <div>
-        <label className={labelClass}>Address Line 2</label>
-        <input
+      {/* Label and placeholder used to disagree here ("Address Line 2" vs
+          "Landmark (optional)"); the label now says what the field is for. */}
+      <Field label="Landmark (optional)" name="address2" error={errors.address2}>
+        <TextInput
           type="text"
+          autoComplete="address-line2"
           value={data.address2}
           onChange={(e) => handleChange('address2', e.target.value)}
-          className={inputClass('address2')}
-          placeholder="Landmark (optional)"
+          placeholder="Apartment, suite, nearby landmark"
         />
-      </div>
+      </Field>
 
       {/* City, State, Pincode */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label className={labelClass}>City *</label>
-          <input
+        <Field label="City" name="city" required error={errors.city}>
+          <TextInput
             type="text"
+            autoComplete="address-level2"
             value={data.city}
             onChange={(e) => handleChange('city', e.target.value)}
-            className={inputClass('city')}
             placeholder="Mumbai"
           />
-          {errors.city && (
-            <p className="text-red-400 text-xs mt-1">{errors.city}</p>
-          )}
-        </div>
-        <div>
-          <label className={labelClass}>State *</label>
-          <select
+        </Field>
+        <Field label="State" name="state" required error={errors.state}>
+          <SelectInput
+            autoComplete="address-level1"
             value={data.state}
             onChange={(e) => handleChange('state', e.target.value)}
-            className={inputClass('state')}
           >
             <option value="">Select State</option>
             {INDIAN_STATES.map((state) => (
               <option key={state} value={state}>{state}</option>
             ))}
-          </select>
-          {errors.state && (
-            <p className="text-red-400 text-xs mt-1">{errors.state}</p>
-          )}
-        </div>
-        <div>
-          <label className={labelClass}>PIN Code *</label>
-          <input
+          </SelectInput>
+        </Field>
+        <Field label="PIN Code" name="pincode" required error={errors.pincode}>
+          <TextInput
             type="text"
+            autoComplete="postal-code"
+            inputMode="numeric"
             value={data.pincode}
             onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-            className={inputClass('pincode')}
             placeholder="400001"
             maxLength={6}
           />
-          {errors.pincode && (
-            <p className="text-red-400 text-xs mt-1">{errors.pincode}</p>
-          )}
-        </div>
+        </Field>
       </div>
 
       {/* Country */}
-      <div>
-        <label className={labelClass}>Country</label>
-        <input
+      <Field label="Country" name="country">
+        <TextInput
           type="text"
+          autoComplete="country-name"
           value="India"
+          readOnly
           disabled
-          className={cn(inputClass('country'), 'opacity-50 cursor-not-allowed')}
+          className="opacity-50 cursor-not-allowed"
         />
-      </div>
+      </Field>
     </div>
   );
 }

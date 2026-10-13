@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { KeyRound, Loader2, Check, AlertCircle } from 'lucide-react';
+import { AlertCircle, Check, KeyRound, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/features/ui/Button';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { AuthNotice, AuthShell, AuthStateIcon } from '@/features/auth/AuthShell';
+import { PasswordField } from '@/features/auth/PasswordField';
 
 function ResetPasswordContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  void searchParams;
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   // null = checking, true = valid recovery session, false = expired/invalid link
   const [hasSession, setHasSession] = useState<boolean | null>(null);
 
@@ -33,15 +37,12 @@ function ResetPasswordContent() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+    const lengthError =
+      password.length < 8 ? 'Password must be at least 8 characters long' : null;
+    const matchError = password !== confirmPassword ? 'Passwords do not match' : null;
+    setPasswordError(lengthError);
+    setConfirmError(matchError);
+    if (lengthError || matchError) return;
 
     setIsLoading(true);
 
@@ -68,151 +69,120 @@ function ResetPasswordContent() {
 
   if (success) {
     return (
-      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
-        <div className="max-w-md w-full mx-auto px-6">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-6 bg-green-500/10 rounded-full flex items-center justify-center">
-              <Check className="w-8 h-8 text-green-500" />
-            </div>
-            <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-4">
-              Password Updated
-            </h1>
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
-              Your password has been successfully reset. Redirecting to login...
-            </p>
-            <Link
-              href="/auth/login"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-            >
-              GO TO LOGIN
-            </Link>
-          </div>
-        </div>
-      </main>
+      <AuthShell
+        title="Password updated"
+        icon={
+          <AuthStateIcon>
+            <Check className="w-8 h-8" />
+          </AuthStateIcon>
+        }
+      >
+        <p className="font-body text-sm text-text-muted text-center mb-6" role="status">
+          Your password has been successfully reset. Redirecting to login...
+        </p>
+        <CtaLink href="/auth/login" fullWidth>
+          Go to login
+        </CtaLink>
+      </AuthShell>
     );
   }
 
   if (hasSession === null) {
     return (
-      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
-      </main>
+      <div className="bg-surface-card border border-border-default p-8 flex justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" aria-hidden="true" />
+        <span className="sr-only">Checking your reset link</span>
+      </div>
     );
   }
 
   if (hasSession === false) {
     return (
-      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
-        <div className="max-w-md w-full mx-auto px-6 text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-red-500/10 rounded-full flex items-center justify-center">
-            <AlertCircle className="w-8 h-8 text-red-400" />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-2">
-            Link Expired
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
-            This password reset link is invalid or has expired. Request a new one to continue.
-          </p>
-          <Link
-            href="/auth/forgot-password"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-          >
-            REQUEST NEW LINK
-          </Link>
-        </div>
-      </main>
+      <AuthShell
+        title="Link expired"
+        icon={
+          <AuthStateIcon tone="danger">
+            <AlertCircle className="w-8 h-8" />
+          </AuthStateIcon>
+        }
+      >
+        <p className="font-body text-sm text-text-muted text-center mb-6">
+          This password reset link is invalid or has expired. Request a new one to continue.
+        </p>
+        <CtaLink href="/auth/forgot-password" fullWidth>
+          Request new link
+        </CtaLink>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
-      <div className="max-w-md w-full mx-auto px-6">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <KeyRound className="w-8 h-8 text-accent" />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-2">
-            Reset Password
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-            Enter your new password below.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/30 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-red-300">
-                {error}
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
-              NEW PASSWORD
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              className="w-full h-12 px-4 bg-surface-card border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
-              placeholder="Enter new password"
-            />
-          </div>
-
-          <div>
-            <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
-              CONFIRM PASSWORD
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-              className="w-full h-12 px-4 bg-surface-card border border-border-default text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
-              placeholder="Confirm new password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-12 flex items-center justify-center gap-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                RESETTING...
-              </>
-            ) : (
-              'RESET PASSWORD'
-            )}
-          </button>
-        </form>
-
-        <p className="mt-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
+    <AuthShell
+      title="Reset Password"
+      description="Enter your new password below."
+      icon={
+        <AuthStateIcon tone="accent">
+          <KeyRound className="w-8 h-8" />
+        </AuthStateIcon>
+      }
+      footer={
+        <>
           Remember your password?{' '}
           <Link href="/auth/login" className="text-accent hover:underline">
             Sign in
           </Link>
-        </p>
-      </div>
-    </main>
+        </>
+      }
+    >
+      {error ? <AuthNotice>{error}</AuthNotice> : null}
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <PasswordField
+          label="New Password"
+          name="reset-password"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            if (passwordError) setPasswordError(null);
+          }}
+          autoComplete="new-password"
+          placeholder="Enter new password"
+          error={passwordError ?? undefined}
+          required
+        />
+
+        <PasswordField
+          label="Confirm Password"
+          name="reset-confirm-password"
+          value={confirmPassword}
+          onChange={(value) => {
+            setConfirmPassword(value);
+            if (confirmError) setConfirmError(null);
+          }}
+          autoComplete="new-password"
+          placeholder="Confirm new password"
+          error={confirmError ?? undefined}
+          required
+        />
+
+        <Button type="submit" fullWidth isLoading={isLoading}>
+          {isLoading ? 'RESETTING...' : 'RESET PASSWORD'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-surface-page pt-24 pb-16 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <div className="bg-surface-card border border-border-default p-8 flex justify-center">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" aria-hidden="true" />
+          <span className="sr-only">Loading reset form</span>
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );

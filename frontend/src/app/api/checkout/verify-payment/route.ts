@@ -58,7 +58,40 @@ function isValidOrderData(data: unknown): data is OrderData {
 }
 
 type CheckoutSupabase = NonNullable<ReturnType<typeof getClients>>['supabase'];
-type ClaimOrder = { id: number; name: string; total_price: number };
+type ClaimOrder = {
+  id: number;
+  name: string;
+  total_price: number;
+  financial_status: string | null;
+  cancelled_at: string | null;
+};
+
+// A compensated order is terminal for its payment id: the payment was
+// refunded, so no later verify may adopt the row, re-decrement the stock the
+// compensation restored, or answer success. Post-capture failures stamp the
+// row (refunded + cancelled) instead of deleting it precisely so this check
+// has something to find — a deleted row let the client's own retry re-claim
+// the payment (nothing left to lose a 23505 race against), re-decrement the
+// just-restored stock, and mint a second 'paid' order for money that had
+// already been refunded.
+function isCompensatedOrder(
+  order: Pick<ClaimOrder, 'financial_status' | 'cancelled_at'>
+): boolean {
+  return order.cancelled_at !== null || (order.financial_status ?? '') !== 'paid';
+}
+
+// The answer for a replay of a compensated payment. 409 is what the client
+// treats as definitive (it stops reconciling instead of retrying), and the
+// copy names the state of the money instead of inviting another attempt.
+function compensatedReplayResponse() {
+  return NextResponse.json(
+    {
+      error: 'This payment was refunded and cannot be reused. Please start a new checkout.',
+      code: 'ORDER_REFUNDED',
+    },
+    { status: 409 }
+  );
+}
 
 // The behavioral analytics session id is optional client input, so it is
 // accepted only when uuid-shaped (the route is the boundary; the client is
@@ -118,12 +151,23 @@ async function restoreStock(
           detail: result.reason instanceof Error ? result.reason.message : String(result.reason),
         };
       }
-      const res = result.value as { error?: { message?: string } | null };
+      const res = result.value as { error?: { message?: string } | null; data?: unknown[] };
       if (res?.error) {
         return {
           variantId: cartItems[i].variantId,
           quantity: cartItems[i].quantity,
           detail: res.error.message ?? 'restore RPC error',
+        };
+      }
+      // The restore RPC updates unconditionally for a negative qty, so it
+      // returns a row whenever the variant still exists — empty data means the
+      // variant row is gone and this stock did NOT go back. A failure worth a
+      // note, never a silent success.
+      if (!Array.isArray(res?.data) || res.data.length === 0) {
+        return {
+          variantId: cartItems[i].variantId,
+          quantity: cartItems[i].quantity,
+          detail: 'restore matched no variant row',
         };
       }
       return null;
@@ -137,12 +181,17 @@ async function restoreStock(
 
 // Persist a failed compensation on the order row (orders.note) plus the log
 // aggregator, so an incomplete restore is reconcilable instead of silent.
-// Best-effort and never throws.
+// `terminal` also stamps the row refunded + cancelled: that stamp is the
+// marker a replay of the same payment id must find (see isCompensatedOrder),
+// and callers write it before the slow work (stock restore, refund call) so
+// the window in which a concurrent retry can still adopt the row is one write
+// wide. Best-effort and never throws.
 async function persistCompensation(
   supabase: CheckoutSupabase,
   orderId: number | null,
   kind: string,
-  detail: string
+  detail: string,
+  terminal = false
 ): Promise<void> {
   try {
     if (orderId !== null) {
@@ -155,7 +204,12 @@ async function persistCompensation(
       const stamp = `[stock-compensation ${new Date().toISOString()} ${kind}] ${detail}`.slice(0, 2000);
       await supabase
         .from('orders')
-        .update({ note: prev ? `${prev}\n${stamp}` : stamp })
+        .update({
+          note: prev ? `${prev}\n${stamp}` : stamp,
+          ...(terminal
+            ? { financial_status: 'refunded', cancelled_at: new Date().toISOString() }
+            : {}),
+        })
         .eq('id', orderId);
     }
   } catch {
@@ -182,6 +236,29 @@ async function refundCapturedPayment(
   }
 }
 
+// Refund the captured payment and make a failed refund durable on the order
+// note. A refund that did not go through leaves captured money against a
+// cancelled order — exactly what an admin has to reconcile by hand, and the
+// reason the order row survives compensation instead of being deleted.
+async function refundAndRecord(
+  supabase: CheckoutSupabase,
+  razorpay: Razorpay,
+  orderId: number,
+  paymentId: string,
+  reason: string
+): Promise<boolean> {
+  const refunded = await refundCapturedPayment(razorpay, paymentId, reason);
+  if (!refunded) {
+    await persistCompensation(
+      supabase,
+      orderId,
+      'refund-failed',
+      `${reason}; payment still captured`
+    );
+  }
+  return refunded;
+}
+
 function successBody(
   razorpay_payment_id: string,
   razorpay_order_id: string,
@@ -199,10 +276,9 @@ function successBody(
   });
 }
 
-// Completion-state check: an order row without line items is an in-flight
-// claim (winner still writing) or a crashed orphan — NOT a completed payment.
-// Poll briefly so a retry that lands mid-write sees the winner's commit
-// instead of mistaking the partial row for success.
+// Line items committed for an order, or null when the count could not be
+// read (treated as "not complete" by readOrderCompletion, so an unreadable
+// count never turns into a success answer).
 async function lineItemCount(
   supabase: CheckoutSupabase,
   orderId: number
@@ -218,19 +294,133 @@ async function lineItemCount(
   return count ?? 0;
 }
 
+// Completion-state check: an order row without line items is an in-flight
+// claim (winner still writing) or a crashed orphan — NOT a completed payment.
+// Four outcomes, because "has line items" alone is not enough:
+//   'complete'   — the winner committed line items and the shipping address;
+//                  this is a real order.
+//   'no_address' — line items committed but the address row is missing: the
+//                  winner crashed between the two inserts. The one recoverable
+//                  state (see backfillShippingAddress).
+//   'terminal'   — the row was compensated (refunded/cancelled); no number of
+//                  line items makes it a real order.
+//   'incomplete' — the caller decides whether to adopt it.
+async function readOrderCompletion(
+  supabase: CheckoutSupabase,
+  orderId: number
+): Promise<'complete' | 'no_address' | 'incomplete' | 'terminal'> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('financial_status, cancelled_at')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error) {
+    logDbError('verify-payment:completion-check', error);
+    return 'incomplete';
+  }
+  if (
+    data &&
+    isCompensatedOrder(data as { financial_status: string | null; cancelled_at: string | null })
+  ) {
+    return 'terminal';
+  }
+  const count = await lineItemCount(supabase, orderId);
+  if (count === null || count === 0) return 'incomplete';
+  const { count: addressCount, error: addressError } = await supabase
+    .from('order_shipping_addresses')
+    .select('order_id', { count: 'exact', head: true })
+    .eq('order_id', orderId);
+  if (addressError) {
+    // An unreadable address count must never read as 'complete'; the caller
+    // answers 'no_address' with an idempotent backfill, so a false missing
+    // costs one guarded insert, not a wrong success.
+    logDbError('verify-payment:completion-check', addressError);
+    return 'no_address';
+  }
+  return (addressCount ?? 0) > 0 ? 'complete' : 'no_address';
+}
+
+// Poll briefly so a retry that lands mid-write sees the winner's commit
+// instead of mistaking the partial row for success. The terminal check is
+// inside the poll, not only before it, because a concurrent verify can stamp
+// the row mid-poll: a check that only counted line items would report success
+// for a payment whose money is already going back.
 async function waitForCompletion(
   supabase: CheckoutSupabase,
   orderId: number,
   tries = 5,
   delayMs = 400
-): Promise<boolean> {
+): Promise<'complete' | 'no_address' | 'incomplete' | 'terminal'> {
   for (let attempt = 0; attempt < tries; attempt += 1) {
-    const count = await lineItemCount(supabase, orderId);
-    if (count !== null && count > 0) return true;
+    const state = await readOrderCompletion(supabase, orderId);
+    if (state !== 'incomplete') return state;
     if (attempt < tries - 1) await sleep(delayMs);
   }
-  const count = await lineItemCount(supabase, orderId);
-  return count !== null && count > 0;
+  return readOrderCompletion(supabase, orderId);
+}
+
+// Finish a recovered order whose line items committed but whose shipping
+// address insert never did. Check-then-insert like persistCompensation, with
+// the address table's primary key as the tiebreaker: a row that lands between
+// the check and the insert surfaces as 23505, which means the address exists
+// and a concurrent replay won — not an error worth compensating over.
+async function backfillShippingAddress(
+  supabase: CheckoutSupabase,
+  orderId: number,
+  orderData: OrderData
+): Promise<boolean> {
+  const { data: existing } = await supabase
+    .from('order_shipping_addresses')
+    .select('order_id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+  if (existing) return true;
+  const shipping = orderData.shippingAddress;
+  const { error } = await supabase.from('order_shipping_addresses').insert({
+    order_id: orderId,
+    first_name: shipping.firstName,
+    last_name: shipping.lastName,
+    address1: shipping.address1,
+    address2: shipping.address2 ?? null,
+    city: shipping.city,
+    province: shipping.state,
+    country: shipping.country,
+    zip: shipping.pincode,
+    phone: orderData.phone.trim(),
+  });
+  if (!error) return true;
+  if ((error as { code?: string } | null)?.code === '23505') return true;
+  logDbError('verify-payment:shipping-backfill', error);
+  return false;
+}
+
+// Answer an attempt that did not claim the order row, from the completion
+// state it polled: the replay vocabulary (success, refunded, incomplete) plus
+// the one recoverable state — line items committed, address missing — whose
+// recovery is the address row alone. The stock decrement, the line-item
+// insert and the compensation stamp never run here: the adopt CAS refuses
+// every state that reaches this function except a finished order.
+async function answerPolledState(
+  supabase: CheckoutSupabase,
+  state: 'complete' | 'no_address' | 'incomplete' | 'terminal',
+  order: ClaimOrder,
+  paymentId: string,
+  razorpayOrderId: string,
+  orderData: OrderData,
+  incompleteError: string
+): Promise<NextResponse> {
+  if (state === 'terminal') return compensatedReplayResponse();
+  if (state === 'complete') {
+    return successBody(paymentId, razorpayOrderId, order, {
+      message: 'Payment already recorded',
+    });
+  }
+  if (state === 'no_address' && (await backfillShippingAddress(supabase, order.id, orderData))) {
+    return successBody(paymentId, razorpayOrderId, order, {
+      message: 'Payment already recorded',
+    });
+  }
+  return NextResponse.json({ error: incompleteError, code: 'ORDER_INCOMPLETE' }, { status: 409 });
 }
 
 export async function POST(request: NextRequest) {
@@ -346,33 +536,69 @@ export async function POST(request: NextRequest) {
     // Idempotency with completion state: a replayed/confirmed payment returns
     // the existing order (payment id is stored in confirmation_number) — but
     // only when its line items have committed. A bare row is an in-flight
-    // claim, not a completed payment.
+    // claim, not a completed payment. A compensated row is neither: the money
+    // went back, so it is terminal and this attempt must fail too.
     const { data: preExisting } = await supabase
       .from('orders')
-      .select('id, name, total_price')
+      .select('id, name, total_price, financial_status, cancelled_at')
       .eq('confirmation_number', razorpay_payment_id)
       .maybeSingle();
 
     let order: ClaimOrder | null = null;
     if (preExisting) {
       const found = preExisting as ClaimOrder;
-      if (await waitForCompletion(supabase, found.id)) {
-        return successBody(razorpay_payment_id, razorpay_order_id, found, {
-          message: 'Payment already recorded',
-        });
+      if (isCompensatedOrder(found)) return compensatedReplayResponse();
+      const state = await waitForCompletion(supabase, found.id);
+      if (state !== 'incomplete') {
+        return answerPolledState(
+          supabase,
+          state,
+          found,
+          razorpay_payment_id,
+          razorpay_order_id,
+          orderData,
+          'A previous attempt left this payment incomplete. Please wait a moment and try again.'
+        );
       }
-      // Incomplete claim from a crashed attempt with the same totals: adopt
-      // it (re-decrement below is fail-safe — understated stock, never
-      // oversell) rather than minting a second order for one payment.
+      // Incomplete claim from a crashed attempt with the same totals: adopt it
+      // through the CAS RPC rather than minting a second order for one
+      // payment. The RPC flips claim_adopted_at only for a still-'paid',
+      // uncancelled, line-less row whose total matches, so the re-decrement
+      // below happens exactly once per claim — a concurrent attempt that
+      // adopted first, or a compensation that ran in between, makes the CAS
+      // return false and this attempt answers from the resulting state without
+      // writing anything (no decrement, no line items, no stamp).
       if (Number(found.total_price) === total) {
+        const { data: adopted, error: adoptError } = await supabase.rpc('adopt_order_claim', {
+          p_order_id: found.id,
+          p_total: total,
+        });
+        if (adoptError) logDbError('verify-payment:adopt-claim', adoptError);
+        if (adopted === true) {
+          order = found;
+        } else {
+          return answerPolledState(
+            supabase,
+            await waitForCompletion(supabase, found.id),
+            found,
+            razorpay_payment_id,
+            razorpay_order_id,
+            orderData,
+            'A previous attempt left this payment incomplete. Please wait a moment and try again.'
+          );
+        }
+      } else {
+        // A claim whose total no longer matches any recomputation can never be
+        // adopted by anyone. Non-terminal: the money decision belongs to the
+        // attempt that holds the payment; this only marks the row for
+        // reconciliation.
         await persistCompensation(
           supabase,
           found.id,
-          'adopt-claim',
-          'adopted incomplete claim; stock re-decremented'
+          'claim-total-mismatch',
+          `claim total ${found.total_price} does not match this attempt's ${total}`,
+          false
         );
-        order = found;
-      } else {
         return NextResponse.json(
           {
             error: 'A previous attempt left this payment incomplete. Please wait a moment and try again.',
@@ -406,34 +632,66 @@ export async function POST(request: NextRequest) {
           token: razorpay_order_id,
           processed_at: new Date().toISOString(),
         })
-        .select('id, name, total_price')
+        .select('id, name, total_price, financial_status, cancelled_at')
         .single();
 
       if (claimError || !claimed) {
         const code = (claimError as { code?: string } | null)?.code;
         if (code === '23505') {
           // Lost the race: the winner owns this payment. Return the winner's
-          // order once its line items commit — no stock moves, no refund.
+          // order once its line items commit — no stock moves, no refund —
+          // unless the winner compensated it, in which case the payment is
+          // terminal and this attempt fails with it.
           const { data: raced } = await supabase
             .from('orders')
-            .select('id, name, total_price')
+            .select('id, name, total_price, financial_status, cancelled_at')
             .eq('confirmation_number', razorpay_payment_id)
             .maybeSingle();
-          if (raced && (await waitForCompletion(supabase, (raced as ClaimOrder).id))) {
-            const winner = raced as ClaimOrder;
-            return successBody(razorpay_payment_id, razorpay_order_id, winner, {
-              message: 'Payment already recorded',
-            });
-          }
-          if (raced && Number((raced as ClaimOrder).total_price) === total) {
-            await persistCompensation(
+          const winner = (raced as ClaimOrder | null) ?? null;
+          if (winner && isCompensatedOrder(winner)) return compensatedReplayResponse();
+          const state = winner ? await waitForCompletion(supabase, winner.id) : 'incomplete';
+          if (winner && state !== 'incomplete') {
+            return answerPolledState(
               supabase,
-              (raced as ClaimOrder).id,
-              'adopt-claim',
-              'adopted race claim; stock re-decremented'
+              state,
+              winner,
+              razorpay_payment_id,
+              razorpay_order_id,
+              orderData,
+              'This payment is being processed. Please wait a moment and try again.'
             );
-            order = raced as ClaimOrder;
+          }
+          if (winner && Number(winner.total_price) === total) {
+            const { data: adopted, error: adoptError } = await supabase.rpc('adopt_order_claim', {
+              p_order_id: winner.id,
+              p_total: total,
+            });
+            if (adoptError) logDbError('verify-payment:adopt-claim', adoptError);
+            if (adopted === true) {
+              order = winner;
+            } else {
+              // Lost the CAS (another attempt adopted or finished it) or the
+              // RPC failed: answer from the resulting state and write nothing.
+              return answerPolledState(
+                supabase,
+                await waitForCompletion(supabase, winner.id),
+                winner,
+                razorpay_payment_id,
+                razorpay_order_id,
+                orderData,
+                'This payment is being processed. Please wait a moment and try again.'
+              );
+            }
           } else {
+            if (winner) {
+              await persistCompensation(
+                supabase,
+                winner.id,
+                'claim-total-mismatch',
+                `claim total ${winner.total_price} does not match this attempt's ${total}`,
+                false
+              );
+            }
             return NextResponse.json(
               {
                 error: 'This payment is being processed. Please wait a moment and try again.',
@@ -496,10 +754,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (decrementOk.includes(false)) {
-      // Compensate only the lines that did decrement, then refund. The
-      // refund runs even when restores or the claim cleanup fail.
+      // Compensate only the lines that did decrement, then refund. The refund
+      // runs even when restores or the terminal stamp fail.
       const succeeded = orderData.cartItems.filter((_, i) => decrementOk[i]);
       let stockRestoreFailed: unknown = null;
+      // Terminal first, then the slow compensation. The stamp is what a
+      // concurrent retry for the same payment id has to find, and restoring
+      // stock before it left a window in which that retry could adopt the
+      // still-'paid' row and re-decrement the stock this path is putting back.
+      await persistCompensation(
+        supabase,
+        orderId,
+        'out-of-stock',
+        'guarded decrement refused after capture',
+        true
+      );
       try {
         const restored = await restoreStock(supabase, succeeded);
         if (!restored.ok) {
@@ -510,11 +779,6 @@ export async function POST(request: NextRequest) {
             'restore-failed',
             JSON.stringify(restored.failures).slice(0, 500)
           );
-        }
-        const { error: cleanupError } = await supabase.from('orders').delete().eq('id', orderId);
-        if (cleanupError) {
-          logDbError('verify-payment:claim-cleanup', cleanupError);
-          await persistCompensation(supabase, orderId, 'claim-cleanup-failed', 'orphan claim may remain');
         }
       } catch (compError) {
         logDbError('verify-payment:compensation', compError);
@@ -527,17 +791,23 @@ export async function POST(request: NextRequest) {
       } else if (firstFailure?.status === 'rejected') {
         logDbError('verify-payment:decrement', firstFailure.reason);
       }
-      const refunded = await refundCapturedPayment(
+      const refunded = await refundAndRecord(
+        supabase,
         razorpay,
+        orderId,
         razorpay_payment_id,
         'insufficient stock after capture'
       );
+      // The code is the client's money signal: OUT_OF_STOCK means the payment
+      // went back and a fresh checkout is safe, so a failed refund must be
+      // named REFUND_FAILED instead — captured money an admin has to
+      // reconcile, never a settled answer.
       return NextResponse.json(
         {
           error: refunded
             ? 'Insufficient stock for one or more items. Payment refunded.'
             : 'Insufficient stock for one or more items',
-          code: 'OUT_OF_STOCK',
+          code: refunded ? 'OUT_OF_STOCK' : 'REFUND_FAILED',
           ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
         },
         { status: 409 }
@@ -564,10 +834,21 @@ export async function POST(request: NextRequest) {
 
     if (lineItemsError) {
       logDbError('verify-payment:line-items', lineItemsError);
-      // Undo the stock decrement and remove the item-less order so the
-      // customer is not left with a charged, unfulfillable order. The refund
-      // is guaranteed: compensation failures are persisted, never thrown.
+      // The row is stamped compensated, never deleted: it is the only
+      // server-side record that this payment was refunded, and deleting it let
+      // a retry re-claim the payment and mint a second 'paid' order for the
+      // same money. The stamp lands before the stock restore so a concurrent
+      // retry finds a terminal row, not an item-less one it could adopt. The
+      // refund is guaranteed: compensation failures are persisted, never
+      // thrown.
       let stockRestoreFailed = false;
+      await persistCompensation(
+        supabase,
+        orderId,
+        'line-items-failed',
+        'line item insert failed after capture',
+        true
+      );
       try {
         const restored = await restoreStock(supabase, orderData.cartItems);
         if (!restored.ok) {
@@ -579,16 +860,13 @@ export async function POST(request: NextRequest) {
             JSON.stringify(restored.failures).slice(0, 500)
           );
         }
-        const { error: cleanupError } = await supabase.from('orders').delete().eq('id', orderId);
-        if (cleanupError) {
-          logDbError('verify-payment:orphan-cleanup', cleanupError);
-          await persistCompensation(supabase, orderId, 'orphan-cleanup-failed', 'item-less order may remain');
-        }
       } catch (compError) {
         logDbError('verify-payment:compensation', compError);
       }
-      const refunded = await refundCapturedPayment(
+      const refunded = await refundAndRecord(
+        supabase,
         razorpay,
+        orderId,
         razorpay_payment_id,
         'line items insert failed after capture'
       );
@@ -597,6 +875,10 @@ export async function POST(request: NextRequest) {
           error: refunded
             ? 'Payment confirmed but order save failed. Payment refunded.'
             : 'Payment confirmed but order save failed',
+          // REFUND_FAILED: the row is stamped compensated but the money is
+          // still captured — the client must keep the verify body for
+          // reconciliation instead of treating this as a finished refund.
+          ...(refunded ? {} : { code: 'REFUND_FAILED' }),
           ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
         },
         { status: 500 }
@@ -605,7 +887,8 @@ export async function POST(request: NextRequest) {
 
     // Shipping address: fulfillment has no destination without it. Its insert
     // is a post-payment failure path like line items — a failure restores
-    // stock, removes the undeliverable order, and refunds.
+    // stock, stamps the undeliverable order compensated (kept, so a replay of
+    // the same payment id cannot re-claim it), and refunds.
     const shipping = orderData.shippingAddress;
     const { error: shippingError } = await supabase.from('order_shipping_addresses').insert({
       order_id: orderId,
@@ -623,6 +906,13 @@ export async function POST(request: NextRequest) {
     if (shippingError) {
       logDbError('verify-payment:shipping-address', shippingError);
       let stockRestoreFailed = false;
+      await persistCompensation(
+        supabase,
+        orderId,
+        'shipping-address-failed',
+        'shipping address insert failed after capture',
+        true
+      );
       try {
         const restored = await restoreStock(supabase, orderData.cartItems);
         if (!restored.ok) {
@@ -634,22 +924,13 @@ export async function POST(request: NextRequest) {
             JSON.stringify(restored.failures).slice(0, 500)
           );
         }
-        // Cascades to line_items and the shipping row (if partially written).
-        const { error: cleanupError } = await supabase.from('orders').delete().eq('id', orderId);
-        if (cleanupError) {
-          logDbError('verify-payment:orphan-cleanup', cleanupError);
-          await persistCompensation(
-            supabase,
-            orderId,
-            'orphan-cleanup-failed',
-            'address-less order may remain'
-          );
-        }
       } catch (compError) {
         logDbError('verify-payment:compensation', compError);
       }
-      const refunded = await refundCapturedPayment(
+      const refunded = await refundAndRecord(
+        supabase,
         razorpay,
+        orderId,
         razorpay_payment_id,
         'shipping address insert failed after capture'
       );
@@ -658,6 +939,10 @@ export async function POST(request: NextRequest) {
           error: refunded
             ? 'Payment confirmed but order save failed. Payment refunded.'
             : 'Payment confirmed but order save failed',
+          // REFUND_FAILED: the row is stamped compensated but the money is
+          // still captured — the client must keep the verify body for
+          // reconciliation instead of treating this as a finished refund.
+          ...(refunded ? {} : { code: 'REFUND_FAILED' }),
           ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
         },
         { status: 500 }
@@ -676,7 +961,11 @@ export async function POST(request: NextRequest) {
         sid: analyticsSid ?? crypto.randomUUID(),
         path: '/checkout',
         props: {
-          order_id: razorpay_payment_id,
+          // The Razorpay payment id (the order row's confirmation_number),
+          // named for what it is — no rollup reads this prop today, but the
+          // old `order_id` name invited a join against orders.id, which this
+          // value is not.
+          payment_id: razorpay_payment_id,
           value: total,
           items: orderData.cartItems.reduce(
             (sum: number, line: CartLine) => sum + line.quantity,

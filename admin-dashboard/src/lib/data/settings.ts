@@ -16,7 +16,7 @@ import { one, reader, rows, runCount, runPage, type Paged } from './client';
 // ─── Admin users ──────────────────────────────────────────────────────────────
 
 export async function listAdmins(): Promise<AdminUser[]> {
-  const service = await reader({ service: true });
+  const service = await reader();
   return rows<AdminUser>(
     'admin_users',
     service.from('admin_users').select('*').order('created_at', { ascending: false }),
@@ -26,7 +26,9 @@ export async function listAdmins(): Promise<AdminUser[]> {
 /** The signed-in admin's id, for the "you" marker on their own row. */
 export async function getCurrentAdminId(): Promise<string | null> {
   try {
-    const supabase = await reader();
+    // Session client on purpose: `auth.getUser()` reads the caller's cookies,
+    // which the service client does not carry.
+    const supabase = await reader({ session: true });
     const { data, error } = await supabase.auth.getUser();
     if (error) return null;
     return data.user?.id ?? null;
@@ -116,7 +118,7 @@ export async function resolveAdminIdentities(
 
   let service: ServerClient;
   try {
-    service = await reader({ service: true });
+    service = await reader();
   } catch (error) {
     console.error('[settings] no service client for identity resolution', error);
     return identities;
@@ -184,7 +186,7 @@ export interface AuditLogFilters {
 
 /** Paged audit log (was `.limit(20)` with no pager). */
 export async function listAuditLog(filters: AuditLogFilters): Promise<Paged<AdminAuditLog>> {
-  const service = await reader({ service: true });
+  const service = await reader();
   const pageSize = filters.pageSize ?? AUDIT_PAGE_SIZE;
   const page = clampPage(filters.page);
   const { from, to } = pageRange(page, pageSize);
@@ -229,7 +231,7 @@ const FACET_CAP = 30;
  * through the free-text search, which is why the search matches both columns.
  */
 export async function listAuditFacets(): Promise<{ actions: string[]; entities: string[] }> {
-  const service = await reader({ service: true });
+  const service = await reader();
   const scanned = await rows<Pick<AdminAuditLog, 'action' | 'entity'>>(
     'admin_audit_log',
     service
@@ -269,7 +271,7 @@ export interface SettingsStats {
  * count plus one bounded single row — nothing here scales with the log.
  */
 export async function getSettingsStats(admins: readonly AdminUser[]): Promise<SettingsStats> {
-  const service = await reader({ service: true });
+  const service = await reader();
 
   const [auditEntries, latest] = await Promise.all([
     runCount(

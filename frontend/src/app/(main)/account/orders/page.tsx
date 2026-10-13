@@ -1,146 +1,139 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Package, ChevronRight, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { ChevronRight } from 'lucide-react';
 import { cn, formatDate, formatPrice } from '@yord/ui';
+import { useAuth } from '@/hooks/useAuth';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { ErrorState } from '@/features/ui/ErrorState';
+import { Skeleton } from '@/features/ui/Skeleton';
+import { AccountPageHeader } from '../_components/AccountPageHeader';
+import {
+  fetchAccountOrders,
+  financialStatusLabel,
+  fulfillmentStatusLabel,
+  type AccountOrder,
+} from './_lib/orders';
 
-interface Order {
-  id: number;
-  order_number: number | null;
-  created_at: string;
-  financial_status: string | null;
-  fulfillment_status: string | null;
-  total_price: number;
-  currency: string | null;
-}
+const STATUS_TONES = {
+  success: 'text-success bg-success/10',
+  danger: 'text-danger bg-danger/10',
+  muted: 'text-text-muted bg-surface-inset',
+} as const;
 
 export default function OrdersPage() {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading: authLoading } = useAuth();
+  // `null` = not loaded yet. Three outcomes, kept apart: a failed read must
+  // never render as "no orders".
+  const [orders, setOrders] = useState<AccountOrder[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  const email = user?.email ?? null;
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user?.email) {
-        setIsLoading(false);
-        return;
-      }
+    // Nothing to read until the session resolves — and a signed-out visitor
+    // must not be left on the skeleton forever.
+    if (!email) return;
 
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, order_number, created_at, financial_status, fulfillment_status, total_price, currency')
-        .eq('email', user.email)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (!error && data) {
-        setOrders(data);
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await fetchAccountOrders(email, 20);
+        if (cancelled) return;
+        setOrders(rows);
+        setFailed(false);
+      } catch {
+        if (!cancelled) setFailed(true);
       }
-      setIsLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
     };
+  }, [email, attempt]);
 
-    fetchOrders();
-  }, [user?.email]);
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return 'text-green-400 bg-green-500/10';
-      case 'pending':
-        return 'text-yellow-400 bg-yellow-500/10';
-      case 'refunded':
-        return 'text-red-400 bg-red-500/10';
-      default:
-        return 'text-text-muted bg-text-muted/10';
-    }
-  };
-
-  const getFulfillmentStatus = (status: string | null) => {
-    if (!status) return 'Processing';
-    switch (status.toLowerCase()) {
-      case 'fulfilled':
-        return 'Delivered';
-      case 'partial':
-        return 'Partially Shipped';
-      default:
-        return 'Processing';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
-      </div>
-    );
-  }
+  // Derived, not stored: no synchronous `setState` in the effect body, which
+  // is both a lint rule here and one less render.
+  const pending = authLoading || (email !== null && orders === null);
+  const status: 'loading' | 'ready' | 'error' = failed ? 'error' : pending ? 'loading' : 'ready';
+  const rows = orders ?? [];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
-          Order History
-        </h2>
-      </div>
+      <AccountPageHeader title="Order History" />
 
-      {orders.length === 0 ? (
-        <div className="bg-surface-card border border-border-default p-12 text-center">
-          <div className="w-16 h-16 bg-surface-raised rounded-full flex items-center justify-center mx-auto mb-6">
-            <Package className="w-8 h-8 text-text-muted" />
-          </div>
-          <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-secondary mb-2">
-            No orders yet
-          </h3>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-6">
-            When you place an order, it will appear here.
-          </p>
-          <Link
-            href="/"
-            className="inline-block px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-          >
-            START SHOPPING
-          </Link>
+      {status === 'loading' ? (
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} variant="text-block" />
+          ))}
         </div>
+      ) : status === 'error' ? (
+        <ErrorState
+          as="h2"
+          title="We could not load your orders"
+          message="Something went wrong while fetching your order history. Try again in a moment."
+          onRetry={() => {
+            setFailed(false);
+            setOrders(null);
+            setAttempt((current) => current + 1);
+          }}
+          showHomeLink={false}
+        />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="No orders yet"
+          message="When you place an order, it will appear here."
+        >
+          <CtaLink href="/">Start shopping</CtaLink>
+        </EmptyState>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => (
-            <Link
-              key={order.id}
-              href={`/account/orders/${order.id}`}
-              className="block bg-surface-card border border-border-default p-6 hover:border-accent/30 transition-colors group"
-            >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary">
-                      {order.order_number}
-                    </span>
-                    <span className={cn(
-                      'px-2 py-0.5 text-xs font-[family-name:var(--font-jakarta)] rounded',
-                      getStatusColor(order.financial_status ?? 'pending')
-                    )}>
-                      {order.financial_status ?? 'pending'}
-                    </span>
+          {rows.map((order) => {
+            const financial = financialStatusLabel(order.financial_status);
+            return (
+              <Link
+                key={order.id}
+                href={`/account/orders/${order.id}`}
+                className="block bg-surface-card border border-border-default p-6 hover:border-accent/30 transition-colors group"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-accent text-lg tracking-wider text-text-secondary">
+                        #{order.order_number ?? order.id}
+                      </span>
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 text-xs font-body rounded',
+                          STATUS_TONES[financial.tone]
+                        )}
+                      >
+                        {financial.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 font-body text-sm text-text-muted">
+                      <span>{formatDate(order.created_at)}</span>
+                      <span aria-hidden="true" className="w-1 h-1 bg-text-muted rounded-full" />
+                      <span>{fulfillmentStatusLabel(order.fulfillment_status)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                    <span>{formatDate(order.created_at)}</span>
-                    <span className="w-1 h-1 bg-text-muted rounded-full" />
-                    <span>{getFulfillmentStatus(order.fulfillment_status)}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="font-accent text-xl text-accent">
+                      {formatPrice(order.total_price, order.currency || 'INR')}
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors"
+                    />
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-[family-name:var(--font-bebas)] text-xl text-accent">
-                    {formatPrice(order.total_price, order.currency || 'INR')}
-                  </span>
-                  <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" />
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

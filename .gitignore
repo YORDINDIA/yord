@@ -103,3 +103,11 @@ agnes-out/
 
 # Supabase CLI local state (login/project refs, never commit)
 supabase/.temp/
+
+# Run artifacts of scripts/import_orders_customers.py — contain customer PII, never commit
+scripts/import_orders_customers_snapshot*.json
+scripts/import_orders_customers_unmatched_courier.csv
+scripts/import_orders_customers_errors.json
+# Run artifacts of scripts/punjabi_tee_listings pipeline + meta-description tooling (product rows only)
+scripts/punjabi_tee_merge_snapshot*.json
+scripts/product_meta_description_snapshot*.json

@@ -11,4 +11,5 @@ export const CONCEPTS = [
   { slug: 'poster', letter: 'A', name: 'Poster', href: '/concepts/poster' },
   { slug: 'halftone', letter: 'B', name: 'Halftone', href: '/concepts/halftone' },
   { slug: 'stagelight', letter: 'C', name: 'Stagelight', href: '/concepts/stagelight' },
+  { slug: 'rail', letter: 'D', name: 'Rail', href: '/concepts/rail' },
 ] as const;

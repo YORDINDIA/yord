@@ -1,9 +1,10 @@
 'use client';
 
-import { CreditCard, Landmark, Wallet } from 'lucide-react';
+import { CreditCard, Landmark, Lock, Wallet } from 'lucide-react';
 import { cn } from '@yord/ui';
+import type { PaymentMethod } from './types';
 
-export type PaymentMethod = 'razorpay' | 'upi' | 'netbanking' | 'cod';
+export type { PaymentMethod } from './types';
 
 interface PaymentSectionProps {
   selectedMethod: PaymentMethod;
@@ -31,12 +32,21 @@ const PAYMENT_METHODS = [
   },
 ];
 
+/**
+ * Payment method picker.
+ *
+ * Each option was a `<button>` — three tab stops for one choice, no group
+ * semantics, and nothing announcing which option was selected. They are real
+ * radios inside a `<fieldset>` now: one tab stop, arrow-key navigation and
+ * `aria-checked` come from the platform, and the card stays fully clickable
+ * because the whole thing is the label.
+ */
 export function PaymentSection({ selectedMethod, onMethodChange }: PaymentSectionProps) {
   return (
-    <div className="space-y-6">
-      <h3 className="font-[family-name:var(--font-playfair)] text-xl text-text-primary mb-6">
+    <fieldset className="space-y-6">
+      <legend className="font-display text-xl text-text-primary mb-6">
         Payment Method
-      </h3>
+      </legend>
 
       <div className="space-y-3">
         {PAYMENT_METHODS.map((method) => {
@@ -44,56 +54,66 @@ export function PaymentSection({ selectedMethod, onMethodChange }: PaymentSectio
           const isSelected = selectedMethod === method.id;
 
           return (
-            <button
+            <label
               key={method.id}
-              onClick={() => onMethodChange(method.id)}
               className={cn(
-                'w-full p-4 flex items-start gap-4 border transition-all text-left',
+                'flex w-full cursor-pointer items-start gap-4 border p-4 text-left transition-all',
+                'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring',
                 isSelected
                   ? 'border-accent bg-accent-tint'
                   : 'border-border-default bg-surface-card hover:border-text-muted'
               )}
             >
+              <input
+                type="radio"
+                name="payment-method"
+                value={method.id}
+                checked={isSelected}
+                onChange={() => onMethodChange(method.id)}
+                className="sr-only"
+              />
+
               {/* Radio Circle */}
-              <div className={cn(
-                'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5',
-                isSelected ? 'border-accent' : 'border-text-muted'
-              )}>
-                {isSelected && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-accent" />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2',
+                  isSelected ? 'border-accent' : 'border-text-muted'
                 )}
-              </div>
+              >
+                {isSelected && <span className="h-2.5 w-2.5 rounded-full bg-accent" />}
+              </span>
 
               {/* Icon */}
-              <Icon className={cn(
-                'w-6 h-6 flex-shrink-0',
-                isSelected ? 'text-accent' : 'text-text-muted'
-              )} />
+              <Icon
+                aria-hidden="true"
+                className={cn('h-6 w-6 flex-shrink-0', isSelected ? 'text-accent' : 'text-text-muted')}
+              />
 
               {/* Content */}
-              <div className="flex-1">
-                <p className={cn(
-                  'font-[family-name:var(--font-jakarta)] font-medium',
-                  isSelected ? 'text-accent' : 'text-text-secondary'
-                )}>
+              <span className="flex-1">
+                <span
+                  className={cn(
+                    'block font-body font-medium',
+                    isSelected ? 'text-accent' : 'text-text-secondary'
+                  )}
+                >
                   {method.name}
-                </p>
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-0.5">
+                </span>
+                <span className="mt-0.5 block font-body text-sm text-text-muted">
                   {method.description}
-                </p>
-              </div>
-            </button>
+                </span>
+              </span>
+            </label>
           );
         })}
       </div>
 
       {/* Secure Payment Notice */}
-      <div className="flex items-center gap-2 text-text-muted font-[family-name:var(--font-jakarta)] text-xs">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-        <span>Your payment information is encrypted and secure</span>
-      </div>
-    </div>
+      <p className="flex items-center gap-2 font-body text-xs text-text-muted">
+        <Lock size={16} aria-hidden="true" />
+        Your payment information is encrypted and secure
+      </p>
+    </fieldset>
   );
 }

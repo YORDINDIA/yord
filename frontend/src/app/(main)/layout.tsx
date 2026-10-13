@@ -23,11 +23,23 @@ export default async function MainLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Keyboard users otherwise tab through the logo, six nav items, the
+          theme control, search, account, cart and the menu toggle on every
+          navigation. The landmark below is this layout's, not the page's: a
+          per-page `<main id="main">` was a contract every page had to
+          remember, and most of them never did — the skip link did nothing on
+          them, because nothing on the page carried `id="main"`. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-accent focus:text-text-on-accent focus:font-accent focus:text-sm focus:tracking-[0.1em]"
+      >
+        Skip to content
+      </a>
       <Header artists={artists} />
       <CartDrawer />
-      <div className="flex-grow flex flex-col">
+      <main id="main" tabIndex={-1} className="flex-grow flex flex-col">
         {children}
-      </div>
+      </main>
       <Footer artists={artists} />
       {conceptsEnabled && <ConceptSwitcher />}
     </div>

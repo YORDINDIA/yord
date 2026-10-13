@@ -26,7 +26,10 @@ import '@/features/concepts/poster/poster-sections.css';
 import '@/features/concepts/poster/poster-closing.css';
 
 export const revalidate = 3600;
-export const metadata: Metadata = { title: 'Concept A Poster' };
+export const metadata: Metadata = {
+  title: 'Concept A Poster',
+  alternates: { canonical: '/concepts/poster' },
+};
 
 const SWATCH_HANDLES = ['coldplay', 'diljit-dosanjh', 'karan-aujla', 'taylor-swift', 'alan-walker', 'billie-eilish'];
 const STACK_HANDLES = ['coldplay', 'diljit-dosanjh', 'karan-aujla', 'honey-singh', 'taylor-swift'];

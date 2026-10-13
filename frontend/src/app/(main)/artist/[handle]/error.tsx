@@ -8,7 +8,7 @@ export default function ArtistError({ error, reset }: { error: Error & { digest?
   useReportError(error);
 
   return (
-    <main className="min-h-[60vh] bg-scrim px-6 flex items-center justify-center">
+    <div tabIndex={-1} className="min-h-[60vh] bg-scrim px-6 flex items-center justify-center">
       {/* Dark scrim keeps the transparent on-media header legible; the card keeps
           the theme-following ErrorState text readable in BOTH themes. */}
       <div className="bg-surface-card border border-border-default p-8">
@@ -18,6 +18,6 @@ export default function ArtistError({ error, reset }: { error: Error & { digest?
           onRetry={() => reset()}
         />
       </div>
-    </main>
+    </div>
   );
 }

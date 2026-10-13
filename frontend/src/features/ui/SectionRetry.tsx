@@ -22,6 +22,8 @@ export function SectionRetry({
       onRetry={() => router.refresh()}
       retryLabel="Retry"
       showHomeLink={false}
+      // Inline: the page it sits in already owns the h1.
+      as="h2"
     />
   );
 }

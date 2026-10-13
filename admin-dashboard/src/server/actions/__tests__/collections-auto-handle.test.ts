@@ -64,6 +64,7 @@ function query() {
   const builder = {
     select: () => builder,
     eq: () => builder,
+    neq: () => builder,
     in: () => builder,
     order: () => builder,
     range: () => builder,
@@ -181,10 +182,11 @@ describe('updateCollectionAction: auto handles', () => {
 
     // The old behaviour committed a second row with handle `all`. The storefront
     // resolves a handle with `.maybeSingle()`, which errors when two rows match,
-    // and `collections.handle` has no unique constraint to catch it — so the
-    // storefront's `/collection/all` link (header/footer) broke. The refusal
-    // still guarantees what this test has always been about: no `collects`
-    // rewrite for a handle the storefront computes itself.
+    // so the storefront's `/collection/all` link (header/footer) broke. The
+    // unique index added in migration 014 now rejects that insert too; this
+    // refusal is the readable one, and it still guarantees what this test has
+    // always been about: no `collects` rewrite for a handle the storefront
+    // computes itself.
     expect(state.status).toBe('error');
     expect(payloadOf()).toEqual({});
     expect(rpcCalls()).toHaveLength(0);

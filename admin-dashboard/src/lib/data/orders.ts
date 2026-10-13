@@ -262,7 +262,7 @@ export async function orderSummary(): Promise<OrderSummary> {
  * permission-denied error instead.
  */
 async function netRevenue(): Promise<number> {
-  const supabase = await reader({ service: true });
+  const supabase = await reader();
   const { data, error } = await supabase.rpc('revenue_by_day', {
     p_since: new Date(0).toISOString(),
   });
@@ -434,7 +434,7 @@ async function fulfillmentItems(
  */
 async function refundLinksFor(transactionIds: number[]): Promise<RefundTransaction[]> {
   if (transactionIds.length === 0) return [];
-  const service = await reader({ service: true });
+  const service = await reader();
   return rows<RefundTransaction>(
     'refund_transactions',
     // No `created_at`: the column exists in the migration's `create table if

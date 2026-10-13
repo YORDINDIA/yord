@@ -56,7 +56,7 @@ export function revenueWindowStart(days: number): Date {
  * cookie-backed session client gets a permission-denied error instead.
  */
 export async function revenueByDay(days: number): Promise<RevenueSummary> {
-  const supabase = await reader({ service: true });
+  const supabase = await reader();
   const since = revenueWindowStart(days);
 
   const { data, error } = await supabase.rpc('revenue_by_day', {
@@ -116,7 +116,7 @@ export interface TopProductsResult {
  */
 export async function topProductsByUnits(limit = 8): Promise<TopProductsResult> {
   // Service client: granted only to `service_role`, like `revenue_by_day`.
-  const supabase = await reader({ service: true });
+  const supabase = await reader();
   const { data, error } = await supabase.rpc('top_products_by_units', { p_limit: limit });
   if (error) fail('line_items', error);
 

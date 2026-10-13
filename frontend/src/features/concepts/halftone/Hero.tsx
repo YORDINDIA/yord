@@ -8,10 +8,10 @@ import { RevealText } from './Reveal';
 import { RingCta } from './RingCta';
 
 const SLIDES = [
-  '/artists/coldplay-hero.png',
-  '/artists/diljit-hero.png',
-  '/artists/karan-aujla-hero.png',
-  '/artists/taylor-hero.png',
+  '/artists/coldplay-hero.webp',
+  '/artists/diljit-hero.webp',
+  '/artists/karan-aujla-hero.webp',
+  '/artists/taylor-hero.webp',
 ];
 
 const STATS = [

@@ -1,0 +1,405 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   CSS entrance reveals — the canonical copy.
+
+   This file lives in `features/ui` because the reveals are a primitive:
+   `SectionDivider` is a `features/ui` component, and pointing it at the
+   `features/home` copy made the home slice impossible to remove without
+   breaking every section boundary on the site. The home slice now imports
+   this file; the duplicate it kept is gone, so this is the only copy.
+
+   These classes replace the framer-motion `whileInView` entrances, so the
+   sections stop shipping one motion component (and its hydration) per item and
+   the framer-motion chunk leaves the home page's graph.
+
+   Two rules make this safe to ship:
+
+   1. The un-animated base state is always fully visible. Every hidden state
+      lives inside `@supports (animation-timeline: view())` AND
+      `prefers-reduced-motion: no-preference`, so a browser without
+      scroll-driven animations — or a reduced-motion visitor — paints the plain
+      layout. Nothing outside those blocks may hide content.
+
+   2. `view()` resolves against the nearest ancestor *scroll container*.
+      `overflow: hidden` and `overflow-x: auto` are scroll containers even when
+      nothing can scroll them, which freezes the timeline (verified in Chrome:
+      a frozen timeline pins at its end state there, so the reveal simply never
+      plays). Sections that reveal their children therefore clip with
+      `.reveal-clip`, and no reveal class is used inside the horizontal rails —
+      those items stay visible.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Clips both axes like `overflow-hidden` but is not a scroll container, so
+   `view()` timelines still resolve against the page. */
+.reveal-clip {
+  overflow: hidden; /* fallback for engines without `overflow: clip` */
+  overflow: clip;
+}
+
+/* ---------- scroll-driven reveals (the element's own timeline) ------------- */
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal-up,
+    .reveal-left,
+    .reveal-right,
+    .reveal-fade,
+    .reveal-scale {
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+      animation-fill-mode: both;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .reveal-up {
+      animation-name: reveal-up;
+    }
+
+    .reveal-left {
+      animation-name: reveal-left;
+    }
+
+    .reveal-right {
+      animation-name: reveal-right;
+    }
+
+    .reveal-fade {
+      animation-name: reveal-fade;
+    }
+
+    .reveal-scale {
+      animation-name: reveal-scale;
+    }
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reveal-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reveal-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reveal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reveal-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- reveals driven by a container's timeline (SectionDivider) ------
+   `view-timeline-name` resolves through the ancestor chain, so every divider
+   instance can reuse the same name. Percentages are of the container's cover
+   range (viewport height + the container), which gives a 1px line a usable
+   scroll distance — its own `entry` range would be 1px. */
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal-timeline {
+      view-timeline-name: --reveal-timeline;
+    }
+
+    .reveal-bar,
+    .reveal-ornament,
+    .reveal-soft,
+    .reveal-draw {
+      animation-timeline: --reveal-timeline;
+      animation-fill-mode: both;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .reveal-bar {
+      animation-name: reveal-line-x;
+      animation-range: cover 0% cover 14%;
+    }
+
+    .reveal-bar--from-right {
+      transform-origin: right center;
+    }
+
+    .reveal-bar--from-left {
+      transform-origin: left center;
+    }
+
+    .reveal-ornament {
+      animation-name: reveal-ornament;
+      animation-range: cover 4% cover 22%;
+    }
+
+    .reveal-soft {
+      animation-name: reveal-fade;
+      animation-range: cover 0% cover 12%;
+    }
+
+    .reveal-soft--late {
+      animation-range: cover 6% cover 20%;
+    }
+
+    .reveal-draw {
+      animation-name: reveal-draw;
+      animation-range: cover 8% cover 28%;
+      /* pathLength="1" on the path makes these user units the whole outline */
+      stroke-dasharray: 1;
+    }
+  }
+}
+
+@keyframes reveal-line-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes reveal-ornament {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reveal-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- state-driven animations (no scroll timeline) ------------------ */
+
+/* Newsletter orb: the wrapper breathes (`scale`/`opacity`, both composited) and
+   the blurred orb inside it is static. `scale` (not `transform`) leaves the
+   wrapper's centering translate alone. */
+.newsletter-orb {
+  animation: newsletter-orb-breathe 8s ease-in-out infinite;
+}
+
+@keyframes newsletter-orb-breathe {
+  0%,
+  100% {
+    scale: 1;
+    opacity: 0.05;
+  }
+  50% {
+    scale: 1.1;
+    opacity: 0.08;
+  }
+}
+
+.newsletter-sparkle {
+  animation: newsletter-sparkle 3s ease-in-out infinite;
+}
+
+@keyframes newsletter-sparkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(15deg) scale(1.2);
+  }
+  50% {
+    transform: rotate(-15deg) scale(1);
+  }
+  75% {
+    transform: rotate(0deg) scale(1.1);
+  }
+}
+
+.newsletter-particle {
+  animation: newsletter-particle-burst 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes newsletter-particle-burst {
+  from {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--particle-x, 0px), var(--particle-y, 0px)) scale(0);
+    opacity: 0;
+  }
+}
+
+.newsletter-success {
+  animation: newsletter-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.newsletter-success-icon {
+  animation: newsletter-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+
+@keyframes newsletter-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes newsletter-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.newsletter-error {
+  animation: newsletter-error-in 0.25s ease-out both;
+}
+
+@keyframes newsletter-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.newsletter-icon {
+  transition:
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.newsletter-icon:hover {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 60px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.newsletter-icon-pulse {
+  animation: newsletter-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes newsletter-icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Brand story: the value cards keep their hover lift in CSS and the glyph
+   breathes. `scale` keeps the hover lift clear of the reveal's transform. */
+.brand-value {
+  transition: scale 0.3s ease;
+}
+
+.brand-value:hover {
+  scale: 1.02;
+}
+
+.brand-value-icon {
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.brand-value:hover .brand-value-icon {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.brand-value-glyph {
+  animation: brand-value-breathe 4s ease-in-out infinite;
+}
+
+@keyframes brand-value-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* ---------- reduced motion: everything in this file is off ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up,
+  .reveal-left,
+  .reveal-right,
+  .reveal-fade,
+  .reveal-scale,
+  .reveal-bar,
+  .reveal-ornament,
+  .reveal-soft,
+  .reveal-draw,
+  .newsletter-orb,
+  .newsletter-sparkle,
+  .newsletter-particle,
+  .newsletter-success,
+  .newsletter-success-icon,
+  .newsletter-error,
+  .newsletter-icon-pulse,
+  .brand-value-glyph {
+    animation: none;
+  }
+
+  /* The burst is pure decoration: without its animation it would freeze as a
+     ring of dots, so it is dropped entirely. */
+  .newsletter-particle {
+    display: none;
+  }
+}

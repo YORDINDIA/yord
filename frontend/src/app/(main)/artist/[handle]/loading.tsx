@@ -1,12 +1,13 @@
 import { Skeleton } from '@/features/ui/Skeleton';
+import { Container } from '@/features/ui/Container';
 
 export default function ArtistLoading() {
   return (
-    <main className="min-h-screen bg-scrim">
+    <div tabIndex={-1} className="min-h-screen bg-scrim">
       <Skeleton variant="hero" />
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
-        <Skeleton variant="grid" count={8} />
-      </div>
-    </main>
+      <Container className="py-12">
+        <Skeleton variant="product-grid" count={8} />
+      </Container>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { claimCartForUser, releaseCartForUser } from '@/lib/stores/cartStore';
 import { useRouter } from 'next/navigation';
-import posthog from 'posthog-js';
+import { loadPostHog } from '@/providers/posthog-sdk';
 
 interface AuthState {
   user: User | null;
@@ -16,6 +16,21 @@ interface AuthState {
 interface UseAuthReturn extends AuthState {
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+}
+
+/**
+ * PostHog is optional (off without a real key) and its SDK is loaded on
+ * demand, so these are only ever reached by a signed-in visitor: `identify`
+ * waits for `init()` and `reset` is a no-op when analytics are off.
+ */
+function identifyUser(user: User) {
+  void loadPostHog().then((posthog) =>
+    posthog?.identify(user.id, { email: user.email }),
+  );
+}
+
+function resetAnalytics() {
+  void loadPostHog().then((posthog) => posthog?.reset());
 }
 
 export function useAuth(): UseAuthReturn {
@@ -41,7 +56,7 @@ export function useAuth(): UseAuthReturn {
 
       // Identify user if a session exists
       if (session?.user) {
-        posthog.identify(session.user.id, { email: session.user.email });
+        identifyUser(session.user);
         // Deferred until cart rehydration: claiming against store defaults
         // would be clobbered by the pending persist merge.
         claimCartForUser(session.user.id);
@@ -60,10 +75,10 @@ export function useAuth(): UseAuthReturn {
         });
 
         if (session?.user) {
-          posthog.identify(session.user.id, { email: session.user.email });
+          identifyUser(session.user);
           claimCartForUser(session.user.id);
         } else if (event === 'SIGNED_OUT') {
-          posthog.reset();
+          resetAnalytics();
           releaseCartForUser();
         }
       }

@@ -1,6 +1,6 @@
 // Checkout-gate tests. Real route-adjacent helpers are imported directly
-// (pricing, rate-limit, cart validation, search filter, redirect) so the
-// tests fail when the route rule changes. The only local mirror left is the
+// (pricing, shipping, rate-limit, cart validation, search filter, redirect) so
+// the tests fail when the route rule changes. The only local mirror left is the
 // HMAC comparison, which cannot be imported from the route module without
 // pulling in Next/Razorpay server deps; it replicates the exact
 // createHmac('sha256').update(`${orderId}|${paymentId}`) + timingSafeEqual
@@ -14,6 +14,7 @@ import {
   MAX_ORDER_LINES,
   MAX_QTY_PER_LINE,
 } from '@/lib/pricing';
+import { FREE_FAST_SHIPPING_THRESHOLD, shippingLabel } from '@/lib/shipping';
 import { EMAIL_RE, isRateLimited } from '@/lib/rate-limit';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
 import { buildSearchOrFilter } from '@/lib/search';
@@ -58,7 +59,9 @@ function variantRow(overrides: Record<string, unknown> = {}) {
     inventory_quantity: 10,
     title: 'M',
     product_id: 7,
-    products: { title: 'Tee' },
+    // The helper only sells variants whose parent product is `active`
+    // (products.status is part of its select).
+    products: { title: 'Tee', status: 'active' },
     ...overrides,
   };
 }
@@ -79,6 +82,23 @@ describe('checkout gates', () => {
     expect(total).toBe(2359);
     expect(totalPaise).toBe(235900);
     expect(computeTotals(0)).toEqual({ gstAmount: 0, total: 0, totalPaise: 0 });
+  });
+
+  it('never charges shipping at any cart value', () => {
+    // Both checkout routes charge `subtotal + GST` (computeTotals above) and
+    // the order row is written with `total_shipping_price: 0`. The shipping
+    // line is the only shipping surface, and at every value it must stay a
+    // free tier with no amount in it.
+    for (const subtotal of [0, 1, 499, 998, 999, 1999, 2000, 5000]) {
+      const label = shippingLabel(subtotal);
+      expect(label.startsWith('FREE')).toBe(true);
+      expect(label).not.toMatch(/[0-9]/);
+    }
+  });
+
+  it('gates only the shipping speed, never the price', () => {
+    expect(shippingLabel(FREE_FAST_SHIPPING_THRESHOLD - 1)).toBe('FREE Standard');
+    expect(shippingLabel(FREE_FAST_SHIPPING_THRESHOLD)).toBe('FREE Fast');
   });
 
   it('enforces MAX_ORDER_LINES=50 and MAX_QTY_PER_LINE=10', async () => {
@@ -119,6 +139,68 @@ describe('checkout gates', () => {
     expect(badPrice).toMatchObject({ ok: false, code: 'BAD_AMOUNT', status: 400 });
     const noStock = await validateCartLines(stubSupabase([variantRow({ inventory_quantity: 0 })]), [{ variantId: 1, quantity: 1 }]);
     expect(noStock).toMatchObject({ ok: false, code: 'OUT_OF_STOCK', status: 409 });
+  });
+
+  it('rejects variants whose product is not active', async () => {
+    // The variant lookup runs through the service client with no status
+    // predicate, so this check is the only thing keeping draft/archived
+    // products out of the money path.
+    for (const status of ['draft', 'archived', null, undefined]) {
+      const res = await validateCartLines(
+        stubSupabase([variantRow({ products: { title: 'Tee', status } })]),
+        [{ variantId: 1, quantity: 1 }]
+      );
+      expect(res).toMatchObject({
+        ok: false,
+        code: 'UNKNOWN_VARIANT',
+        error: 'Invalid cart items',
+        status: 400,
+      });
+    }
+    // A deleted parent row (embed null) has no status either: fail closed.
+    const orphan = await validateCartLines(stubSupabase([variantRow({ products: null })]), [
+      { variantId: 1, quantity: 1 },
+    ]);
+    expect(orphan).toMatchObject({ ok: false, code: 'UNKNOWN_VARIANT', status: 400 });
+    // ...while an active product still checks out.
+    const active = await validateCartLines(stubSupabase([variantRow()]), [
+      { variantId: 1, quantity: 1 },
+    ]);
+    expect(active.ok).toBe(true);
+  });
+
+  it('sums requested units per variant across duplicate lines', async () => {
+    // A crafted body can repeat a variantId (the store merges quantities, so
+    // this path is hand-built). 6 + 6 against 8 in stock must be a clean
+    // pre-capture 409, not a second decrement rejected after capture.
+    const stock8 = stubSupabase([variantRow({ inventory_quantity: 8 })]);
+    const oversold = await validateCartLines(stock8, [
+      { variantId: 1, quantity: 6 },
+      { variantId: 1, quantity: 6 },
+    ]);
+    expect(oversold).toMatchObject({
+      ok: false,
+      code: 'OUT_OF_STOCK',
+      error: 'Insufficient stock for one or more items',
+      status: 409,
+    });
+    // Exactly at stock is still allowed, and both lines are billed.
+    const exact = await validateCartLines(stock8, [
+      { variantId: 1, quantity: 4 },
+      { variantId: 1, quantity: 4 },
+    ]);
+    expect(exact.ok).toBe(true);
+    if (exact.ok) expect(exact.subtotal).toBe(8000);
+    // Summing one variant's lines must not spend another variant's stock.
+    const twoVariants = stubSupabase([
+      variantRow({ id: 1, inventory_quantity: 8 }),
+      variantRow({ id: 2, inventory_quantity: 2 }),
+    ]);
+    const mixed = await validateCartLines(twoVariants, [
+      { variantId: 1, quantity: 3 },
+      { variantId: 2, quantity: 3 },
+    ]);
+    expect(mixed).toMatchObject({ ok: false, code: 'OUT_OF_STOCK', status: 409 });
   });
 
   it('verifies HMAC in constant time; rejects tampered and short signatures', () => {

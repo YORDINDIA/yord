@@ -14,7 +14,10 @@ import '@/features/concepts/halftone/halftone.css';
 
 export const revalidate = 3600;
 
-export const metadata: Metadata = { title: 'Concept B Halftone' };
+export const metadata: Metadata = {
+  title: 'Concept B Halftone',
+  alternates: { canonical: '/concepts/halftone' },
+};
 
 /* A failed read degrades its own section, never the page. */
 const settle = <T,>(p: Promise<T>) => p.catch(() => null);
@@ -27,7 +30,7 @@ export default async function ConceptHalftonePage() {
   ]);
 
   return (
-    <main className={cn(boska.variable, panchang.variable, 'ht')}>
+    <div className={cn(boska.variable, panchang.variable, 'ht')}>
       <Hero />
       <DitherTear from="var(--ht-c-stage)" to="var(--ht-c-ink)" />
       <ArtistsSection artists={getShowcaseArtists()} />
@@ -39,6 +42,6 @@ export default async function ConceptHalftonePage() {
       <StorySection />
       <DitherTear from="var(--ht-c-stage)" to="var(--ht-c-ink)" />
       <NewsletterSection />
-    </main>
+    </div>
   );
 }

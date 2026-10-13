@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PHProvider } from '@/providers/PostHogProvider';
@@ -15,6 +15,27 @@ const CustomCursor = dynamic(
   () => import('@/features/ui/CustomCursor').then((mod) => mod.CustomCursor),
   { ssr: false }
 );
+
+const FINE_POINTER = '(pointer: fine)';
+
+function subscribePointer(onChange: () => void) {
+  const query = window.matchMedia(FINE_POINTER);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+/**
+ * `(pointer: fine)` as an external store. The server snapshot is false, so
+ * the server render and the hydration render agree; React re-renders with the
+ * real value once hydrated.
+ */
+function useFinePointer(): boolean {
+  return useSyncExternalStore(
+    subscribePointer,
+    () => window.matchMedia(FINE_POINTER).matches,
+    () => false,
+  );
+}
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   // One client per browser session (useState initializer, never recreated).
@@ -31,13 +52,19 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+
+  // The cursor is a fine-pointer affordance: on touch devices the component
+  // renders nothing, so not rendering it at all keeps its chunk (and
+  // framer-motion) from being fetched.
+  const finePointer = useFinePointer();
+
   return (
     <PHProvider>
       {/* ThemeProvider must sit above everything that reads a colour token. */}
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <PostHogPageView />
-          <CustomCursor />
+          {finePointer && <CustomCursor />}
           {children}
         </QueryClientProvider>
       </ThemeProvider>

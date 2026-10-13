@@ -32,8 +32,9 @@ export function organizationSchema() {
     url: BASE_URL,
     logo: `${BASE_URL}/icon-512.png`,
     description:
-      "India's premium concert merchandise store. Shop exclusive fan-made designs for 50+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, and more.",
-    foundingCountry: 'IN',
+      "India's premium concert merchandise store. Shop exclusive fan-made designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, and more.",
+    // No `foundingCountry`: it is not a schema.org Organization property (a
+    // validator flags it). The country lives on `areaServed` below.
     sameAs: [
       'https://instagram.com/yordindia',
       'https://youtube.com/@yordindia',
@@ -229,12 +230,12 @@ export function eventSchema(concert: Concert, image?: string) {
           },
         }
       : {}),
-    eventStatus:
-      concert.status === 'completed'
-        ? 'https://schema.org/EventScheduled'
-        : concert.status === 'upcoming'
-          ? 'https://schema.org/EventScheduled'
-          : 'https://schema.org/EventScheduled',
+    // Always EventScheduled. The ternary this replaces branched on
+    // `concert.status` ('completed' / 'upcoming' / 'announced') but returned
+    // EventScheduled from all three branches, so the distinction was never
+    // implemented — do not reintroduce it without mapping the statuses to real
+    // schema.org values (EventCancelled, EventPostponed, EventMovedOnline).
+    eventStatus: 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     location: {
       '@type': 'Place',

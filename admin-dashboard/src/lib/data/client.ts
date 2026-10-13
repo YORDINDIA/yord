@@ -42,12 +42,41 @@ export function fail(entity: string, error: DbError | null | undefined): never {
 
 /** Options shared by the read helpers. */
 export interface ReadOptions {
-  /** Use the service client (default-deny admin tables only). */
-  service?: boolean;
+  /**
+   * Read as the signed-in admin instead of through the service client.
+   *
+   * Only `getCurrentAdminId()` needs this: `auth.getUser()` reads the caller's
+   * cookies, and the service client has no session to read. Every other read in
+   * this layer wants the service client.
+   */
+  session?: boolean;
 }
 
+/**
+ * The client every read in this layer uses.
+ *
+ * Defaults to the **service** client, not the session-scoped one. RLS is on for
+ * every migrated table, and most of them have no policies at all — or a
+ * storefront-shaped one, where `products` is `status = 'active'` and
+ * `collections` is `published = true`. Reading with the caller's publishable
+ * session therefore hides exactly the rows an admin exists to manage, and hides
+ * them *silently*: the query succeeds and returns nothing, so the page renders a
+ * plausible empty state instead of an error.
+ *
+ * Measured 2026-10-05 against the live project, impersonating the admin with the
+ * session client: 0 of 612 orders, 0 of 635 customers, 0 of 10 discount codes,
+ * 0 of 237 transactions, and the 2 draft products and 4 unpublished collections
+ * were invisible — so Orders, Customers, Discounts and Transactions were all
+ * empty pages, and a newly created product (which always starts as `draft`)
+ * vanished from the list the moment it was saved.
+ *
+ * The admin is authenticated before any of this runs — `middleware.ts` and
+ * `(admin)/layout.tsx` both read `admin_users` with their own session-scoped
+ * client — so bypassing RLS here is the intended model, not a hole. Pass
+ * `session: true` only when a read genuinely depends on who is signed in.
+ */
 export async function reader(options: ReadOptions = {}): Promise<ServerClient> {
-  return options.service ? createServiceClient() : createServerClient();
+  return options.session ? createServerClient() : createServiceClient();
 }
 
 /**

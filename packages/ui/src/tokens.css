@@ -82,6 +82,14 @@
   --focus-ring: #6B5019;      /* 6.84:1 on page, 7.54:1 on raised */
 
   --success: #1A7F37;         /* 4.94:1 on page, 4.72:1 on card */
+  /* Errors and invalid-field edges. Dark red rather than a Tailwind red-400:
+     the light palette has no room for a bright red as readable text. */
+  --danger: #B91C1C;          /* 5.88:1 on page, 5.47:1 on inset */
+  /* Scarcity and low stock — "Only 3 left", a stock chip — never an error and
+     never the brand accent. Orange is deliberate on both counts: it is cooler
+     than --danger, which it sits beside in the cart, and it cannot be mistaken
+     for the bronze --accent. 4.70:1 on page, 5.00:1 on card. */
+  --warning: #C2410C;
 
   /* ── On-media (theme-invariant: always dark) ─────────────────────────────
      Text and scrims that sit ON TOP of a photo, video, or artwork. These never
@@ -119,6 +127,18 @@
   --linkin-secondary: #1C1C1C;
   --weeknd-primary: #FF1744;
   --weeknd-secondary: #212121;
+
+  /* ── Collection identity colours (theme-invariant) ───────────────────────
+     Per-collection accents for the collection header's decorative blob and
+     title bar (never text), keyed on the collection handle. Like the artist
+     colours above they are brand marks and do not flip with the theme; the
+     collections without an entry here fall back to --accent. */
+  --collection-bestsellers: #FFD700;
+  --collection-limited-edition: #FF4444;
+  --collection-sale: #FF6B6B;
+  --collection-hoodies: #8B5CF6;
+  --collection-t-shirts: #3B82F6;
+  --collection-accessories: #10B981;
 
   /* ── Legacy semantic aliases ────────────────────────────────────────────
      Pre-existing names kept so the globals.css base styles resolve. New code
@@ -202,6 +222,10 @@
   --focus-ring: #FFD966;
 
   --success: #4ADE80;         /* 10.9:1 on page */
+  --danger: #F87171;          /* 7.16:1 on page, 6.29:1 on raised */
+  /* Orange-400 rather than an amber: amber sits too close to the dark theme's
+     gold --accent to read as a separate signal. 8.75:1 on page, 8.34:1 on card. */
+  --warning: #FB923C;
 
   --glass-bg: rgba(17, 17, 17, 0.8);
   --glass-border: rgba(255, 255, 255, 0.05);

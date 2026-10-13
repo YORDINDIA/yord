@@ -82,6 +82,70 @@ describe('sanitizeHtml', () => {
     expect(sanitizeHtml(undefined)).toBe('');
     expect(sanitizeHtml('')).toBe('');
   });
+
+  it('strips event handlers whose separator is a slash, not whitespace', () => {
+    // `<svg/onload=…>` fires on insertion; the old `\s+on…` pattern required
+    // whitespace before the attribute name and let the slash form through.
+    expect(sanitizeHtml('<img/src=x/onerror=alert(1)>')).not.toContain('onerror');
+    expect(sanitizeHtml('<body onload=alert(1)>')).not.toContain('onload');
+    expect(sanitizeHtml('<svg/onLoad=alert(1)>')).toBe('');
+  });
+
+  it('removes svg and math containers, which are script-capable', () => {
+    expect(sanitizeHtml('<svg onload=alert(1)>')).toBe('');
+    expect(sanitizeHtml('<svg><script>alert(1)</script></svg>')).toBe('');
+    expect(sanitizeHtml('</svg><p>ok</p>')).toBe('<p>ok</p>');
+    const mxss = '<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>';
+    expect(sanitizeHtml(mxss)).not.toContain('onerror');
+    expect(sanitizeHtml(mxss)).not.toContain('<math');
+  });
+
+  it('neutralizes URL attributes whose separator is a slash or a quote', () => {
+    // `<a/href=…>` and `<a title="x"href=…>` are both real attributes to the
+    // browser; only the first was caught by the old `\s(href|src|…)` pattern.
+    expect(sanitizeHtml('<a/href="javascript:alert(1)">x</a>')).toContain('href="#"');
+    expect(sanitizeHtml('<a/href="javascript:alert(1)">x</a>')).not.toContain('javascript:');
+    expect(sanitizeHtml('<a title="x"href="javascript:alert(1)">x</a>')).not.toContain(
+      'javascript:',
+    );
+  });
+
+  it('neutralizes formaction, which can carry a scheme like href', () => {
+    // A button's formaction overrides the form's action at submit time, so a
+    // javascript: value there is as live as one in href.
+    const out = sanitizeHtml('<button formaction="javascript:alert(1)">x</button>');
+    expect(out).toContain('formaction="#"');
+    expect(out).not.toContain('javascript:');
+    expect(out).toContain('x');
+  });
+
+  it('over-strips a quoted lookalike attribute — accepted, safe direction', () => {
+    // The attribute matchers accept a quote prefix (that is what catches
+    // `<a title="x"href=…>`), so they also fire on `one=1` inside a quoted
+    // value: `<a title="one=1">` loses the value and its closing quote. This
+    // over-stripping is deliberate — the regex is not reworked around it — and
+    // the test pins the behavior so a rework notices the trade-off.
+    expect(sanitizeHtml('<a title="one=1">x</a>')).toBe('<a title=">x</a>');
+  });
+
+  it('decodes the whitespace references a URL parser strips, and both numeric prefixes', () => {
+    // The URL parser removes tab and newline before it reads the scheme, so
+    // `java&Tab;script:` is a live `javascript:` link once the browser decodes.
+    expect(sanitizeHtml('<a href="java&Tab;script:alert(1)">x</a>')).toContain('href="#"');
+    expect(sanitizeHtml('<a href="java&NewLine;script:alert(1)">x</a>')).toContain('href="#"');
+    expect(sanitizeHtml('<a href="javascript&#58;alert(1)">x</a>')).toContain('href="#"');
+    // `&#X6a;` is as valid to the browser as `&#x6a;`; the lowercase-only
+    // decoder left `&#X6a;avascript:` live.
+    expect(sanitizeHtml('<a href="&#X6a;avascript:alert(1)">x</a>')).toContain('href="#"');
+    expect(sanitizeHtml('<a href="&#X6a;avascript:alert(1)">x</a>')).not.toContain('avascript');
+  });
+
+  it('does not mistake prose containing "on" and "=" for an attribute', () => {
+    const prose = '<p>Order 2 = 4 and so on = yes</p>';
+    expect(sanitizeHtml(prose)).toBe(prose);
+    const proseWithOn = '<p>Buy one, get one on = free</p>';
+    expect(sanitizeHtml(proseWithOn)).toBe(proseWithOn);
+  });
 });
 
 describe('slugify', () => {

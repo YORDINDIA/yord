@@ -15,7 +15,7 @@ const FAQ_DATA: FAQCategory[] = [
     items: [
       {
         question: 'Where can I buy concert merchandise in India?',
-        answer: 'YORD India is India\'s leading online store for premium concert merchandise. We offer fan-made, artist-inspired designs for 50+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, Linkin Park, AP Dhillon, and many more. Shop online at yordindia.com with pan-India delivery.',
+        answer: 'YORD India is India\'s leading online store for premium concert merchandise. We offer fan-made, artist-inspired designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, Linkin Park, AP Dhillon, and many more. Shop online at yordindia.com with pan-India delivery.',
       },
       {
         question: 'Which artist merchandise do you carry?',
@@ -31,7 +31,7 @@ const FAQ_DATA: FAQCategory[] = [
       },
       {
         question: 'What is the best website to buy concert merch in India?',
-        answer: 'YORD India (yordindia.com) is India\'s premier destination for premium concert merchandise. We offer exclusive fan-made designs, premium quality materials, competitive pricing in INR, and reliable pan-India shipping with free delivery on orders above ₹1,999.',
+        answer: 'YORD India (yordindia.com) is India\'s premier destination for premium concert merchandise. We offer exclusive fan-made designs, premium quality materials, competitive pricing in INR, and reliable pan-India shipping with free delivery on every order.',
       },
     ],
   },
@@ -40,7 +40,7 @@ const FAQ_DATA: FAQCategory[] = [
     items: [
       {
         question: 'How long does shipping take?',
-        answer: 'Standard shipping within India takes 5-7 business days. Metro cities typically receive orders within 3-5 business days. We offer express shipping options at checkout for faster delivery.',
+        answer: 'Standard shipping within India takes 5-7 business days. Metro cities typically receive orders within 3-5 business days. Orders above ₹1,999 are sent with our fast service and smaller orders ship standard — both free, and the speed is set automatically by the order value.',
       },
       {
         question: 'Do you ship internationally?',
@@ -52,7 +52,7 @@ const FAQ_DATA: FAQCategory[] = [
       },
       {
         question: 'What are the shipping charges?',
-        answer: 'We offer free shipping on all orders above ₹1,999. For orders below this amount, a flat shipping fee of ₹99 applies.',
+        answer: 'Shipping is free on every order, at every value — no shipping fee applies at any order total. Orders above ₹1,999 travel with our fast service; everything else ships standard.',
       },
     ],
   },

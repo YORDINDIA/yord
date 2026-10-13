@@ -28,3 +28,27 @@ zone_id = "26d8d491decdc6f30b65bee92b7130be"
 [vars]
 NEXT_PUBLIC_APP_NAME = "YORD India"
 NEXT_PUBLIC_POSTHOG_HOST = "https://us.i.posthog.com"
+# Rewrites stored `*.r2.dev` image URLs to the bucket's custom domain
+# (media.yordindia.com), which is proxied through the zone CDN. Must match
+# the build-time value in the root .env (the loader runs client-side too).
+NEXT_PUBLIC_MEDIA_BASE_URL = "https://media.yordindia.com"
+
+# ISR/data cache: R2-backed incremental cache with a regional (edge) Cache API
+# layer in front of it, plus a Durable Object queue that dedupes time-based
+# revalidations. Wired in open-next.config.ts. Without these bindings the
+# adapter falls back to a dummy cache and every HTML request re-renders.
+# See https://opennext.js.org/cloudflare/caching
+[[r2_buckets]]
+binding = "NEXT_INC_CACHE_R2_BUCKET"
+bucket_name = "yord-cache"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "yord-frontend"
+
+[durable_objects]
+bindings = [{ name = "NEXT_CACHE_DO_QUEUE", class_name = "DOQueueHandler" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DOQueueHandler"]

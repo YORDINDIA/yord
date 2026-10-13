@@ -1,39 +1,43 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/features/ui/Button';
-import { SplitText } from '@/features/ui/SplitText';
+import { CtaLink } from '@/features/ui/CtaLink';
 import { AnimatedCounter } from '@/features/ui/AnimatedCounter';
 
+/**
+ * Home hero.
+ *
+ * Performance contract: the H1 is the LCP element, so it paints at opacity 1 in
+ * the SSR HTML and its reveal is a CSS transform animation (`.hero-line`) — not
+ * a hydration-time framer-motion stagger. Every other entrance is a CSS class
+ * with `animation-fill-mode: both`, so nothing flashes in before it animates.
+ * There is no scroll listener and no React state behind the cursor gradient:
+ * the pointer position is written to `--hero-mx`/`--hero-my` on the section
+ * through a ref, which is why this file no longer imports framer-motion.
+ */
 export function HeroSection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 });
+  const containerRef = useRef<HTMLElement>(null);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end start'],
-  });
-
-  const y = useTransform(scrollYProgress, [0, 1], [0, 200]);
-  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.5], [1, 1.1]);
-
-  // Track mouse position for cursor-reactive gradient
   useEffect(() => {
+    const el = containerRef.current;
+    // Pointer-fine only: a touch device has no cursor to react to.
+    if (!el || !window.matchMedia('(pointer: fine)').matches) return;
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setMousePosition({
-          x: (e.clientX - rect.left) / rect.width,
-          y: (e.clientY - rect.top) / rect.height,
-        });
-      }
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      el.style.setProperty(
+        '--hero-mx',
+        `${((e.clientX - rect.left) / rect.width) * 100}%`
+      );
+      el.style.setProperty(
+        '--hero-my',
+        `${((e.clientY - rect.top) / rect.height) * 100}%`
+      );
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
@@ -42,33 +46,20 @@ export function HeroSection() {
       ref={containerRef}
       className="relative h-screen min-h-[700px] overflow-hidden"
     >
-      {/* Background Video/Image with Parallax */}
-      <motion.div
-        className="absolute inset-0"
-        style={{ y, scale }}
-      >
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-scrim/40 via-scrim/20 to-surface-page z-10" />
-
-        {/* Subtle Noise Texture */}
-        <div
-          className="absolute inset-0 z-[11] pointer-events-none opacity-[0.02]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-          }}
-        />
+      {/* Background */}
+      <div className="absolute inset-0">
+        {/* Gradient Overlay — the hero is full-bleed media and stays DARK in
+            both themes, so this ends on the fixed scrim and never on the page
+            surface: `to-surface-page` painted the light page colour under the
+            ivory headline in light mode. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-scrim/40 via-scrim/20 to-scrim z-10" />
 
         {/* Enhanced Animated Gradient Mesh Background */}
-        {/* The hero is full-bleed media and stays DARK in both themes — it is the
-            one page region that is not a page surface. Using --surface-page here
-            would render it light in light mode and break every on-media token
-            above it (and the transparent header that floats over it), so this
-            paints the fixed scrim colour instead. */}
         <div className="absolute inset-0 bg-scrim">
           <div className="absolute inset-0 opacity-40">
             {/* Primary Gold Orb - larger, more prominent */}
             <div
-              className="absolute w-[800px] h-[800px] blur-[150px] animate-float animate-liquid-morph"
+              className="hero-float absolute w-[800px] h-[800px] blur-[80px]"
               style={{
                 top: '10%',
                 left: '20%',
@@ -78,7 +69,7 @@ export function HeroSection() {
             />
             {/* Secondary Purple Orb */}
             <div
-              className="absolute w-[600px] h-[600px] blur-[120px] animate-float animate-liquid-morph"
+              className="hero-float absolute w-[600px] h-[600px] blur-[60px]"
               style={{
                 bottom: '15%',
                 right: '15%',
@@ -89,7 +80,7 @@ export function HeroSection() {
             />
             {/* Accent Rose Orb */}
             <div
-              className="absolute w-[500px] h-[500px] blur-[100px] animate-float animate-liquid-morph"
+              className="hero-float absolute w-[500px] h-[500px] blur-[48px]"
               style={{
                 top: '40%',
                 right: '25%',
@@ -101,8 +92,11 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* Sparkle Particles */}
-        <div className="absolute inset-0 pointer-events-none z-[4]">
+        {/* Sparkle Particles — the twinkle only runs on desktop; the dots rest
+            at opacity 0, so smaller viewports paint nothing. `hidden lg:block`
+            keeps them out of the mobile DOM entirely: the CSS gate already
+            stopped the animation, this stops the paint. */}
+        <div className="absolute inset-0 pointer-events-none z-[4] hidden lg:block">
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
@@ -116,179 +110,135 @@ export function HeroSection() {
           ))}
         </div>
 
-        {/* Cursor-Reactive Gradient */}
-        <div
-          className="absolute inset-0 pointer-events-none z-[5] transition-opacity duration-500"
-          style={{
-            background: `radial-gradient(
-              800px circle at ${mousePosition.x * 100}% ${mousePosition.y * 100}%,
-              rgba(255, 217, 102, 0.08) 0%,
-              transparent 50%
-            )`,
-          }}
-        />
-      </motion.div>
+        {/* Cursor-Reactive Gradient — position comes from --hero-mx/--hero-my */}
+        <div className="hero-cursor-glow absolute inset-0 pointer-events-none z-[5]" />
+      </div>
 
       {/* Content - Grid Layout to prevent overlap */}
-      <motion.div
-        className="relative z-20 h-full grid grid-rows-[1fr_auto_auto] px-6"
-        style={{ opacity }}
-      >
+      <div className="relative z-20 h-full grid grid-rows-[1fr_auto_auto] px-6">
         {/* Zone 1: Main Content - vertically centered */}
         <div className="flex flex-col items-center justify-center text-center pt-20">
-          {/* Animated Diamond Ornament */}
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
-            className="mb-6"
-          >
+          {/* Diamond Ornament */}
+          <div className="hero-enter mb-6">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="mx-auto">
-              <motion.path
+              <path
                 d="M12 2L22 12L12 22L2 12L12 2Z"
                 stroke="var(--accent-on-media)"
                 strokeWidth="1"
                 fill="none"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1.5, delay: 0.3 }}
               />
-              <motion.path
+              <path
                 d="M12 6L18 12L12 18L6 12L12 6Z"
                 stroke="var(--accent-on-media)"
                 strokeWidth="0.5"
                 fill="none"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 0.5 }}
-                transition={{ duration: 1.2, delay: 0.6 }}
+                opacity="0.5"
               />
             </svg>
-          </motion.div>
+          </div>
 
           {/* Tagline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.3em] text-accent-on-media mb-6"
-          >
+          <p className="hero-enter hero-enter-1 font-accent text-sm tracking-[0.3em] text-accent-on-media mb-6">
             LUXURY CONCERT FASHION
-          </motion.p>
+          </p>
 
-          {/* Main Headline with Split Text Animation */}
+          {/* Main Headline — plain spans: the reveal is CSS-only and animates
+              transform, while the text itself is opaque from the first paint.
+              The gold line keeps `background-clip: text` on the outer span and
+              the transform on the inner one, which is the shape the per-letter
+              reveal used and the one that clips the gradient to the text box. */}
           <h1 className="display-text text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl text-text-on-media mb-6 max-w-5xl">
             <span className="block overflow-hidden">
-              <SplitText text="Where Music" delay={0.4} />
+              <span className="hero-line block">Where Music</span>
             </span>
             <span className="block overflow-hidden relative">
-              <span className="gold-text-animated">
-                <SplitText text="Meets Luxury" delay={0.7} />
+              <span className="gold-text-animated inline-block">
+                <span className="hero-line hero-line-2 inline-block">
+                  Meets Luxury
+                </span>
               </span>
             </span>
           </h1>
 
           {/* Subheadline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1.2 }}
-            className="font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-text-on-media-muted max-w-2xl mb-10"
-          >
+          <p className="hero-enter hero-enter-2 font-heading text-xl md:text-2xl text-text-on-media-muted max-w-2xl mb-10">
             Premium artist merchandise and concert couture for devoted fans.
             Coldplay. Taylor Swift. Diljit Dosanjh. And more.
-          </motion.p>
+          </p>
 
           {/* CTA Buttons with Enhanced Hover Effects */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1.4 }}
-            className="flex flex-col sm:flex-row gap-4"
-          >
-            <motion.div
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative group"
-            >
-              <Link href="/collections">
-                <Button variant="gold" size="lg" data-cursor="pointer" className="relative z-10">
-                  SHOP COLLECTIONS
-                </Button>
-              </Link>
-              {/* Gold glow on hover */}
-              <div className="absolute inset-0 bg-accent-tint-strong blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 rounded-sm" />
-            </motion.div>
+          <div className="hero-enter hero-enter-3 flex flex-col sm:flex-row gap-4">
+            <div className="relative group transition-transform duration-300 ease-out hover:scale-[1.02] hover:-translate-y-0.5">
+              <CtaLink
+                href="/collections"
+                variant="gold"
+                size="lg"
+                data-cursor="pointer"
+                className="relative z-10"
+              >
+                SHOP COLLECTIONS
+              </CtaLink>
+              {/* Gold glow on hover — on-media accent, so it stays gold over the
+                  hero in light mode instead of turning into a pale page-coloured
+                  blob. */}
+              <div className="absolute inset-0 bg-accent-on-media/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 rounded-sm" />
+            </div>
 
-            <motion.div
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Link href="/artists">
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  data-cursor="pointer"
-                  className="text-text-on-media border-text-on-media hover:bg-text-on-media hover:text-scrim"
-                >
-                  EXPLORE ARTISTS
-                </Button>
-              </Link>
-            </motion.div>
-          </motion.div>
+            <div className="transition-transform duration-300 ease-out hover:scale-[1.02] hover:-translate-y-0.5">
+              <CtaLink
+                href="/artists"
+                variant="secondary"
+                size="lg"
+                data-cursor="pointer"
+                className="text-text-on-media border-text-on-media hover:bg-text-on-media hover:text-scrim"
+              >
+                EXPLORE ARTISTS
+              </CtaLink>
+            </div>
+          </div>
         </div>
 
         {/* Zone 2: Stats Bar with Premium Styling */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 1.6 }}
-          className="flex justify-center py-6"
-        >
+        <div className="hero-enter hero-enter-4 flex justify-center py-6">
           <div className="relative max-w-3xl w-full stats-premium-border">
-            <div className="glass py-5 px-8 flex items-center justify-center gap-8 sm:gap-16">
+            {/* On-media panel, not `.glass`: the hero is dark in both themes, so
+                the light theme's white glass would put a bright slab under the
+                ivory stat labels. */}
+            <div className="bg-scrim/60 backdrop-blur-md border border-white/10 py-5 px-8 flex items-center justify-center gap-8 sm:gap-16">
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
+                <p className="font-display text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={50000} formatAbbreviated suffix="+" />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">HAPPY FANS</p>
+                <p className="font-accent text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">HAPPY FANS</p>
               </div>
               <div className="gradient-divider" />
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
+                <p className="font-display text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={127} />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">COUNTRIES</p>
+                <p className="font-accent text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">COUNTRIES</p>
               </div>
               <div className="gradient-divider" />
               <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
+                <p className="font-display text-2xl sm:text-3xl text-accent-on-media group-hover:text-text-on-media transition-colors">
                   <AnimatedCounter value={15} suffix="+" />
                 </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">ARTISTS</p>
+                <p className="font-accent text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">ARTISTS</p>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Zone 3: Scroll Indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2 }}
-          className="flex justify-center pb-8"
-        >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="flex flex-col items-center gap-2 text-text-on-media-muted scroll-indicator-line cursor-pointer group"
-          >
-            <span className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] group-hover:text-accent-on-media transition-colors">
+        <div className="hero-enter hero-enter-5 flex justify-center pb-8">
+          <div className="hero-bounce flex flex-col items-center gap-2 text-text-on-media-muted scroll-indicator-line cursor-pointer group">
+            <span className="font-accent text-[10px] tracking-[0.2em] group-hover:text-accent-on-media transition-colors">
               SCROLL
             </span>
-            <ChevronDown size={20} className="group-hover:text-accent-on-media transition-colors animate-gold-breath" />
-          </motion.div>
-        </motion.div>
-      </motion.div>
+            <ChevronDown size={20} className="group-hover:text-accent-on-media transition-colors" />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

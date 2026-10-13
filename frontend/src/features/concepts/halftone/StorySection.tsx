@@ -39,7 +39,7 @@ export function StorySection() {
         </div>
 
         <DitherImage
-          src="/artists/taylor-hero.png"
+          src="/artists/taylor-hero.webp"
           alt="Taylor Swift on stage"
           sizes="(min-width: 1440px) 1312px, 92vw"
           className="ht-story__band"

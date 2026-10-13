@@ -163,11 +163,18 @@ concatenated onto a token.
 ### Images
 Delivery runs through Cloudflare R2, not Next's optimizer:
 `src/lib/media-loader.ts` is wired as `images.loaderFile` in `next.config.ts`.
-R2 stores one web-optimized WebP variant per image (max 1600px, built on upload),
-so the loader returns stored URLs unchanged and rewrites stored `*.r2.dev`
-origins to `NEXT_PUBLIC_MEDIA_BASE_URL` when it is set; every other source
-(Shopify CDN, legacy Supabase, local `/public` files such as
-`/placeholder-product.png`) passes through untouched. `remotePatterns` is
+R2 stores one web-optimized WebP variant per image (max 1600px, built on upload).
+Product images (`products/<handle>/<name>.webp`) *also* have pre-generated
+320/640/960/1280 px siblings (`<name>-<width>.webp`, from
+`scripts/generate_image_variants.py`), and the loader maps the width
+`next/image` asks for onto the matching sibling — so a phone fetches a 320/640 px
+file instead of the 1600 px original. Everything else — artist tiles, concert
+art, collection covers, Shopify CDN, legacy Supabase, local `/public` files such
+as `/placeholder-product.png` — passes through untouched, and a stored `*.r2.dev`
+origin is rewritten to `NEXT_PUBLIC_MEDIA_BASE_URL` when it is set. The variant
+rewrite is only safe once the sibling backfill has run: deploying this loader
+first makes every product image 404, so ship the two together, backfill first.
+`remotePatterns` is
 deliberately absent — a custom loader owns all URLs, so add hosts or rewrites in
 the loader, with tests in `src/lib/__tests__/media-loader.test.ts`.
 

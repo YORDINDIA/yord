@@ -48,7 +48,7 @@ export async function validateCartLines(
 
   const { data: variants, error: variantsError } = await supabase
     .from('product_variants')
-    .select('id, price, inventory_quantity, title, product_id, products ( title )')
+    .select('id, price, inventory_quantity, title, product_id, products ( title, status )')
     .in('id', variantIds);
 
   if (
@@ -74,11 +74,22 @@ export async function validateCartLines(
     inventory_quantity: number | null;
     title: string | null;
     product_id: number;
-    products: { title: string } | { title: string }[] | null;
+    products:
+      | { title: string; status: string | null }
+      | { title: string; status: string | null }[]
+      | null;
   }[]) {
-    const productTitle = Array.isArray(v.products)
-      ? v.products[0]?.title
-      : v.products?.title;
+    const product = Array.isArray(v.products) ? v.products[0] : v.products;
+    // Only an `active` product is on sale. This lookup runs through the
+    // service client (RLS bypassed) and carries no status predicate of its
+    // own, so without this a variant id belonging to a draft or archived
+    // product could be checked out at its real price even though the
+    // storefront never links it. A variant whose parent row is missing has no
+    // status either and fails closed the same way. Skipping the row (rather
+    // than rejecting here) keeps the `!variant` branch below as the single
+    // source of the UNKNOWN_VARIANT response.
+    if (!product || product.status !== 'active') continue;
+    const productTitle = product.title;
     // Preserve null/empty as NaN (invalid) BEFORE numeric conversion: a NULL
     // database price must fail the BAD_AMOUNT check below, never become 0.
     const rawPrice = v.price;
@@ -96,6 +107,22 @@ export async function validateCartLines(
       product_id: v.product_id,
       productTitle: productTitle || 'Product',
     });
+  }
+
+  // Units requested per variant, summed across lines. Stock is a property of
+  // the variant, not of the line: checking each line on its own let a crafted
+  // body repeat a variant id and pass this pre-capture gate with more units
+  // than the variant had, and the guarded decrement RPC then rejected the
+  // second line *after* capture — a charge-then-refund instead of a clean 409.
+  // The store merges quantities per variant, so only a hand-built body reaches
+  // this. Keyed by the raw variantId, exactly like `byId`: a non-integer id
+  // never matches a row and still fails closed as UNKNOWN_VARIANT.
+  const requestedByVariant = new Map<number, number>();
+  for (const line of items) {
+    requestedByVariant.set(
+      line.variantId,
+      (requestedByVariant.get(line.variantId) ?? 0) + line.quantity
+    );
   }
 
   let subtotal = 0;
@@ -117,7 +144,8 @@ export async function validateCartLines(
         status: 400,
       };
     }
-    if (variant.inventory_quantity == null || variant.inventory_quantity < line.quantity) {
+    const requested = requestedByVariant.get(line.variantId) ?? line.quantity;
+    if (variant.inventory_quantity == null || variant.inventory_quantity < requested) {
       return {
         ok: false,
         code: 'OUT_OF_STOCK',

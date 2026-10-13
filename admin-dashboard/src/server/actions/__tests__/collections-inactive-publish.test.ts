@@ -58,6 +58,7 @@ function query(table: string) {
   const builder = {
     select: () => builder,
     eq: () => builder,
+    neq: () => builder,
     in: () => builder,
     order: () => builder,
     range: () => builder,

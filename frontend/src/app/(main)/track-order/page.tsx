@@ -1,215 +1,36 @@
-'use client';
+import { Package } from 'lucide-react';
+import { TrackOrderForm } from './TrackOrderForm';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Package, Search, Loader2, Check, AlertCircle, MapPin, Calendar, Truck } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { formatDate, formatPrice } from '@yord/ui';
-import { sanitizeOrPattern } from '@/lib/search';
+export const metadata = {
+  title: 'Track Your Order',
+  description:
+    'Track your YORD India order — enter your order number and email address to see the latest status.',
+  alternates: { canonical: '/track-order' },
+};
 
-interface OrderDetails {
-  id: number;
-  name: string | null;
-  order_number: number | null;
-  email: string | null;
-  financial_status: string | null;
-  fulfillment_status: string | null;
-  total_price: number;
-  created_at: string;
-  processed_at: string | null;
-}
-
+/**
+ * Server shell + client form. The lookup itself runs in a server action
+ * (`./actions.ts`) so the order table is never queried from the browser.
+ */
 export default function TrackOrderPage() {
-  const [email, setEmail] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [order, setOrder] = useState<OrderDetails | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setOrder(null);
-    setIsLoading(true);
-
-    try {
-      const supabase = createClient();
-      // Orders are named YORD-<epochSeconds>-<hexSuffix> and order_number
-      // packs both halves (epoch * 65536 + suffix), so accept either the
-      // full name or the bare numeric order_number.
-      const rawNumber = orderNumber.trim().slice(0, 50);
-      const suffixMatch = rawNumber.match(/^YORD-(\d+)-([0-9A-Fa-f]{1,8})$/i);
-      const numeric = suffixMatch
-        ? Number(suffixMatch[1]) * 65536 + parseInt(suffixMatch[2], 16)
-        : parseInt(rawNumber.replace(/^YORD-/i, ''), 10);
-      // Quote the name predicate so input chars cannot break out of the filter
-      const safeName = sanitizeOrPattern(rawNumber);
-
-      // Search by order number/name and email
-      const { data, error: searchError } = await supabase
-        .from('orders')
-        .select('id, name, order_number, email, financial_status, fulfillment_status, total_price, created_at, processed_at')
-        .eq('email', email.toLowerCase().trim())
-        .or(`name.eq."${safeName}",order_number.eq.${Number.isFinite(numeric) ? numeric : 0}`)
-        .single();
-
-      if (searchError || !data) {
-        setError('Order not found. Please check your order number and email address.');
-        return;
-      }
-
-      setOrder(data);
-    } catch (err) {
-      setError('Failed to find order. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string | null) => {
-    switch (status?.toLowerCase()) {
-      case 'paid':
-      case 'fulfilled':
-        return 'text-green-500';
-      case 'pending':
-      case 'unfulfilled':
-        return 'text-amber-500';
-      case 'cancelled':
-      case 'failed':
-        return 'text-red-500';
-      default:
-        return 'text-text-muted';
-    }
-  };
-
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
+    <div className="min-h-screen bg-surface-page pt-32 pb-16">
       <div className="max-w-2xl mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <Package className="w-8 h-8 text-accent" />
+            <Package aria-hidden="true" className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary mb-4">
+          <h1 className="font-display text-4xl md:text-5xl text-text-primary mb-4">
             Track Your Order
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
+          <p className="font-body text-text-muted">
             Enter your order number and email to track your delivery.
           </p>
         </div>
 
-        {/* Search Form */}
-        <form onSubmit={handleSubmit} className="bg-surface-card border border-border-default p-8 mb-8">
-          {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-red-300">{error}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
-                ORDER NUMBER
-              </label>
-              <input
-                type="text"
-                value={orderNumber}
-                onChange={(e) => setOrderNumber(e.target.value)}
-                required
-                placeholder="e.g., YORD-1234567890"
-                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
-              />
-            </div>
-
-            <div>
-              <label className="block font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted mb-2">
-                EMAIL ADDRESS
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="The email used for your order"
-                className="w-full h-12 px-4 bg-surface-raised border border-border-strong text-text-primary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted focus:border-accent"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 flex items-center justify-center gap-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  SEARCHING...
-                </>
-              ) : (
-                <>
-                  <Search size={18} />
-                  TRACK ORDER
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-
-        {/* Order Details */}
-        {order && (
-          <div className="bg-surface-card border border-border-default p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary">
-                ORDER {order.name}
-              </h2>
-              <span className={`font-[family-name:var(--font-bebas)] text-sm tracking-wider ${getStatusColor(order.financial_status)}`}>
-                {order.financial_status?.toUpperCase() || 'PENDING'}
-              </span>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className="flex items-center gap-3 text-text-muted">
-                <Calendar size={18} />
-                <span className="font-[family-name:var(--font-jakarta)] text-sm">
-                  Ordered on {formatDate(order.created_at)}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3 text-text-muted">
-                <Truck size={18} />
-                <span className="font-[family-name:var(--font-jakarta)] text-sm">
-                  Fulfillment: <span className={getStatusColor(order.fulfillment_status)}>
-                    {order.fulfillment_status?.toUpperCase() || 'PROCESSING'}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-border-default pt-6">
-              <div className="flex justify-between items-center">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">Total</span>
-                <span className="font-[family-name:var(--font-cormorant)] text-2xl text-text-primary">
-                  {formatPrice(order.total_price)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Help Section */}
-        <div className="mt-8 text-center">
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mb-4">
-            Can&apos;t find your order or need help?
-          </p>
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-2 px-6 py-3 border border-text-muted text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
-          >
-            CONTACT SUPPORT
-          </Link>
-        </div>
+        <TrackOrderForm />
       </div>
-    </main>
+    </div>
   );
 }

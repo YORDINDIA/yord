@@ -1,126 +1,119 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search, X, Loader2, ArrowRight } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { cn, formatPrice } from '@yord/ui';
 import { getFirstByPosition } from '@/lib/product';
 import { buildSearchOrFilter } from '@/lib/search';
 import type { ProductWithDetails } from '@yord/db-types';
-import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
+import { Overlay } from '@/features/ui/Overlay';
+import { IconButton } from '@/features/ui/IconButton';
+import { getPopularSearches, type QuickSearch } from './popularSearches';
+import { readRecentSearches, rememberSearch } from './recentSearches';
+
+/** The server truncates at 100 chars too; the input advertises it. */
+const MAX_QUERY_LENGTH = 100;
+/** Matches `Overlay`'s exit transition, so the panel does not empty while it fades. */
+const EXIT_MS = 300;
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface QuickSearch {
-  label: string;
-  type: 'artist' | 'category';
-  accentColor?: string;
+function QuickChip({ item, onSelect }: { item: QuickSearch; onSelect: () => void }) {
+  const isArtist = item.type === 'artist';
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'inline-flex items-center gap-2 px-3 py-1.5 text-xs font-body transition-colors',
+        isArtist
+          ? 'bg-accent-tint text-accent hover:bg-accent/15'
+          : 'bg-surface-raised text-text-muted hover:bg-surface-inset'
+      )}
+    >
+      {/* The artist's brand colour is a mark, never the label: a brand yellow is
+          ~1.6:1 as text on this surface. */}
+      {isArtist && item.accentColor ? (
+        <span
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ backgroundColor: item.accentColor }}
+          aria-hidden="true"
+        />
+      ) : null}
+      {item.label}
+    </button>
+  );
 }
 
+/**
+ * Product search.
+ *
+ * Three things changed beyond the move onto `Overlay`:
+ *
+ * 1. It renders a plain list of links. It used to put `role="combobox"` on the
+ *    input and `role="listbox"` on the results with no `aria-activedescendant`
+ *    and no arrow-key handling, and the "options" were `<button>`s that pushed
+ *    a route — invalid ARIA and a half-built combobox. The results and the
+ *    "VIEW ALL RESULTS" link are now both `next/link`.
+ * 2. The popular-search chips moved into the empty state, where they are
+ *    actually useful, instead of sitting under a list of results.
+ * 3. The chips no longer paint an artist's brand colour as text.
+ */
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [popularSearches, setPopularSearches] = useState<QuickSearch[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchRequestId = useRef(0);
 
-  // Fetch popular searches (artists from collections + categories)
+  // Popular searches load the first time the modal actually opens: doing it on
+  // mount fired two PostgREST queries on every page load for a panel most
+  // visitors never open.
   useEffect(() => {
-    async function fetchPopularSearches() {
-      const supabase = createClient();
-      // Get artist collections that have products
-      const { data: collections } = await supabase
-        .from('collections')
-        .select('id, title, handle')
-        .in('handle', ARTIST_COLLECTION_HANDLES as unknown as string[]);
+    if (!isOpen) return;
+    let cancelled = false;
+    void getPopularSearches()
+      .then((searches) => {
+        if (!cancelled) setPopularSearches(searches);
+      })
+      .catch(() => {
+        // getPopularSearches already dropped the cached failure.
+      });
 
-      if (collections) {
-        // Single query for all counts (not one per collection)
-        const ids = (collections as { id: number }[]).map((c) => c.id);
-        const { data: allCollects } = await supabase
-          .from('collects')
-          .select('collection_id')
-          .in('collection_id', ids);
-        const counts = new Map<number, number>();
-        for (const row of (allCollects as { collection_id: number }[] | null) || []) {
-          counts.set(row.collection_id, (counts.get(row.collection_id) || 0) + 1);
-        }
+    // localStorage is read in a frame, not in the effect body: it is a
+    // browser-only value, and setState-in-effect is a lint error here.
+    const raf = requestAnimationFrame(() => setRecentSearches(readRecentSearches()));
 
-        const artistsWithCounts = (collections as { id: number; title: string; handle: string | null }[]).map((col) => ({
-          ...col,
-          productCount: counts.get(col.id) || 0,
-        }));
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [isOpen]);
 
-        // Filter to artists with products and take top 4
-        const topArtists = artistsWithCounts
-          .filter(a => a.productCount > 0)
-          .sort((a, b) => b.productCount - a.productCount)
-          .slice(0, 4);
-
-        // Build quick searches: artists with metadata + fallback categories
-        const artistSearches: QuickSearch[] = topArtists.map(col => {
-          const handle = col.handle || '';
-          const metadata = ARTISTS[handle];
-          return {
-            label: col.title,
-            type: 'artist' as const,
-            accentColor: metadata?.accentColor,
-          };
-        });
-
-        const categorySearches: QuickSearch[] = [
-          { label: 'T-Shirts', type: 'category' },
-          { label: 'Hoodies', type: 'category' },
-        ];
-
-        setPopularSearches([...artistSearches, ...categorySearches]);
-      }
-    }
-
-    fetchPopularSearches();
-  }, []);
-
-  // Focus input when modal opens (external DOM sync stays synchronous);
-  // reset-on-close deferred to avoid cascading render.
+  // Clear the panel after the exit transition, not during it, so it does not
+  // visibly empty out while it fades.
   useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 100);
-      return () => clearTimeout(timer);
-    }
-    queueMicrotask(() => {
+    if (isOpen) return;
+    const id = window.setTimeout(() => {
       setQuery('');
       setResults([]);
       setHasSearched(false);
-    });
+    }, EXIT_MS);
+    return () => window.clearTimeout(id);
   }, [isOpen]);
-
-  // Escape to close + body scroll lock, active only while open.
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleEscape);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isOpen, onClose]);
 
   // Debounced search
   const searchProducts = useCallback(async (searchQuery: string) => {
-    const q = searchQuery.trim().slice(0, 100);
+    const q = searchQuery.trim().slice(0, MAX_QUERY_LENGTH);
     if (!q || q.length < 2) {
       setResults([]);
       setHasSearched(false);
@@ -132,7 +125,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     setHasSearched(true);
 
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -170,173 +163,182 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     return () => clearTimeout(timer);
   }, [query, searchProducts]);
 
-  const handleProductClick = (handle: string) => {
-    onClose();
-    router.push(`/product/${handle}`);
+  const remember = () => {
+    const term = query.trim();
+    if (term.length >= 2) rememberSearch(term);
   };
 
-  if (!isOpen) return null;
+  // Choosing a chip unmounts the empty state, which takes the chip (and the
+  // focus it holds) out of the DOM — so focus goes back to the field the
+  // shopper is about to keep typing in.
+  const chooseQuickSearch = (term: string) => {
+    setQuery(term);
+    inputRef.current?.focus();
+  };
+
+  const showEmptyState = !hasSearched && query.length < 2;
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Search products">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-surface-page/90 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="relative max-w-3xl mx-auto mt-20 px-4">
-        <div className="bg-surface-card border border-border-default shadow-2xl">
-          {/* Search Input */}
-          <div className="flex items-center border-b border-border-default">
-            <Search className="w-5 h-5 text-text-muted ml-6" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search products, artists, collections..."
-              aria-label="Search products, artists, collections"
-              role="combobox"
-              aria-expanded={results.length > 0}
-              aria-controls="search-results-list"
-              className="flex-1 px-4 py-5 bg-transparent text-text-secondary font-[family-name:var(--font-jakarta)] placeholder:text-text-muted"
-            />
-            {isLoading && (
-              <Loader2 className="w-5 h-5 text-accent animate-spin mr-4" aria-label="Searching" />
-            )}
-            <button
-              onClick={onClose}
-              aria-label="Close search"
-              className="p-4 text-text-muted hover:text-text-secondary transition-colors"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          {/* Results */}
-          <div className="max-h-[60vh] overflow-y-auto">
-            {!hasSearched && query.length < 2 && (
-              <div className="p-8 text-center">
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                  Start typing to search for products
-                </p>
-              </div>
-            )}
-
-            {hasSearched && results.length === 0 && !isLoading && (
-              <div className="p-8 text-center">
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                  No products found for &quot;{query}&quot;
-                </p>
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-2">
-                  Try searching for an artist name or product type
-                </p>
-              </div>
-            )}
-
-            {results.length > 0 && (
-              <>
-                <div id="search-results-list" role="listbox" aria-label="Search results" className="divide-y divide-border-default">
-                  {results.map((product) => {
-                    const image = getFirstByPosition(product.product_images);
-                    const imageUrl = image?.storage_url || image?.src;
-                    const variant = getFirstByPosition(product.product_variants);
-                    const price = variant?.price || 0;
-
-                    return (
-                      <button
-                        key={product.id}
-                        onClick={() => handleProductClick(product.handle ?? '')}
-                        className="w-full flex items-center gap-4 p-4 hover:bg-surface-raised/50 transition-colors text-left"
-                      >
-                        {/* Image */}
-                        <div className="relative w-16 h-16 bg-surface-raised flex-shrink-0">
-                          {imageUrl ? (
-                            <Image
-                              src={imageUrl}
-                              alt={product.title}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-text-muted">
-                              <Search size={20} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          {product.vendor && (
-                            <p className="font-[family-name:var(--font-jakarta)] text-xs text-accent uppercase tracking-wider">
-                              {product.vendor}
-                            </p>
-                          )}
-                          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary truncate">
-                            {product.title}
-                          </p>
-                          <p className="font-[family-name:var(--font-bebas)] text-sm text-text-muted mt-1">
-                            {formatPrice(price)}
-                          </p>
-                        </div>
-
-                        {/* Arrow */}
-                        <ArrowRight className="w-4 h-4 text-text-muted" />
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* View All Results Link */}
-                <div className="p-4 border-t border-border-default">
-                  <Link
-                    href={`/search?q=${encodeURIComponent(query)}`}
-                    onClick={onClose}
-                    className="flex items-center justify-center gap-2 py-3 text-accent font-[family-name:var(--font-bebas)] text-sm tracking-wider hover:text-accent-hover transition-colors"
-                  >
-                    VIEW ALL RESULTS
-                    <ArrowRight size={16} />
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Quick Links */}
-          <div className="border-t border-border-default p-4">
-            <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted uppercase tracking-wider mb-3">
-              Popular Searches
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {popularSearches.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => setQuery(item.label)}
-                  className={cn(
-                    'px-3 py-1.5 text-xs font-[family-name:var(--font-jakarta)] transition-colors',
-                    item.type === 'artist' && item.accentColor
-                      ? 'hover:opacity-80'
-                      : 'bg-surface-raised text-text-muted hover:bg-surface-inset'
-                  )}
-                  style={
-                    item.type === 'artist' && item.accentColor
-                      ? {
-                          backgroundColor: `${item.accentColor}20`,
-                          color: item.accentColor,
-                          border: `1px solid ${item.accentColor}40`,
-                        }
-                      : undefined
-                  }
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+    <Overlay
+      open={isOpen}
+      onClose={onClose}
+      label="Search products"
+      initialFocusRef={inputRef}
+      width="lg"
+    >
+      {/* Search Input. Sticky: the panel scrolls as a whole, so the field has
+          to stay reachable while the result list is long. */}
+      <div className="sticky top-0 z-10 flex items-center border-b border-border-default bg-surface-card">
+        <Search className="w-5 h-5 text-text-muted ml-6" aria-hidden="true" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          maxLength={MAX_QUERY_LENGTH}
+          placeholder="Search products, artists, collections..."
+          aria-label="Search products, artists, collections"
+          className="flex-1 px-4 py-5 bg-transparent text-text-secondary font-body placeholder:text-text-muted"
+        />
+        {isLoading && (
+          <Loader2 className="w-5 h-5 text-accent animate-spin mr-4" aria-hidden="true" />
+        )}
+        <IconButton label="Close search" onClick={onClose} className="mr-2">
+          <X size={20} />
+        </IconButton>
+        {/* The spinner is decorative; this region carries the loading state and
+            the result count for screen readers. Rendered unconditionally so the
+            live region exists before the state it announces changes. */}
+        <span role="status" className="sr-only">
+          {isLoading
+            ? 'Searching'
+            : hasSearched
+              ? `${results.length} ${results.length === 1 ? 'result' : 'results'}`
+              : ''}
+        </span>
       </div>
-    </div>
+
+      {/* Results */}
+      <div>
+        {showEmptyState && (
+          <div className="p-8">
+            <p className="font-body text-sm text-text-muted text-center">
+              Start typing to search for products
+            </p>
+
+            {recentSearches.length > 0 && (
+              <div className="mt-8">
+                <p className="font-body text-xs text-text-muted uppercase tracking-wider mb-3">
+                  Recent Searches
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map((term) => (
+                    <QuickChip
+                      key={term}
+                      item={{ label: term, type: 'category' }}
+                      onSelect={() => chooseQuickSearch(term)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {popularSearches.length > 0 && (
+              <div className="mt-8">
+                <p className="font-body text-xs text-text-muted uppercase tracking-wider mb-3">
+                  Popular Searches
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {popularSearches.map((item) => (
+                    <QuickChip
+                      key={item.label}
+                      item={item}
+                      onSelect={() => chooseQuickSearch(item.label)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {hasSearched && results.length === 0 && !isLoading && (
+          <div className="p-8 text-center">
+            <p className="font-body text-sm text-text-muted">
+              No products found for &quot;{query}&quot;
+            </p>
+            <p className="font-body text-xs text-text-muted mt-2">
+              Try searching for an artist name or product type
+            </p>
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <>
+            <ul className="divide-y divide-border-default">
+              {results.map((product) => {
+                const image = getFirstByPosition(product.product_images);
+                const imageUrl = image?.storage_url || image?.src;
+                const variant = getFirstByPosition(product.product_variants);
+                const price = variant?.price || 0;
+
+                return (
+                  <li key={product.id}>
+                    <Link
+                      href={`/product/${product.handle ?? ''}`}
+                      onClick={() => {
+                        remember();
+                        onClose();
+                      }}
+                      className="flex items-center gap-4 p-4 hover:bg-surface-raised/50 transition-colors"
+                    >
+                      {/* Image */}
+                      <div className="relative w-16 h-16 bg-surface-raised flex-shrink-0">
+                        {imageUrl ? (
+                          <Image src={imageUrl} alt={product.title} fill className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-text-muted">
+                            <Search size={20} aria-hidden="true" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        {product.vendor && (
+                          <p className="font-body text-xs text-accent uppercase tracking-wider">
+                            {product.vendor}
+                          </p>
+                        )}
+                        <p className="font-body text-sm text-text-secondary truncate">{product.title}</p>
+                        <p className="font-accent text-sm text-text-muted mt-1">{formatPrice(price)}</p>
+                      </div>
+
+                      {/* Arrow */}
+                      <ArrowRight className="w-4 h-4 text-text-muted" aria-hidden="true" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* View All Results Link */}
+            <div className="p-4 border-t border-border-default">
+              <Link
+                href={`/search?q=${encodeURIComponent(query)}`}
+                onClick={() => {
+                  remember();
+                  onClose();
+                }}
+                className="flex items-center justify-center gap-2 py-3 text-accent font-accent text-sm tracking-wider hover:text-accent-hover transition-colors"
+              >
+                VIEW ALL RESULTS
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </Overlay>
   );
 }

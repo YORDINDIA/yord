@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'YORD India — Premium Concert Merchandise',
     short_name: 'YORD India',
     description:
-      "India's leading premium concert merchandise store. Shop exclusive fan-made designs for Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, and 50+ artists.",
+      "India's leading premium concert merchandise store. Shop exclusive fan-made designs for Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, and 65+ artists.",
     start_url: '/',
     display: 'standalone',
     // The splash window for a standalone PWA install is painted before any page

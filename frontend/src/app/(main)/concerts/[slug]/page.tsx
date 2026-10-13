@@ -35,7 +35,9 @@ export async function generateMetadata({ params }: ConcertPageProps): Promise<Me
       title,
       description,
       type: 'website',
-      ...(heroImage ? { images: [{ url: `https://yordindia.com${heroImage}` }] } : {}),
+      // Relative to `metadataBase` (set in the root layout) instead of a
+      // hardcoded origin: the domain then lives in one place.
+      ...(heroImage ? { images: [{ url: heroImage }] } : {}),
     },
     alternates: { canonical: `/concerts/${slug}` },
   };

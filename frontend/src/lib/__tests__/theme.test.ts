@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MEDIA_ROUTES, MEDIA_ROUTE_PREFIXES, isMediaRoute } from '@/features/layout/headerTone';
 
 // This file lives at frontend/src/lib/__tests__/theme.test.ts. The token file
 // lives in the workspace package at the repo root, so walk up until the
@@ -224,6 +225,12 @@ describe('semantic token contract', () => {
     '--linkin-secondary',
     '--weeknd-primary',
     '--weeknd-secondary',
+    '--collection-bestsellers',
+    '--collection-limited-edition',
+    '--collection-sale',
+    '--collection-hoodies',
+    '--collection-t-shirts',
+    '--collection-accessories',
     '--header-height',
     '--max-width',
     '--container-padding',
@@ -293,6 +300,8 @@ describe('palette contrast (WCAG AA)', () => {
     ['--accent', '--accent-tint', 4.5, 'accent text on a gold tint panel'],
     ['--text-on-accent', '--accent', 4.5, 'label on an accent button'],
     ['--text-primary', '--accent-tint', 4.5, 'text on a gold tint panel'],
+    ['--warning', '--surface-page', 4.5, 'scarcity text on the page'],
+    ['--warning', '--surface-card', 4.5, 'scarcity text on a card'],
   ];
 
   const LARGE_PAIRS: Array<[string, string, number, string]> = [
@@ -467,15 +476,58 @@ describe('on-media context discipline', () => {
     }
   });
 
+  it('globals.css classes used only by media heroes take on-media tokens', () => {
+    // `.gold-text-animated` (the home hero H1 gradient), `.gradient-divider`
+    // and `.scroll-indicator-line::before` are used by the two media heroes and
+    // by nothing else. They painted `var(--accent)`, which is bronze in light
+    // mode, so the H1's second line read dark-on-dark over the scrim.
+    const globals = readFileSync(GLOBALS_PATH, 'utf8');
+    for (const selector of [
+      '.gold-text-animated',
+      '.gradient-divider',
+      '.scroll-indicator-line::before',
+    ]) {
+      const start = globals.indexOf(`\n${selector} {`);
+      expect(start, `${selector} must exist in globals.css`).toBeGreaterThan(-1);
+      const body = globals.slice(start, globals.indexOf('}', start));
+      expect(body, `${selector} must use the on-media accent`).toContain(
+        'var(--accent-on-media)'
+      );
+      expect(body, `${selector} must not use the theme-following accent`).not.toMatch(
+        /var\(--accent\)/
+      );
+    }
+  });
+
+  it('media hero files never fall back to the theme-following accent', () => {
+    // An inline `var(--accent)` in one of these files is the same bug in a
+    // style prop: bright in dark mode, bronze in light mode, over a dark scrim.
+    for (const rel of MEDIA_HERO_FILES) {
+      const src = readFileSync(join(SRC, rel), 'utf8');
+      const offenders = src
+        .split('\n')
+        .map((line, i) => [i + 1, line] as const)
+        .filter(([, line]) => /var\(--accent\)/.test(line))
+        .map(([n]) => n);
+      expect({ file: rel, offenders }).toEqual({ file: rel, offenders: [] });
+    }
+  });
+
   it('the transparent header stays light-on-dark over media routes', () => {
     // The header is transparent until scrolled, so on every full-bleed media
     // route it has to pick the on-media palette. Missing /artist/ here made the
     // whole header ink-on-black over ArtistHero.
-    const header = readFileSync(
-      join(SRC, 'features', 'layout', 'Header.tsx'),
-      'utf8'
-    );
-    expect(header).toMatch(/pathname\.startsWith\('\/artist\/'\)/);
+    //
+    // Asserted against the route data itself rather than a regex grepped out of
+    // Header.tsx: the palette moved into `headerTone`, and a test that matches
+    // source text cannot fail when the list changes shape.
+    expect(MEDIA_ROUTE_PREFIXES).toContain('/artist/');
+    expect(MEDIA_ROUTES).toContain('/');
+    expect(isMediaRoute('/artist/coldplay')).toBe(true);
+    expect(isMediaRoute('/')).toBe(true);
+    expect(isMediaRoute('/concepts/poster')).toBe(true);
+    expect(isMediaRoute('/concepts/rail')).toBe(false);
+    expect(isMediaRoute('/about')).toBe(false);
   });
 });
 

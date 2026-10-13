@@ -1,13 +1,15 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { MapPin, Music } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES, getCityBySlug } from '@/lib/data/cities';
 import { getConcertProductsCached } from '@/lib/supabase/cached-queries';
 import { degrade, isSupabaseUnconfigured } from '@/lib/result';
 import { ConcertCard } from '@/features/concerts/ConcertCard';
 import { merchArtistsFromMap } from '@/features/concerts/concertProducts';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { SectionHeading } from '@/features/ui/SectionHeading';
 import { JsonLd, breadcrumbSchema, itemListSchema } from '@/lib/seo/jsonld';
 
 interface CityPageProps {
@@ -70,7 +72,7 @@ export default async function CityPage({ params }: CityPageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
+    <div className="min-h-screen bg-surface-page pt-24 pb-16">
       <JsonLd
         data={breadcrumbSchema([
           { name: 'Home', url: '/' },
@@ -78,7 +80,9 @@ export default async function CityPage({ params }: CityPageProps) {
           { name: city.name, url: `/concerts/city/${citySlug}` },
         ])}
       />
-      {cityConcerts.length > 0 && (
+      {/* Only emitted when the page actually renders a list: an empty ItemList
+          for a city with no shows describes nothing. */}
+      {cityConcerts.length > 0 ? (
         <JsonLd
           data={itemListSchema(
             cityConcerts.map((c, i) => ({
@@ -88,25 +92,20 @@ export default async function CityPage({ params }: CityPageProps) {
             }))
           )}
         />
-      )}
+      ) : null}
 
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+      <div className="container-page">
         {/* Hero */}
-        <div className="text-center mb-16">
+        <div className="mb-16">
           <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <MapPin className="w-8 h-8 text-accent" />
+            <MapPin aria-hidden="true" className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-4">
-            Concerts in {city.name}
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-3xl mx-auto">
-            {city.description}
-          </p>
+          <SectionHeading as="h1" align="center" title={`Concerts in ${city.name}`} description={city.description} />
         </div>
 
         {/* Venues */}
         <div className="mb-12">
-          <h2 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-muted mb-4">
+          <h2 className="font-accent text-sm tracking-[0.2em] text-text-muted mb-4">
             POPULAR VENUES IN {city.name.toUpperCase()}
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -135,22 +134,24 @@ export default async function CityPage({ params }: CityPageProps) {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 mb-16">
-            <Music className="w-16 h-16 mx-auto text-text-muted mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-              No concerts listed for {city.name} yet. Check back soon!
-            </p>
+          <div className="mb-16">
+            <EmptyState
+              title={`No concerts in ${city.name} yet`}
+              message="New dates are added as tours are announced. Browse every upcoming show in the meantime."
+            >
+              <Link href="/concerts" className="text-accent font-accent tracking-wider text-sm hover:underline">
+                ALL CONCERTS
+              </Link>
+            </EmptyState>
           </div>
         )}
 
         {/* SEO Content */}
         <section className="bg-surface-card border border-border-default p-8 md:p-12 mb-12">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
-            Buy Concert Merchandise in {city.name}
-          </h2>
-          <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
+          <SectionHeading as="h2" title={`Buy Concert Merchandise in ${city.name}`} className="mb-6" />
+          <div className="font-body text-text-muted space-y-4 text-sm leading-relaxed">
             <p>
-              {city.name} is one of India&apos;s top concert destinations, hosting both international and Indian artists throughout the year. YORD India delivers premium concert merchandise to {city.name} and across {city.state} with free shipping on orders above ₹1,999.
+              {city.name} is one of India&apos;s top concert destinations, hosting both international and Indian artists throughout the year. YORD India delivers premium concert merchandise to {city.name} and across {city.state} with free shipping on every order.
             </p>
             <p>
               Whether you&apos;re attending a show at {city.venues[0]} or {city.venues[1] || 'other venues'}, shop exclusive fan-made t-shirts, hoodies, and accessories before or after the concert. Our designs celebrate the artists you love with premium quality and unique aesthetics.
@@ -160,7 +161,7 @@ export default async function CityPage({ params }: CityPageProps) {
 
         {/* Other Cities */}
         <div>
-          <h2 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-muted mb-4">
+          <h2 className="font-accent text-sm tracking-[0.2em] text-text-muted mb-4">
             CONCERTS IN OTHER CITIES
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -168,7 +169,7 @@ export default async function CityPage({ params }: CityPageProps) {
               <Link
                 key={otherCity.slug}
                 href={`/concerts/city/${otherCity.slug}`}
-                className="px-4 py-2 bg-surface-card border border-border-default text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:border-accent hover:text-accent transition-colors"
+                className="px-4 py-2 bg-surface-card border border-border-default text-text-muted text-sm font-body hover:border-accent hover:text-accent transition-colors"
               >
                 {otherCity.name}
               </Link>
@@ -176,6 +177,6 @@ export default async function CityPage({ params }: CityPageProps) {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

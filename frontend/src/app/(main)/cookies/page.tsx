@@ -1,141 +1,113 @@
 import { Cookie } from 'lucide-react';
+import { PolicyPage, type PolicySection } from '../_policy/PolicyPage';
 
 export const metadata = {
   title: 'Cookie Policy',
   description: 'Learn about how we use cookies on the YORD India website.',
+  alternates: { canonical: '/cookies' },
 };
+
+const SECTIONS: PolicySection[] = [
+  {
+    heading: 'What Are Cookies?',
+    blocks: [
+      {
+        kind: 'p',
+        text: (
+          <>
+            Cookies are small text files that are stored on your device when you visit a website.
+            They help the website remember your preferences and improve your browsing experience.
+            Cookies can be &quot;session&quot; cookies (deleted when you close your browser) or
+            &quot;persistent&quot; cookies (remain on your device for a set period or until you
+            delete them).
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    heading: 'Types of Cookies We Use',
+    blocks: [
+      {
+        kind: 'subsections',
+        items: [
+          {
+            heading: 'ESSENTIAL COOKIES',
+            text: 'These cookies are necessary for the website to function properly. They enable core features like shopping cart functionality, account authentication, and checkout. Without these cookies, certain services cannot be provided.',
+          },
+          {
+            heading: 'ANALYTICS COOKIES',
+            text: 'These cookies help us understand how visitors interact with our website. We use Google Analytics and PostHog for this: they record pages viewed, referral source, device type, approximate location, and — for PostHog — session replays of how pages are used. This helps us improve our website and services.',
+          },
+          {
+            heading: 'FUNCTIONAL COOKIES',
+            text: 'These cookies allow the website to remember choices you make (such as your preferred language or region) and provide enhanced, personalized features.',
+          },
+          {
+            heading: 'MARKETING COOKIES',
+            text: 'These cookies are used to track visitors across websites. The intention is to display ads that are relevant and engaging for individual users. You can opt out of these cookies.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    heading: 'Managing Cookies',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Most web browsers allow you to control cookies through their settings. You can:',
+      },
+      {
+        kind: 'list',
+        items: [
+          'View what cookies are stored on your device',
+          'Delete all or specific cookies',
+          'Block cookies from specific or all websites',
+          'Set preferences for different types of cookies',
+        ],
+      },
+      {
+        kind: 'p',
+        text: 'Please note that blocking or deleting cookies may impact your browsing experience and some features of our website may not function properly.',
+      },
+    ],
+  },
+  {
+    heading: 'Third-Party Cookies',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Some cookies on our website are placed by third-party services, including payment processors (Razorpay), analytics services, and social media platforms. These third parties have their own privacy and cookie policies.',
+      },
+    ],
+  },
+  {
+    heading: 'Contact Us',
+    blocks: [
+      {
+        kind: 'p',
+        text: (
+          <>
+            If you have any questions about our use of cookies, please contact us at{' '}
+            <a href="mailto:privacy@yordindia.com" className="text-accent hover:underline">
+              privacy@yordindia.com
+            </a>
+          </>
+        ),
+      },
+    ],
+  },
+];
 
 export default function CookiesPage() {
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <Cookie className="w-8 h-8 text-accent" />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-4">
-            Cookie Policy
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
-            This policy explains how we use cookies and similar technologies.
-          </p>
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted mt-4">
-            Last updated: January 1, 2025
-          </p>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-surface-card border border-border-default p-8 md:p-12 space-y-8">
-            {/* What Are Cookies */}
-            <section>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
-                WHAT ARE COOKIES?
-              </h2>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                Cookies are small text files that are stored on your device when you visit a website.
-                They help the website remember your preferences and improve your browsing experience.
-                Cookies can be &quot;session&quot; cookies (deleted when you close your browser) or &quot;persistent&quot;
-                cookies (remain on your device for a set period or until you delete them).
-              </p>
-            </section>
-
-            {/* Types of Cookies */}
-            <section>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
-                TYPES OF COOKIES WE USE
-              </h2>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-accent mb-2">
-                    ESSENTIAL COOKIES
-                  </h3>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                    These cookies are necessary for the website to function properly. They enable core
-                    features like shopping cart functionality, account authentication, and checkout.
-                    Without these cookies, certain services cannot be provided.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-accent mb-2">
-                    ANALYTICS COOKIES
-                  </h3>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                    These cookies help us understand how visitors interact with our website. We use
-                    Google Analytics and PostHog for this: they record pages viewed, referral source,
-                    device type, approximate location, and — for PostHog — session replays of how
-                    pages are used. This helps us improve our website and services.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-accent mb-2">
-                    FUNCTIONAL COOKIES
-                  </h3>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                    These cookies allow the website to remember choices you make (such as your preferred
-                    language or region) and provide enhanced, personalized features.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-wider text-accent mb-2">
-                    MARKETING COOKIES
-                  </h3>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                    These cookies are used to track visitors across websites. The intention is to display
-                    ads that are relevant and engaging for individual users. You can opt out of these cookies.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            {/* Managing Cookies */}
-            <section>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
-                MANAGING COOKIES
-              </h2>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed mb-4">
-                Most web browsers allow you to control cookies through their settings. You can:
-              </p>
-              <ul className="list-disc list-inside font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-2 ml-4">
-                <li>View what cookies are stored on your device</li>
-                <li>Delete all or specific cookies</li>
-                <li>Block cookies from specific or all websites</li>
-                <li>Set preferences for different types of cookies</li>
-              </ul>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed mt-4">
-                Please note that blocking or deleting cookies may impact your browsing experience and
-                some features of our website may not function properly.
-              </p>
-            </section>
-
-            {/* Third-Party Cookies */}
-            <section>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
-                THIRD-PARTY COOKIES
-              </h2>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                Some cookies on our website are placed by third-party services, including payment
-                processors (Razorpay), analytics services, and social media platforms. These third
-                parties have their own privacy and cookie policies.
-              </p>
-            </section>
-
-            {/* Contact */}
-            <section>
-              <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-4">
-                CONTACT US
-              </h2>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                If you have any questions about our use of cookies, please contact us at{' '}
-                <a href="mailto:privacy@yordindia.com" className="text-accent hover:underline">
-                  privacy@yordindia.com
-                </a>
-              </p>
-            </section>
-          </div>
-        </div>
-      </div>
-    </main>
+    <PolicyPage
+      icon={Cookie}
+      title="Cookie Policy"
+      description="This policy explains how we use cookies and similar technologies."
+      updated="January 1, 2025"
+      sections={SECTIONS}
+    />
   );
 }

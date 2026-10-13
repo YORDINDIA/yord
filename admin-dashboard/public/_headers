@@ -1,0 +1,8 @@
+# Workers Static Assets serves this app's static files directly; the Next
+# server never runs in front of them, so next.config `headers()` does not
+# apply here. Without this rule Cloudflare serves immutable build output as
+# `max-age=0, must-revalidate` and every browser revalidates every JS/CSS
+# file on every page load.
+# https://opennext.js.org/cloudflare/caching#static-assets-caching
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable

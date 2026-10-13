@@ -179,7 +179,7 @@ async function productTitles(
  */
 export async function getEngagement(days: number): Promise<EngagementData> {
   const windowDays = Number.isFinite(days) ? Math.max(1, Math.floor(days)) : 14;
-  const client = await reader({ service: true });
+  const client = await reader();
   const rpc = (fn: string, args?: Record<string, unknown>) =>
     (client as unknown as RpcClient).rpc(fn, args);
   const currentStart = revenueWindowStart(windowDays).toISOString();

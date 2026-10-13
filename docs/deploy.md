@@ -1,7 +1,9 @@
 # Deploying YORD India
 
-Two Next.js apps deploy as two Netlify sites from this one repo. The database
-and auth are Supabase, object storage is Cloudflare R2, payments are Razorpay.
+Two Next.js apps deploy from this one repo: to Cloudflare Workers via the
+OpenNext adapter (live since 2026-10-02, see §6b), with Netlify kept as a
+working fallback. The database and auth are Supabase, object storage is
+Cloudflare R2, payments are Razorpay.
 
 The order matters: the apps read the `storage_url` / `storage_image_url` columns,
 so the database steps (which include migration 008 that renames them) must land
@@ -78,7 +80,8 @@ prefix.
 ```bash
 export DATABASE_URL='postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres'
 
-# Core tables, then migrations 001-008 in order.
+# Core tables, then every migration in numeric order (001-016 today; the glob
+# picks up new ones automatically, so keep the range in this comment current).
 psql "$DATABASE_URL" -f scripts/schema.sql
 for f in supabase/migrations/0*.sql; do
   echo "== $f"
@@ -195,12 +198,13 @@ python audit_media_migration.py --verify    # HEAD-checks product/article/collec
 
 ## 5. R2 sizing
 
-One object per image, no derivatives, no transform service:
+One stored object per image, plus pre-generated downscales for product photos:
 
 | Item | Size |
 |---|---|
 | Archive originals | ~8.7 GB |
 | Uploaded as WebP variants | ~2.4 GB (measured on a 7.8 MB sample: 8.7 GB → 2.4 GB) |
+| Product-image siblings (`-320/-640/-960/-1280`) | ~477 MB / 11,848 objects (2,966 images) |
 | Delivery | plain object reads, no per-image transform cost |
 
 That fits R2's free tier (10 GB-month storage, plus monthly Class A/B operation
@@ -210,9 +214,29 @@ is $0.015/GB-month. Watch two things as the catalog grows: total object size
 (10 GB free) and Class A operations (writes) if you re-run an ingest, which
 re-uploads only what the checkpoint does not already list.
 
-Because each image is stored once as a web-optimized WebP, the storefront never
-downloads an 8 MB original and never asks a server to resize anything: the
-`srcset` entries all point at the same object. See §8 for how to confirm.
+### Product image variants (deploy-order dependency)
+
+`scripts/generate_image_variants.py` (dry-run by default, `--execute` to upload,
+`--limit N` for a smoke run, `--resume` after an interruption; checkpoint
+`image_variants_checkpoint.json`, error log `image_variants_errors.json`) writes
+four downscales beside every `products/<handle>/<name>.webp`:
+`<name>-320.webp`, `-640`, `-960`, `-1280`. `src/lib/media-loader.ts` maps the
+width Next asks for onto the nearest sibling (ties round up; anything above 1280
+keeps the 1600px original), so a phone fetches a 320/640px file instead of the
+full-size one. Saving per request on a 139 KB original: −91% at 320, −77% at
+640, −58% at 960, −35% at 1280.
+
+**Run the backfill before deploying a build that contains that loader.** The
+mapping is static, so a missing sibling is a 404 on every product image; there is
+no fallback to the original. The script never upscales — when an original is
+narrower than a target width it uploads the original bytes under that key (1,078
+of 11,848 in the 2026-10-05 backfill) — so every requested width exists either
+way, and the loader can never miss.
+
+Everything else (artist portraits, concert art, collection covers, AI images) is
+stored once with no siblings, and the loader returns those URLs unchanged: the
+`srcset` entries for them all point at the same object. See §8 for how to
+confirm.
 
 One exception: AI-generated images. Agnes AI returns PNG, and the server has no
 image encoder (the WebP conversion for uploads happens in the browser, which the
@@ -270,10 +294,11 @@ Notes:
 - Uploads fail with an "Image storage is not configured" message (not a 500)
   when the R2 keys are missing, so a half-configured admin is visible in the UI
   instead of failing silently.
-- **Planned hosting move:** the storefront and admin are headed for Cloudflare
-  (Workers), which is why `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` /
-  `CLOUDFLARE_ZONE_ID` are in `.env.example`. Netlify stays the deploy target
-  until that migration lands; nothing in the app reads the Cloudflare keys.
+- **Hosting:** both apps deploy to Cloudflare Workers via the OpenNext adapter
+  (live since 2026-10-02 — see §6b); Netlify remains a configured fallback via
+  these `netlify.toml` files. `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` /
+  `CLOUDFLARE_ZONE_ID` are in `.env.example` for that tooling; nothing in the
+  app code reads the Cloudflare keys.
 
 ## 6b. Cloudflare Workers deploy (live since 2026-10-02)
 
@@ -293,7 +318,50 @@ Rules learned getting here:
 - Supabase enables RLS on new tables with no policies, so anon catalog reads
   return zero rows. `supabase/migrations/009_public_catalog_reads.sql` adds the
   published-only SELECT policies (mirrors 005's articles policy). Writes stay
-  service-role only.
+  service-role only. The same trap bit the order tables: 009 stopped at the
+  catalog, so `orders` and `line_items` kept RLS with zero policies, and the
+  account pages — which read them with the *signed-in user's* client and rely on
+  RLS as the ownership backstop — returned zero rows for every shopper
+  (`/account` showed no recent orders, `/account/orders` always said "No orders
+  yet", `/account/orders/[id]` 404'd every order). `012_orders_read_policies.sql`
+  adds own-row SELECT policies keyed on `auth.email()` and normalises the 17
+  legacy uppercase addresses the Shopify migration left behind. That policy
+  trusts email verification, so it depends on Auth keeping email confirmation
+  required — read its header before touching `mailer_autoconfirm`. The same
+  silent-read trap bit catalog uniqueness: `products.handle` was unique,
+  `collections.handle` was not, so two collections titled the same shared one
+  handle and `.maybeSingle()` answered **PGRST116** — the code it also uses for
+  "no rows", which `isPostgrestNotFound` reads as "missing" — 404ing
+  `/collection/<handle>` for *both* rows with nothing logged.
+  `014_collections_handle_unique.sql` adds the unique index and drops the
+  non-unique one it replaces; the admin refuses a taken handle with a field
+  message on both create and edit, so the merchant sees the reason rather than a
+  raw 23505.
+- The RLS rule has a deliberate corollary: `013_contact_and_newsletter_tables.sql`
+  creates `contact_submissions` and `newsletter_subscribers` — the tables
+  `POST /api/contact` and `POST /api/newsletter` always inserted into, but that
+  no migration, `scripts/schema.sql` or doc had ever created (both inserts were
+  failing with a PostgREST 400, so no contact message or newsletter signup had
+  ever been stored) — with **RLS enabled and zero policies on purpose**, like
+  `analytics_events` in 010: both routes write through the secret key, which
+  bypasses RLS, and nothing reads them with the publishable key. An admin inbox
+  for them should read through the service client, not get a new policy. Their
+  `id` columns get real identity defaults, unlike every migrated Shopify table.
+- The third member of that silent-failure family is an **id**, not a read:
+  `015_orders_and_line_items_id_defaults.sql`. The Shopify migration preserved
+  source ids rather than giving `orders.id` / `line_items.id` a generator, and
+  `POST /api/checkout/verify-payment` inserts neither, so both statements failed
+  with **23502** — the `orders` one *after* the payment was captured. The route
+  read that as "order claim failed after capture", compensated, refunded and
+  answered 500, so **no storefront order had ever been created** (612 orders,
+  0 carrying a `confirmation_number`). The migration adds a sequence-backed
+  default to each column. Worth remembering for any new table: **nothing in this
+  schema has an id default**, so an insert that omits `id` fails — and if that
+  insert sits after a capture, it fails with the customer's money already taken.
+- `016_adopt_order_claim.sql` (landing alongside this doc) adds
+  `orders.claim_adopted_at` and the `adopt_order_claim(p_order_id bigint,
+  p_total numeric)` compare-and-swap RPC that verify-payment uses to adopt an
+  order — the CAS guard is what makes a replayed or raced adoption harmless.
 - Unlike Netlify, Workers has no static-to-dynamic fallback: any `cookies()`
   read (cookie-bound Supabase server client) in a prerendered route's tree is
   a runtime 500. The `(main)` layout and all `generateStaticParams` pages
@@ -303,13 +371,67 @@ Rules learned getting here:
 - The API token needs Workers Scripts:Edit + Zone:Read; creating the
   `admin.yordindia.com` DNS record needs Zone:DNS:Edit (or add the proxied
   CNAME in the dashboard).
+- ISR/data-cache prerequisites (already shipped in `frontend/wrangler.toml` and
+  `open-next.config.ts`): the `yord-cache` R2 bucket bound as
+  `NEXT_INC_CACHE_R2_BUCKET` (the incremental cache), the `NEXT_CACHE_DO_QUEUE`
+  Durable Object (`DOQueueHandler`, declared with the `new_sqlite_classes`
+  migration `tag = "v1"`) that dedupes background revalidations, and the
+  `WORKER_SELF_REFERENCE` service binding. Without all three the adapter falls
+  back to a dummy cache and every HTML request re-renders. The admin needs none
+  of them — every admin route is dynamic, so it has no ISR cache.
+- The storefront's in-memory rate limiter (the API routes' per-IP caps) is
+  per-isolate on Workers: each isolate counts independently, so the limits are
+  advisory, not enforced quotas. Move the counter into a Durable Object if abuse
+  ever appears.
 - Analytics/monitoring: the public vars (`NEXT_PUBLIC_GA_MEASUREMENT_ID`,
   `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_SENTRY_DSN`) are inlined
   at build time, so export them before `npm run build:worker` as well as setting
   them on the Worker. `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` are
   build-time only (source maps) — never add them as Worker runtime vars.
 
+### 6c. Static-asset and security headers (`_headers`)
+
+Both apps ship a `public/_headers` file. On Workers, Static Assets serve the
+app's static files directly — the Next server never runs in front of them, so
+`next.config.ts` `headers()` does not apply to those responses — and without
+`_headers` Cloudflare serves immutable build output as
+`max-age=0, must-revalidate`, so every browser revalidates every JS/CSS file on
+every load. The frontend `_headers` carries the year-long cache rules
+(`/_next/static/*`, `/artists/*`, `/concert-art/*`) plus the same
+security-header set as the other sources; the admin `_headers` carries only the
+`/_next/static/*` cache rule (the admin sets no custom security headers, and
+every admin route is dynamic HTML rendered by the worker).
+
+Netlify also parses `_headers` from the publish directory, with `netlify.toml`
+winning on conflicts — the values are identical, so the winner does not matter.
+
+The frontend's security headers live in three sources that must stay in step
+(the CSP is kept byte-identical across all three — verify with a diff, not by
+eye):
+
+- `frontend/next.config.ts` `headers()` — the HTML document on Workers.
+- `frontend/netlify.toml` `[[headers]]` — HTML + assets on the Netlify fallback.
+- `frontend/public/_headers` — static assets on Workers (and a Netlify fallback
+  for anything `netlify.toml` does not name).
+
+CSP rollout: the policy ships as `Content-Security-Policy-Report-Only`. Before
+switching it to enforcing, confirm the header actually reaches shoppers on
+ISR-cached HTML — the storefront runs with `enableCacheInterception`, and
+OpenNext does not guarantee that `next.config.ts` `headers()` survive cache
+interception (cached routes can be served without booting the NextServer), so
+the gate is a curl against production, not a config read:
+
+```bash
+curl -sI https://yordindia.com/ | grep -i content-security
+```
+
+That must show the report-only header on the cached document before any
+enforcing switch is considered.
+
 ## 7. Deploy
+
+The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
+(§6b). What follows is the Netlify fallback path, kept working:
 
 1. Commit the deployable state and push to `main` (or use "Trigger deploy" in
    Netlify with the desired commit).
@@ -325,8 +447,12 @@ Rules learned getting here:
 
 1. **Images come from R2.** Open a product page, inspect an image and load it in
    a new tab: the URL should be a plain object URL such as
-   `https://pub-<hash>.r2.dev/products/<handle>/01.webp` (or your custom domain),
-   ending in `.webp` with no transform query string. The response should carry
+   `https://pub-<hash>.r2.dev/products/<handle>/01-640.webp` (or your custom
+   domain), ending in `.webp` with no transform query string. The `-320/-640/`
+   `-960/-1280` suffix is the sibling the loader picked for that slot — a
+   product image URL with **no** suffix means the backfill in §5 has not run for
+   that image, and a 404 there means it has not run at all. Artist, concert and
+   collection images carry no suffix. The response should carry
    `cache-control: public, max-age=31536000, immutable`. A URL with
    `/_next/image?url=` in it means the custom loader is not wired.
 2. **Admin upload.** Admin → Media → upload a JPG/PNG/WebP → the card shows the

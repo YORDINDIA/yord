@@ -28,6 +28,9 @@ function productLabel(count: number): string {
 /** Field-level message for a handle the storefront computes itself. */
 const RESERVED_HANDLE_FIELD = 'That handle is reserved.';
 
+/** Field-level message for a handle another collection already holds. */
+const TAKEN_HANDLE_FIELD = 'That handle is already used by another collection.';
+
 /**
  * Refuse a handle edit that would move a collection into or out of an auto
  * handle (`all`, `new-arrivals`). `null` when the edit is allowed.
@@ -38,9 +41,10 @@ const RESERVED_HANDLE_FIELD = 'That handle is reserved.';
  *  - renaming the auto row away removes the handle the header/footer link. The
  *    storefront gates `/collection/<handle>` on the row (published + handle), so
  *    the link 404s even though the row is still published;
- *  - naming another row into it leaves two rows with the same handle, and the
+ *  - naming another row into it leaves two rows with the same handle. The
  *    storefront resolves a handle with `.maybeSingle()`, which errors when two
- *    rows match — `collections.handle` has no unique constraint to catch it.
+ *    rows match, so this guard is what turns that into a readable refusal
+ *    rather than the raw 23505 the unique index (migration 014) would raise.
  *
  * `stored` is the persisted handle (`null` when the collection does not exist
  * yet, i.e. the create form).
@@ -112,6 +116,33 @@ export async function updateCollectionAction(
     // the storefront links. See `reservedAutoHandle`.
     const handleRefusal = reservedAutoHandle(before.handle, handle);
     if (handleRefusal) return actionError(handleRefusal, { handle: [RESERVED_HANDLE_FIELD] });
+
+    // A handle another collection already holds. `collections.handle` is unique
+    // as of migration 014, so this would otherwise fail the update with a raw
+    // 23505. It is worth catching here rather than letting the constraint speak,
+    // because the form slugs the handle from the title when the field is
+    // cleared — so two collections titled the same collide without anyone
+    // typing a handle. Two rows on one handle is what takes out
+    // `/collection/<handle>` for *both*, since the storefront resolves a handle
+    // with `.maybeSingle()`, which errors when two rows match.
+    //
+    // Deliberately an array read, not `.maybeSingle()`: `maybeSingle()` is the
+    // method that *errors* when two rows already match, so it cannot be used to
+    // ask the very question this guard exists to answer.
+    const { data: handleRows, error: handleLookupError } = await context.service
+      .from('collections')
+      .select('id')
+      .eq('handle', handle)
+      .neq('id', input.id);
+    if (handleLookupError) {
+      console.error('[collections] handle lookup failed', handleLookupError);
+      return actionError(
+        'Could not check whether that handle is free. Nothing was changed. Try again.',
+      );
+    }
+    if ((handleRows ?? []).length > 0) {
+      return actionError(TAKEN_HANDLE_FIELD, { handle: [TAKEN_HANDLE_FIELD] });
+    }
 
     // The edit form renders no publication or type control for an auto
     // collection (both are disabled, so the browser omits them). Reading the
@@ -320,6 +351,25 @@ export async function createCollectionAction(
     // handle too, so this is not only the hand-typed case.
     const handleRefusal = reservedAutoHandle(null, handle);
     if (handleRefusal) return actionError(handleRefusal, { handle: [RESERVED_HANDLE_FIELD] });
+
+    // A handle another collection already holds — the create half of the check
+    // on the edit path above. The handle is slugged from the title when the
+    // admin does not type one, so two collections titled the same arrive here
+    // with the same handle and would otherwise both insert. Array read for the
+    // same reason as the edit path: `maybeSingle()` errors on a match of two.
+    const { data: handleRows, error: handleLookupError } = await context.service
+      .from('collections')
+      .select('id')
+      .eq('handle', handle);
+    if (handleLookupError) {
+      console.error('[collections] handle lookup failed', handleLookupError);
+      return actionError(
+        'Could not check whether that handle is free. Nothing was created. Try again.',
+      );
+    }
+    if ((handleRows ?? []).length > 0) {
+      return actionError(TAKEN_HANDLE_FIELD, { handle: [TAKEN_HANDLE_FIELD] });
+    }
 
     // Same publish guard as the edit form: a new empty collection that is
     // published immediately becomes a linked, empty storefront page. A new smart
