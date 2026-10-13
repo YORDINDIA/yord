@@ -73,28 +73,65 @@
   min-width: 0;
 }
 
-.sl-show__when { margin: 0; font-weight: 600; font-size: 0.95rem; }
+.sl-show__mark { margin: 0; font-weight: 600; font-size: 0.95rem; }
 
-.sl-show__city {
+.sl-show__name {
   margin: 0;
   font-weight: 800;
-  font-size: clamp(2.6rem, 14cqw, 6.4rem);
-  line-height: 0.92;
+  font-size: clamp(2.2rem, 9cqw, 5.2rem);
+  line-height: 0.95;
   letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
-.sl-show__venue { margin: 0; font-size: 1rem; }
+.sl-show[data-featured='true'] .sl-show__name { font-size: clamp(2.6rem, 12cqw, 6.4rem); }
 
-.sl-show__artist {
+.sl-show__tour { margin: 0 0 6px; font-size: 1rem; }
+
+/* Dates nested under the artist. Rows are spaced, not ruled; hover lifts the
+   row one tonal step and nudges the arrow. */
+.sl-dates {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 8px 0 12px;
-  font-size: 0.9rem;
+  gap: 4px;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
 }
 
-.sl-show__artist > span:first-child { font-size: 1.3rem; font-weight: 600; }
+.sl-date {
+  display: grid;
+  grid-template-columns: 7.2rem minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 12px 14px;
+  margin-inline: -14px;
+  transition: background-color 0.2s ease;
+}
+
+.sl-date:hover,
+.sl-date:focus-visible { background-color: color-mix(in srgb, var(--sl-gold) 9%, transparent); }
+
+.sl-date__when { font-weight: 600; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.sl-date__where { display: flex; flex-direction: column; min-width: 0; }
+.sl-date__city { font-weight: 700; font-size: 1.35rem; line-height: 1.1; transition: color 0.2s ease; }
+.sl-date__venue { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-date__count { font-size: 0.85rem; white-space: nowrap; }
+.sl-date__arrow { color: var(--sl-gold); transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+
+.sl-date:hover .sl-date__city,
+.sl-date:focus-visible .sl-date__city { color: var(--sl-gold); }
+.sl-date:hover .sl-date__arrow,
+.sl-date:focus-visible .sl-date__arrow { transform: translate(2px, -2px); }
+
+@container (max-width: 420px) {
+  .sl-date { grid-template-columns: minmax(0, 1fr) 16px; }
+  .sl-date__when { grid-column: 1; }
+  .sl-date__where { grid-column: 1; }
+  .sl-date__count { grid-column: 1; }
+  .sl-date__arrow { grid-column: 2; grid-row: 1 / span 3; }
+}
 
 .sl-show__photo {
   --c: 30px;
@@ -114,6 +151,20 @@
   mix-blend-mode: multiply;
   transition: opacity 0.6s ease;
 }
+.sl-show[data-featured='true'] .sl-show__photo img { filter: none; }
+.sl-show[data-featured='true'] .sl-show__photo .sl-chamfer__in::after { opacity: 0; }
+.sl-show[data-featured='true'] .sl-show__stage {
+  background-image: linear-gradient(
+    to left,
+    color-mix(in srgb, var(--sl-gold) 16%, transparent) 0%,
+    color-mix(in srgb, var(--sl-gold) 12%, transparent) 25%,
+    color-mix(in srgb, var(--sl-gold) 8%, transparent) 50%,
+    color-mix(in srgb, var(--sl-gold) 4%, transparent) 75%,
+    color-mix(in srgb, var(--sl-gold) 1%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sl-gold) 45%, transparent);
+}
+
 .sl-show__stage:hover .sl-show__photo img,
 .sl-show__stage:focus-within .sl-show__photo img { filter: none; }
 .sl-show__stage:hover .sl-show__photo .sl-chamfer__in::after,
@@ -324,6 +375,9 @@
   .sl-strip__img { animation: none !important; transform: scale(1.1); }
   .sl-strip__img,
   .sl-show__photo img,
+  .sl-date,
+  .sl-date__city,
+  .sl-date__arrow,
   .sl-show__photo .sl-chamfer__in::after,
   .sl-strip__photo::after,
   .sl-strip__name { transition: none; }

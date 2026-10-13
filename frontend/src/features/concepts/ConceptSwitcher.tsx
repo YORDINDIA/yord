@@ -6,8 +6,13 @@ import { cn } from '@yord/ui';
 import { CONCEPTS } from './gate';
 
 const ITEMS = [
-  { href: '/', short: 'ORIGINAL', long: 'Original' },
-  ...CONCEPTS.map((c) => ({ href: c.href, short: c.letter, long: `${c.letter} ${c.name}` })),
+  { href: '/concepts/original', short: 'ORIGINAL', long: 'Original' },
+  // Stagelight is the live home, so its tab points at `/`.
+  ...CONCEPTS.map((c) => ({
+    href: c.slug === 'stagelight' ? '/' : c.href,
+    short: c.letter,
+    long: `${c.letter} ${c.name}`,
+  })),
 ];
 
 /* Dev-time comparison bar. It sits on a fixed dark scrim so it reads the same
@@ -26,7 +31,9 @@ export function ConceptSwitcher() {
         DESIGN
       </span>
       {ITEMS.map((item) => {
-        const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+        // `/` is Stagelight, which also lives at /concepts/stagelight.
+        const active =
+          item.href === '/' ? pathname === '/' || pathname.startsWith('/concepts/stagelight') : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}

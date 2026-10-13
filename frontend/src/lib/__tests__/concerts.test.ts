@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest';
 import { ARTISTS } from '@yord/db-types';
 import {
   CONCERTS,
+  TOURS,
   getConcertBySlug,
+  getConcertTours,
   getConcertsByArtist,
   getUpcomingConcerts,
   getUpcomingConcertsByArtist,
@@ -23,7 +25,7 @@ import {
 // Fixed refresh cutoff — the catalogue was rebuilt for shows on/after this
 // date. A literal keeps the suite deterministic instead of time-bombing on
 // `new Date()` as real upcoming dates pass.
-const CUTOFF = '2026-10-02';
+const CUTOFF = '2026-10-13';
 
 describe('concert catalogue (upcoming-only)', () => {
   it('contains no completed entries', () => {
@@ -113,7 +115,7 @@ describe('concert catalogue (upcoming-only)', () => {
     expect(upcoming.every((c) => c.status !== 'completed')).toBe(true);
   });
 
-  it('groups upcoming shows by artist sorted soonest-first', () => {
+  it('groups upcoming shows by artist: featured first, then soonest-first', () => {
     const grouped = getUpcomingConcertsByArtist();
     expect(grouped.length).toBeGreaterThan(0);
     for (const g of grouped) {
@@ -122,8 +124,17 @@ describe('concert catalogue (upcoming-only)', () => {
       const times = g.allUpcoming.map((c) => new Date(c.date).getTime());
       expect([...times].sort((a, b) => a - b)).toEqual(times);
     }
-    const nextTimes = grouped.map((g) => new Date(g.nextShow.date).getTime());
+    const featured = grouped.filter((g) => g.featured);
+    expect(grouped.slice(0, featured.length)).toEqual(featured);
+    const nextTimes = grouped.slice(featured.length).map((g) => new Date(g.nextShow.date).getTime());
     expect([...nextTimes].sort((a, b) => a - b)).toEqual(nextTimes);
+  });
+
+  it('nests every show under exactly one tour, Diljit highlighted', () => {
+    expect(TOURS.flatMap((t) => t.dates.map((d) => d.slug))).toEqual(CONCERTS.map((c) => c.slug));
+    for (const t of TOURS) expect(t.dates.length).toBeGreaterThan(0);
+    expect(TOURS.filter((t) => t.featured).map((t) => t.artistHandle)).toEqual(['diljit-dosanjh']);
+    expect(getConcertTours()[0].artistHandle).toBe('diljit-dosanjh');
   });
 });
 
@@ -150,7 +161,7 @@ describe('concert artwork (per-concert images)', () => {
   it('gives every concert its own image file and credit', () => {
     const publicDir = path.join(process.cwd(), 'public');
     for (const c of CONCERTS) {
-      expect(c.image, `${c.slug} is missing an image`).toMatch(/^\/concert-art\//);
+      expect(c.image, `${c.slug} is missing an image`).toMatch(/^\/concert-art\/.+\.webp$/);
       expect(
         existsSync(path.join(publicDir, c.image!)),
         `${c.slug} image ${c.image} is missing from public/`

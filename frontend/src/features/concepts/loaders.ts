@@ -28,6 +28,10 @@ export interface ConcertShelf {
   nextShowCity: string;
   nextShowVenue: string;
   totalUpcomingShows: number;
+  /** Highlighted concert (listed first). */
+  featured: boolean;
+  /** Every upcoming date of the tour, soonest first. */
+  shows: { slug: string; date: string; city: string; venue: string }[];
   products: ConceptProduct[];
 }
 
@@ -97,7 +101,7 @@ export async function loadConcerts(): Promise<{ shelves: ConcertShelf[]; now: nu
   const shelves = (
     await Promise.all(
       getUpcomingConcertsByArtist().map(
-        async ({ artistHandle, tourName, nextShow, allUpcoming }): Promise<ConcertShelf | null> => {
+        async ({ artistHandle, tourName, featured, nextShow, allUpcoming }): Promise<ConcertShelf | null> => {
           const artist = ARTISTS[artistHandle];
           if (!artist) return null;
           let products: ConceptProduct[];
@@ -124,6 +128,8 @@ export async function loadConcerts(): Promise<{ shelves: ConcertShelf[]; now: nu
             nextShowCity: nextShow.city,
             nextShowVenue: nextShow.venue,
             totalUpcomingShows: allUpcoming.length,
+            featured,
+            shows: allUpcoming.map(({ slug, date, city, venue }) => ({ slug, date, city, venue })),
             products,
           };
         }

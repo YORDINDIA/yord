@@ -1,165 +1,70 @@
-import { Suspense } from 'react';
-import { HeroSection } from '@/features/home/HeroSection';
-import { ArtistShowcase } from '@/features/home/ArtistShowcase';
-import { FeaturedProducts } from '@/features/home/FeaturedProducts';
-import { ArtistProductsSection } from '@/features/home/ArtistProductsSection';
-import { UpcomingConcertsSection } from '@/features/home/UpcomingConcertsSection';
-import { BrandStory } from '@/features/home/BrandStory';
-import { NewsletterSection } from '@/features/home/NewsletterSection';
-import { SectionDivider } from '@/features/ui/SectionDivider';
+import type { Metadata } from 'next';
+import { ConceptProviders } from '@/features/concepts/ConceptProviders';
+import { bevellier } from '@/features/concepts/stagelight/fonts';
+import {
+  RAIL_HANDLES,
+  getShowcaseArtists,
+  loadArtistRail,
+  loadConcerts,
+  loadFeatured,
+} from '@/features/concepts/loaders';
+import { Backstage } from '@/features/concepts/stagelight/Backstage';
+import { Chapter } from '@/features/concepts/stagelight/Chapter';
+import { Collection } from '@/features/concepts/stagelight/Collection';
+import { Hero } from '@/features/concepts/stagelight/Hero';
+import { Lineup, type LineupArtist } from '@/features/concepts/stagelight/Lineup';
+import { Newsletter } from '@/features/concepts/stagelight/Newsletter';
+import { Story } from '@/features/concepts/stagelight/Story';
+import { Tonight } from '@/features/concepts/stagelight/Tonight';
 import { JsonLd, organizationSchema, websiteSchema } from '@/lib/seo/jsonld';
-import { getArtistsWithMetadata } from '@/lib/supabase/queries';
-import { degrade } from '@/lib/result';
+import '@/features/concepts/stagelight/stagelight.css';
+import '@/features/concepts/stagelight/hero.css';
+import '@/features/concepts/stagelight/sections.css';
+import '@/features/concepts/stagelight/story.css';
 
-export const revalidate = 3600; // Revalidate every hour to keep upcoming concerts fresh
+export const revalidate = 3600;
+
+// Stagelight is the live home page for now; the previous home lives at
+// /concepts/original. The one route whose canonical is the bare origin: the root
+// layout carries no `alternates`, so every other page sets its own.
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 export default async function HomePage() {
-  // Artist rail links are resolved against the database: only handles with a
-  // published, non-empty collection become tiles, so no link can land on the
-  // "Artist not found" page. Static (cookie-free) client keeps the route
-  // prerenderable; a failed read hides the rail instead of failing the page.
-  const artistsResult = await degrade(
-    getArtistsWithMetadata(true),
-    [],
-    'home:artists',
-    'collections',
+  const [concerts, featured, ...rails] = await Promise.all([
+    loadConcerts(),
+    loadFeatured(8),
+    ...RAIL_HANDLES.map((handle) => loadArtistRail(handle, 4)),
+  ]);
+
+  const artists: LineupArtist[] = getShowcaseArtists().flatMap((a) =>
+    a.heroImage ? [{ handle: a.handle, name: a.name, tagline: a.tagline, image: a.heroImage }] : []
   );
-  const artists = artistsResult.ok ? artistsResult.value : [];
 
   return (
-    <main>
-      <JsonLd data={organizationSchema()} />
-      <JsonLd data={websiteSchema()} />
-      {/* Hero Section - Full viewport immersive experience */}
-      <HeroSection />
-
-      {/* Divider - Hero to Upcoming Concerts */}
-      <SectionDivider variant="line" />
-
-      {/* Shop for Upcoming Concerts — high visibility placement */}
-      <Suspense fallback={<UpcomingConcertsSkeleton />}>
-        <UpcomingConcertsSection />
-      </Suspense>
-
-      {/* Divider - Concerts to Artists */}
-      <SectionDivider variant="ornament" />
-
-      {/* Artist Showcase - Horizontal scroll of featured artists */}
-      <ArtistShowcase artists={artists} />
-
-      {/* Divider - Artists to Products */}
-      <SectionDivider variant="ornament" />
-
-      {/* Featured Products */}
-      <Suspense fallback={<FeaturedProductsSkeleton />}>
-        <FeaturedProducts />
-      </Suspense>
-
-      {/* Artist Product Sections */}
-      <SectionDivider variant="line" />
-      <Suspense fallback={<ArtistProductsSkeleton artistName="Karan Aujla" />}>
-        <ArtistProductsSection artistHandle="karan-aujla" />
-      </Suspense>
-
-      <SectionDivider variant="line" />
-      <Suspense fallback={<ArtistProductsSkeleton artistName="Diljit Dosanjh" />}>
-        <ArtistProductsSection artistHandle="diljit-dosanjh" />
-      </Suspense>
-
-      <SectionDivider variant="line" />
-      <Suspense fallback={<ArtistProductsSkeleton artistName="Honey Singh" />}>
-        <ArtistProductsSection artistHandle="honey-singh" />
-      </Suspense>
-
-      <SectionDivider variant="line" />
-      <Suspense fallback={<ArtistProductsSkeleton artistName="Coldplay" />}>
-        <ArtistProductsSection artistHandle="coldplay" />
-      </Suspense>
-
-      {/* Divider - Products to Brand Story */}
-      <SectionDivider variant="gradient" />
-
-      {/* Brand Story */}
-      <BrandStory />
-
-      {/* Divider - Brand Story to Newsletter */}
-      <SectionDivider variant="ornament" />
-
-      {/* Newsletter */}
-      <NewsletterSection />
-    </main>
-  );
-}
-
-function FeaturedProductsSkeleton() {
-  return (
-    <section className="py-24 bg-surface-page">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        <div className="h-8 w-48 bg-surface-raised animate-pulse mb-12" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-4">
-              <div className="aspect-[3/4] bg-surface-raised animate-pulse" />
-              <div className="h-4 w-20 bg-surface-raised animate-pulse" />
-              <div className="h-6 w-full bg-surface-raised animate-pulse" />
-              <div className="h-4 w-24 bg-surface-raised animate-pulse" />
-            </div>
-          ))}
-        </div>
+    <ConceptProviders>
+      <div className={`${bevellier.variable} sl`}>
+        <JsonLd data={organizationSchema()} />
+        <JsonLd data={websiteSchema()} />
+        <Hero />
+        <Chapter n="02" title="Tonight" id="tonight" label="Upcoming concerts" tone="stage">
+          <Tonight shelves={concerts.shelves} now={concerts.now} />
+        </Chapter>
+        <Chapter n="03" title="The Lineup" id="lineup" label="Featured artists" tone="stage" feather="out">
+          <Lineup artists={artists} />
+        </Chapter>
+        <Chapter n="04" title="The Collection" id="collection" label="Featured collection" tone="surface" sweep="stage">
+          <Collection products={featured} />
+        </Chapter>
+        <Chapter n="05" title="Backstage" id="backstage" label="Shop by artist" tone="surface">
+          <Backstage rails={rails} />
+        </Chapter>
+        <Chapter n="06" title="The Story" id="story" label="Brand story and newsletter" tone="stage" feather="in">
+          <Story />
+          <Newsletter />
+        </Chapter>
       </div>
-    </section>
-  );
-}
-
-function ArtistProductsSkeleton({ }: { artistName: string }) {
-  return (
-    <section className="py-16 bg-surface-card overflow-hidden">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        <div className="mb-8">
-          <div className="h-0.5 w-12 bg-surface-inset animate-pulse mb-4" />
-          <div className="h-10 w-48 bg-surface-raised animate-pulse mb-2" />
-          <div className="h-4 w-32 bg-surface-raised animate-pulse" />
-        </div>
-      </div>
-      <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex gap-6 px-6 lg:px-12 pb-4" style={{ width: 'max-content' }}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-[260px] sm:w-[280px] space-y-4">
-              <div className="aspect-[3/4] bg-surface-raised animate-pulse" />
-              <div className="h-4 w-20 bg-surface-raised animate-pulse" />
-              <div className="h-6 w-full bg-surface-raised animate-pulse" />
-              <div className="h-4 w-24 bg-surface-raised animate-pulse" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function UpcomingConcertsSkeleton() {
-  return (
-    <section className="py-24 bg-surface-page">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        <div className="h-4 w-32 bg-surface-raised animate-pulse mb-3" />
-        <div className="h-10 w-80 bg-surface-raised animate-pulse mb-12" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-surface-card border border-border-default p-6 space-y-4">
-              <div className="h-0.5 w-12 bg-surface-raised animate-pulse" />
-              <div className="h-8 w-48 bg-surface-raised animate-pulse" />
-              <div className="h-4 w-32 bg-surface-raised animate-pulse" />
-              <div className="h-4 w-40 bg-surface-raised animate-pulse" />
-              <div className="grid grid-cols-3 gap-3 mt-6">
-                {Array.from({ length: 3 }).map((_, j) => (
-                  <div key={j} className="aspect-[3/4] bg-surface-raised animate-pulse" />
-                ))}
-              </div>
-              <div className="h-10 w-full bg-surface-raised animate-pulse mt-4" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+    </ConceptProviders>
   );
 }
