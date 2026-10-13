@@ -190,7 +190,7 @@ Copy the root `.env.example` to root `.env` and configure (loaded automatically 
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` - Search Console meta tag; unset = tag omitted
 - `NEXT_PUBLIC_SENTRY_DSN` (+ build-only `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`) - Sentry errors only; see `src/sentry-options.ts`
 - `NEXT_PUBLIC_MEDIA_BASE_URL` - optional; rewrites stored `*.r2.dev` image URLs to a custom domain (see Images)
-- `NEXT_PUBLIC_SHOW_CONCEPTS` - `true` enables the `/concepts/*` design routes; leave unset in production
+- `NEXT_PUBLIC_SHOW_CONCEPTS` - `1` enables the `/concepts/*` design routes; leave unset in production
 
 ## Deployment
 

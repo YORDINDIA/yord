@@ -92,6 +92,76 @@ def md_to_html(text: str) -> str:
     return "\n".join(out)
 
 
+SIZE_OPTION_VALUES = frozenset({
+    "xxs", "2xs", "xs", "s", "m", "l", "xl", "2xl", "xxl", "3xl", "xxxl",
+    "4xl", "5xl", "6xl", "one size", "onesize", "free size", "free-size",
+})
+STYLE_OPTION_VALUES = frozenset({
+    "regular", "oversize", "oversized", "slim", "relaxed", "classic", "boxy",
+    "round neck", "v neck", "v-neck", "crop", "cropped",
+})
+COLOR_OPTION_VALUES = frozenset({
+    "black", "white", "red", "blue", "green", "yellow", "pink", "purple",
+    "orange", "grey", "gray", "beige", "brown", "navy", "maroon", "cream",
+    "ivory", "tan", "teal", "multicolor", "multi-colour", "multi color",
+})
+
+
+def variant_option_values(
+    variant: dict, product_title: str | None = None
+) -> tuple[str | None, str | None, str | None]:
+    """Read three option axes, recovering omitted values from Shopify titles."""
+    values: list[str | None] = []
+    for slot in range(1, 4):
+        raw = variant.get(f"option{slot}")
+        value = str(raw).strip() if raw is not None else ""
+        values.append(value or None)
+
+    title = str(variant.get("title") or "")
+    if product_title and title.startswith(product_title):
+        suffix = title[len(product_title):].strip().lstrip("-– ").strip()
+        title_values = [part.strip() for part in re.split(r"\s*/\s*", suffix)]
+        if len(title_values) >= 2:
+            for index in range(min(3, len(title_values))):
+                if values[index] is None and title_values[index]:
+                    values[index] = title_values[index]
+    return values[0], values[1], values[2]
+
+
+def _option_axis_name(slot: int, values: list[str]) -> str:
+    normalized = {value.casefold().strip() for value in values}
+    if normalized and normalized <= SIZE_OPTION_VALUES:
+        return "Size"
+    if normalized and normalized <= COLOR_OPTION_VALUES:
+        return "Color"
+    if normalized and normalized <= STYLE_OPTION_VALUES:
+        return "Style"
+    return f"Option {slot}"
+
+
+def build_product_options(
+    product_id: int, variants: list[dict], product_title: str | None = None
+) -> list[dict]:
+    """Build correctly labeled Shopify-style rows for the present option axes."""
+    rows = []
+    for slot in range(1, 4):
+        values = list(dict.fromkeys(
+            option_values[slot - 1]
+            for v in variants
+            if (option_values := variant_option_values(v, product_title))[slot - 1]
+        ))
+        if not values:
+            continue
+        rows.append({
+            "id": product_id * 1000 + slot,
+            "product_id": product_id,
+            "name": _option_axis_name(slot, values),
+            "position": slot,
+            "values": values,
+        })
+    return rows
+
+
 def load_json(path: Path, default=None):
     if not path.exists():
         return default
@@ -146,6 +216,7 @@ def build() -> dict:
     violations: list[str] = []
     product_ids: dict[str, int] = {}
     products: list[dict] = []
+    options: list[dict] = []
     variants: list[dict] = []
     images: list[dict] = []
     seen_variant_ids: set[int] = set()
@@ -178,6 +249,9 @@ def build() -> dict:
                 "updated_at": ts,
             }
         )
+        raw_variants = p.get("variants") or []
+        product_title = p.get("title")
+        options.extend(build_product_options(pid, raw_variants, product_title))
         r2imgs: dict[str, str] = (manifest.get("products") or {}).get(handle, {})
         ordered_keys = sorted(r2imgs.keys())
         srcs: list[str] = p.get("images") or []
@@ -198,12 +272,13 @@ def build() -> dict:
                     "storage_url": storage,
                 }
             )
-        for vidx, v in enumerate(p.get("variants") or []):
+        for vidx, v in enumerate(raw_variants):
             raw_vid = v.get("variant_id")
             vid = int(raw_vid) if str(raw_vid or "").isdigit() else pid * 1000 + vidx + 1
             if vid in seen_variant_ids:
                 vid = pid * 1000 + vidx + 1 + 500000
             seen_variant_ids.add(vid)
+            option1, option2, option3 = variant_option_values(v, product_title)
             try:
                 price = float(v.get("price")) if v.get("price") is not None else None
             except (TypeError, ValueError):
@@ -217,8 +292,9 @@ def build() -> dict:
                     "price": price,
                     "position": vidx + 1,
                     "sku": v.get("sku"),
-                    "option1": (v.get("option1") or None),
-                    "option2": (v.get("option2") or None),
+                    "option1": option1,
+                    "option2": option2,
+                    "option3": option3,
                     "inventory_quantity": 100 if avail == "InStock" else 0,
                     "inventory_policy": "deny",
                     "fulfillment_service": "manual",
@@ -315,6 +391,7 @@ def build() -> dict:
     return {
         "blogs": blogs,
         "products": products,
+        "product_options": options,
         "product_variants": variants,
         "product_images": images,
         "collections": collections,
@@ -324,6 +401,7 @@ def build() -> dict:
         "counts": {
             "products": len(products),
             "variants": len(variants),
+            "options": len(options),
             "images": len(images),
             "collections": len(collections),
             "collects": len(collects),
@@ -335,7 +413,7 @@ def build() -> dict:
 def main() -> int:
     parser = create_parser("Ingest data/clean enriched dataset into Supabase")
     parser.add_argument("--only", default="all",
-                        choices=("all", "blogs", "products", "product_variants",
+                        choices=("all", "blogs", "products", "product_options", "product_variants",
                                  "product_images", "collections", "collects", "articles"))
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
@@ -361,7 +439,7 @@ def main() -> int:
         print("FAIL: missing SUPABASE URL/secret in .env")
         return 1
 
-    order = ["blogs", "products", "product_variants", "product_images",
+    order = ["blogs", "products", "product_options", "product_variants", "product_images",
              "collections", "collects", "articles"]
     if args.only != "all":
         order = [args.only]

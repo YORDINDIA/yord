@@ -15,6 +15,10 @@ export async function POST(req: Request) {
     const denied = assertAiAllowed(auth.user.id);
     if (denied) return denied;
 
+    if (!process.env.AGNES_AI_API_KEY) {
+      return failJson('NOT_CONFIGURED', 'AI service not configured', 500);
+    }
+
     const parsed = aiMarketingSchema.safeParse(await req.json());
     if (!parsed.success) {
       return failJson('BAD_REQUEST', firstIssue(parsed.error, 'brief is required', 'brief'), 400);

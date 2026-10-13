@@ -8,7 +8,7 @@ import requests
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent))
-from utils.r2_helpers import configure_r2, upload_image  # noqa: E402
+from utils.r2_helpers import configure_r2, upload_product_image  # noqa: E402
 from utils.config import resolve_supabase_secret_key, resolve_supabase_url  # noqa: E402
 
 load_dotenv()
@@ -23,8 +23,9 @@ print(f"angle shots: {len(files)}")
 def one(p: Path):
     handle, _, ai = p.stem.partition("__angle")
     data = p.read_bytes()
-    url, err = upload_image(f"products/{handle}/ai-angle-{ai}", data,
-                            content_type="image/png")
+    url, err = upload_product_image(
+        f"products/{handle}/ai-angle-{ai}", data, content_type="image/png"
+    )
     return handle, url, err
 
 

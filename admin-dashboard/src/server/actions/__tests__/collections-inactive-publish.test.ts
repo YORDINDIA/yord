@@ -22,6 +22,10 @@ const h = vi.hoisted(() => ({
   row: null as Record<string, unknown> | null,
   /** Rows the status lookup (`products.select('id, status')`) answers with. */
   productStatusRows: [] as Record<string, unknown>[],
+  /** Collection rows read by the bulk status action. */
+  targets: [] as Record<string, unknown>[],
+  /** Membership rows read by the bulk status action. */
+  collectRows: [] as Record<string, unknown>[],
   statusError: null as { message: string } | null,
   rpc: { data: 2, error: null } as { data: number | null; error: { message: string } | null },
 }));
@@ -75,6 +79,10 @@ function query(table: string) {
       Promise.resolve(
         table === 'products'
           ? { data: h.productStatusRows, error: h.statusError }
+          : table === 'collects'
+            ? { data: h.collectRows, error: null }
+            : table === 'collections'
+              ? { data: h.targets, error: null }
           : { data: null, error: null },
       ).then(resolve),
   };
@@ -113,6 +121,8 @@ describe('updateCollectionAction: all-inactive publish refusal', () => {
     h.calls = [];
     h.row = row({});
     h.productStatusRows = [];
+    h.targets = [];
+    h.collectRows = [];
     h.statusError = null;
     h.rpc = { data: 2, error: null };
   });
@@ -244,6 +254,8 @@ describe('createCollectionAction: all-inactive publish refusal', () => {
     h.calls = [];
     h.row = null;
     h.productStatusRows = [];
+    h.targets = [];
+    h.collectRows = [];
     h.statusError = null;
     h.rpc = { data: 2, error: null };
   });
@@ -290,5 +302,49 @@ describe('createCollectionAction: all-inactive publish refusal', () => {
     expect(state.status).toBe('success');
     expect(inserts()[0]?.payload).toMatchObject({ published: true, handle: 'monsoon-drop' });
     expect(rpcCalls()).toHaveLength(1);
+  });
+});
+
+describe('bulkUpdateCollectionStatusAction: all-inactive publish refusal', () => {
+  beforeEach(() => {
+    h.calls = [];
+    h.targets = [
+      { id: 99, title: 'Coldplay Tour', handle: 'coldplay-tour', published_at: null },
+    ];
+    h.collectRows = [
+      { collection_id: 99, product_id: 11 },
+      { collection_id: 99, product_id: 22 },
+    ];
+    h.productStatusRows = [
+      { id: 11, status: 'draft' },
+      { id: 22, status: 'archived' },
+    ];
+    h.statusError = null;
+  });
+
+  it('refuses to bulk publish members that are all inactive', async () => {
+    const { bulkUpdateCollectionStatusAction } = await import('@/server/actions/collections');
+    const data = new FormData();
+    data.append('ids', '99');
+    data.set('bulk_status', 'published');
+
+    const state = await bulkUpdateCollectionStatusAction({ status: 'idle' }, data);
+
+    expect(state.status).toBe('error');
+    expect(state.formError).toContain('inactive-only');
+    expect(updates()).toEqual([]);
+  });
+
+  it('bulk publishes when at least one member is active', async () => {
+    h.productStatusRows[1] = { id: 22, status: 'active' };
+    const { bulkUpdateCollectionStatusAction } = await import('@/server/actions/collections');
+    const data = new FormData();
+    data.append('ids', '99');
+    data.set('bulk_status', 'published');
+
+    const state = await bulkUpdateCollectionStatusAction({ status: 'idle' }, data);
+
+    expect(state.status).toBe('success');
+    expect(updates().some((call) => call.payload?.published === true)).toBe(true);
   });
 });

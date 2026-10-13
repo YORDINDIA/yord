@@ -157,18 +157,46 @@ describe('updateCollectionAction: auto handles', () => {
   });
 
   it('keeps a meaningful stored sort_order for an auto collection', async () => {
-    // Like `published`/`collection_type`, the stored value wins for an auto
-    // handle; the storefront honours price-asc/title sorts on these pages.
+    // The editor submits its selected value; the action must retain a sort the
+    // storefront honours instead of forcing the stored value over the form.
     h.row = { ...autoRow, sort_order: 'price-asc' };
     const { updateCollectionAction } = await import('@/server/actions/collections');
 
     const state = await updateCollectionAction(
       { status: 'idle' },
-      form({ id: '77', title: 'New Arrivals', handle: 'new-arrivals', body_html: '', image_src: '' }),
+      form({
+        id: '77',
+        title: 'New Arrivals',
+        handle: 'new-arrivals',
+        body_html: '',
+        image_src: '',
+        sort_order: 'price-asc',
+      }),
     );
 
     expect(state.status).toBe('success');
     expect(payloadOf()).toMatchObject({ sort_order: 'price-asc' });
+  });
+
+  it('persists a newly selected supported default sort for an auto collection', async () => {
+    h.row = { ...autoRow, sort_order: 'price-asc' };
+    const { updateCollectionAction } = await import('@/server/actions/collections');
+
+    const state = await updateCollectionAction(
+      { status: 'idle' },
+      form({
+        id: '77',
+        title: 'New Arrivals',
+        handle: 'new-arrivals',
+        body_html: '',
+        image_src: '',
+        sort_order: 'price-desc',
+      }),
+    );
+
+    expect(state.status).toBe('success');
+    expect(payloadOf()).toMatchObject({ sort_order: 'price-desc' });
+    expect(rpcCalls()).toHaveLength(0);
   });
 
   it('refuses renaming a collection INTO an auto handle instead of duplicating it', async () => {

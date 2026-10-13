@@ -68,9 +68,10 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     financial_status: string;
     fulfillment_status: string | null;
     total_price: number | string;
-    currency: string;
+    currency: string | null;
     created_at: string;
   };
+  const currency = o.currency || 'INR';
   const items = (lineItems || []) as {
     id: number;
     title: string;
@@ -141,7 +142,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                   )}
                 </div>
                 <span className="font-body text-sm text-text-secondary">
-                  {formatPrice(Number(item.price) * item.quantity, o.currency)}
+                  {formatPrice(Number(item.price) * item.quantity, currency)}
                 </span>
               </li>
             ))}
@@ -150,7 +151,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         <div className="border-t border-border-default mt-4 pt-4 flex justify-between items-center">
           <span className="font-body text-text-muted">Total</span>
           <span className="font-heading text-2xl text-text-primary">
-            {formatPrice(Number(o.total_price), o.currency)}
+            {formatPrice(Number(o.total_price), currency)}
           </span>
         </div>
       </div>

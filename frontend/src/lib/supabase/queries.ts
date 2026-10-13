@@ -434,7 +434,8 @@ export async function getConcertProductsByHandles(
     () => supabase
       .from('collections')
       .select('id, handle')
-      .in('handle', handles),
+      .in('handle', handles)
+      .eq('published', true),
   );
   if (!collections || collections.length === 0) return {};
 

@@ -81,6 +81,7 @@ export type BlogListRow = Blog & { meta: BlogListMeta };
  * that size the numbers come from the articles table anyway, which pages.
  */
 const BLOG_PAGE_ARTICLE_SCAN = 4000;
+const POSTGREST_PAGE_SIZE = 1000;
 
 function emptyBlogMeta(): BlogListMeta {
   return { articleCount: 0, publishedCount: 0, coverUrl: null, lastUpdatedAt: null };
@@ -102,21 +103,26 @@ export async function listBlogsWithMeta(filters: {
 
   const supabase = await reader();
   const ids = page.rows.map((blog) => blog.id);
-  const articles = await rows<
-    Pick<
-      Article,
-      'blog_id' | 'published' | 'updated_at' | 'image_src' | 'storage_image_url'
-    >
-  >(
-    ARTICLE_ENTITY,
-    supabase
-      .from('articles')
-      .select('blog_id,published,updated_at,image_src,storage_image_url')
-      .in('blog_id', ids)
-      // Newest first, so the first image found per blog is its cover.
-      .order('created_at', { ascending: false })
-      .range(0, BLOG_PAGE_ARTICLE_SCAN - 1),
-  );
+  type ArticleMetaRow = Pick<
+    Article,
+    'blog_id' | 'published' | 'updated_at' | 'image_src' | 'storage_image_url'
+  >;
+  const articles: ArticleMetaRow[] = [];
+  for (let from = 0; from < BLOG_PAGE_ARTICLE_SCAN; from += POSTGREST_PAGE_SIZE) {
+    const to = Math.min(from + POSTGREST_PAGE_SIZE, BLOG_PAGE_ARTICLE_SCAN) - 1;
+    const window = await rows<ArticleMetaRow>(
+      ARTICLE_ENTITY,
+      supabase
+        .from('articles')
+        .select('blog_id,published,updated_at,image_src,storage_image_url')
+        .in('blog_id', ids)
+        // Newest first, so the first image found per blog is its cover.
+        .order('created_at', { ascending: false })
+        .range(from, to),
+    );
+    articles.push(...window);
+    if (window.length < to - from + 1) break;
+  }
 
   const meta = new Map<number, BlogListMeta>(
     ids.map((id): [number, BlogListMeta] => [id, emptyBlogMeta()]),

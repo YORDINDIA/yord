@@ -24,7 +24,7 @@ from utils.config import (
     resolve_supabase_secret_key,
     resolve_supabase_url,
 )
-from utils.r2_helpers import upload_image
+from utils.r2_helpers import upload_product_image
 
 # Load environment variables
 load_dotenv()
@@ -162,7 +162,7 @@ class MediaMigrator:
         with open(local_path, 'rb') as f:
             file_data = f.read()
 
-        return upload_image(key, file_data, content_type)
+        return upload_product_image(key, file_data, content_type)
 
     def update_image_url(self, image_id: int, storage_url: str):
         """Update the product_images table with the new storage URL using REST API."""

@@ -10,7 +10,7 @@ import { Reveal } from '@/features/ui/Reveal';
 import { SectionHeading } from '@/features/ui/SectionHeading';
 import { Skeleton } from '@/features/ui/Skeleton';
 import { createClient } from '@/lib/supabase/client';
-import { getFirstByPosition, getProductBadge } from '@/lib/product';
+import { getFirstByPosition, getProductBadge, sortByPosition } from '@/lib/product';
 import { escapeLike } from '@/lib/search';
 import { vendorToHandle } from '@yord/db-types';
 import type { ProductWithDetails } from '@yord/db-types';
@@ -76,7 +76,10 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
       // A null handle becomes an empty string and a broken /product/ link.
       .filter((p) => p.handle)
       .map((p) => {
-        const variant = getFirstByPosition(p.product_variants);
+        const variants = sortByPosition(p.product_variants);
+        const variant =
+          variants.find((candidate) => candidate.inventory_quantity > 0) ??
+          getFirstByPosition(p.product_variants);
         const image = getFirstByPosition(p.product_images);
 
         return {

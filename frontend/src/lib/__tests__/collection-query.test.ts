@@ -27,7 +27,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: async () => mock.client,
 }));
 
-import { getProductsByCollectionHandle } from '@/lib/supabase/queries';
+import {
+  getConcertProductsByHandles,
+  getProductsByCollectionHandle,
+} from '@/lib/supabase/queries';
 
 // `queryOrThrow` short-circuits to null when Supabase looks unconfigured, which
 // would make every test below pass through the "missing row → 404" path.
@@ -180,6 +183,19 @@ describe('published gate', () => {
     } finally {
       process.env[URL_KEY] = saved;
     }
+  });
+
+  it('does not expose concert merch from an unpublished collection', async () => {
+    const fake = fakeClient({ collections: { data: null } });
+    await expect(
+      getConcertProductsByHandles(['coldplay'], 3, true),
+    ).resolves.toEqual({});
+    expect(fake.calls).toContainEqual({
+      table: 'collections',
+      method: 'eq',
+      args: ['published', true],
+    });
+    expect(fake.calls.some((call) => call.table === 'collects')).toBe(false);
   });
 });
 

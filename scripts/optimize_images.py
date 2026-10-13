@@ -52,7 +52,13 @@ from utils.config import (
     resolve_supabase_secret_key,
     resolve_supabase_url,
 )
-from utils.r2_helpers import delete_image, is_r2_url, key_from_public_url, upload_image
+from utils.r2_helpers import (
+    delete_image,
+    is_r2_url,
+    key_from_public_url,
+    upload_image,
+    upload_product_image,
+)
 
 # Load environment variables
 load_dotenv()
@@ -326,16 +332,29 @@ class StorageManager:
                      max_retries: int = 3, previous_url: str = '') -> str:
         """Upload optimized bytes to R2 and return the public URL.
 
-        Uploading under the same key overwrites the previous object, so there
-        is no separate "replace" step. The variant policy rewrites the key's
-        extension to `.webp`; when that changes the key, the superseded object
-        from this bucket is deleted best-effort so orphans do not accumulate.
+        Product uploads use a content-addressed revision key. Keep the prior
+        original and its siblings: an already-rendered page may still request
+        any width from the old URL after the database pointer changes.
         """
-        new_url, error = upload_image(key, data, content_type, max_retries=max_retries)
+        if key.lstrip('/').startswith('products/'):
+            # Product originals and siblings use a content-addressed revision
+            # so clients with a prior URL cannot mix image generations.
+            new_url, error = upload_product_image(
+                key, data, content_type, max_retries=max_retries
+            )
+        else:
+            new_url, error = upload_image(
+                key, data, content_type, max_retries=max_retries
+            )
         if error:
             raise RuntimeError(error)
 
-        if previous_url and previous_url != new_url and is_r2_url(previous_url):
+        if (
+            previous_url
+            and previous_url != new_url
+            and not key.lstrip('/').startswith('products/')
+            and is_r2_url(previous_url)
+        ):
             previous_key = key_from_public_url(previous_url)
             if previous_key and previous_key != key_from_public_url(new_url):
                 delete_image(previous_key)

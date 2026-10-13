@@ -246,9 +246,9 @@ export async function listMediaAssets(filters: MediaListFilters = {}): Promise<M
   const depth = Math.min(page * pageSize, MEDIA_UNION_LIMIT);
 
   const [productPart, articlePart, uploadPart] = await Promise.all([
-    source === 'all' || source === 'product' ? productAssetWindow(term, depth) : NO_ROW,
-    source === 'all' || source === 'article' ? articleAssetWindow(term, depth) : NO_ROW,
-    source === 'all' || source === 'upload' ? uploadAssetWindow(term, depth) : NO_ROW,
+    source === 'all' || source === 'product' ? productAssetWindow(term, depth, sort) : NO_ROW,
+    source === 'all' || source === 'article' ? articleAssetWindow(term, depth, sort) : NO_ROW,
+    source === 'all' || source === 'upload' ? uploadAssetWindow(term, depth, sort) : NO_ROW,
   ]);
 
   const total = productPart.count + articlePart.count + uploadPart.count;
@@ -263,10 +263,11 @@ export async function listMediaAssets(filters: MediaListFilters = {}): Promise<M
   return { rows: pageRows, count, page, pageSize, truncated: total > MEDIA_UNION_LIMIT };
 }
 
-/** Head window of `product_images`, newest first. */
+/** Head window of `product_images` in the requested chronological direction. */
 async function productAssetWindow(
   term: string,
   depth: number,
+  sort: MediaSort,
 ): Promise<{ rows: MediaAsset[]; count: number }> {
   const supabase = await reader();
   const query = supabase
@@ -283,8 +284,8 @@ async function productAssetWindow(
       )
     : query;
   const request = filtered
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
+    .order('created_at', { ascending: sort === 'oldest' })
+    .order('id', { ascending: sort === 'oldest' })
     .range(0, Math.max(0, depth - 1));
 
   const result = await runPage<ProductAssetRow>('product_images', request);
@@ -309,10 +310,11 @@ async function productAssetWindow(
   return { rows: assets, count: result.count };
 }
 
-/** Head window of article covers, newest first. */
+/** Head window of article covers in the requested chronological direction. */
 async function articleAssetWindow(
   term: string,
   depth: number,
+  sort: MediaSort,
 ): Promise<{ rows: MediaAsset[]; count: number }> {
   const supabase = await reader();
   const query = supabase
@@ -326,8 +328,8 @@ async function articleAssetWindow(
     ? query.or(`title.ilike.%${term}%,image_alt.ilike.%${term}%`)
     : query;
   const request = filtered
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
+    .order('created_at', { ascending: sort === 'oldest' })
+    .order('id', { ascending: sort === 'oldest' })
     .range(0, Math.max(0, depth - 1));
 
   const result = await runPage<ArticleAssetRow>('articles', request);
@@ -353,7 +355,7 @@ async function articleAssetWindow(
 }
 
 /**
- * Uploads recorded by `uploadMediaAction`, newest batch first.
+ * Uploads recorded by `uploadMediaAction`, in the requested chronological direction.
  *
  * `admin_audit_log` is default-deny under RLS, so this read uses the service
  * client (same as `listAuditLog`). The window is bounded; a search term is
@@ -363,13 +365,15 @@ async function articleAssetWindow(
 async function uploadAssetWindow(
   term: string,
   depth: number,
+  sort: MediaSort,
 ): Promise<{ rows: MediaAsset[]; count: number }> {
   const service = await reader();
   const request = service
     .from('admin_audit_log')
-    .select('after, created_at', { count: 'exact' })
+    .select('id, after, created_at', { count: 'exact' })
     .eq('action', 'upload_media')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: sort === 'oldest' })
+    .order('id', { ascending: sort === 'oldest' })
     .range(0, Math.max(0, depth - 1));
 
   const result = await runPage<UploadAuditRow>('admin_audit_log', request);

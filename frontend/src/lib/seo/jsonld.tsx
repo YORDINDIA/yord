@@ -30,7 +30,7 @@ export function organizationSchema() {
     '@type': 'Organization',
     name: 'YORD India',
     url: BASE_URL,
-    logo: `${BASE_URL}/icon-512.png`,
+    logo: `${BASE_URL}/favicon.ico`,
     description:
       "India's premium concert merchandise store. Shop exclusive fan-made designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, and more.",
     // No `foundingCountry`: it is not a schema.org Organization property (a

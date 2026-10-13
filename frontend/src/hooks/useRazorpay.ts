@@ -217,13 +217,10 @@ export function useRazorpay(): UseRazorpayReturn {
                 })),
               },
             });
-
-            function isTimeout(err: unknown): boolean {
-              return (
-                err instanceof DOMException &&
-                (err.name === 'TimeoutError' || err.name === 'AbortError')
-              );
-            }
+            // Persist before the first network request. A rejected fetch can
+            // happen before a Response exists (for example a TypeError during
+            // a dropped connection), after the gateway has already captured.
+            rememberPendingVerify(pendingVerifyStorage(), verifyBody);
 
             try {
               // First attempt: 30s so a hung verify never leaves checkout
@@ -231,6 +228,7 @@ export function useRazorpay(): UseRazorpayReturn {
               // request — the server may still create the order — so it is
               // reconciled below, never reported as failure.
               let answer: { status: number; code: string | null; message: string } | null = null;
+              let lastError: unknown = new Error('Verification timed out');
               try {
                 const { verifyResponse, verifyData } = await postVerify(verifyBody, 30000);
                 if (verifyResponse.ok) {
@@ -244,7 +242,9 @@ export function useRazorpay(): UseRazorpayReturn {
                   message: verifyData.error || 'Payment verification failed',
                 };
               } catch (err) {
-                if (!isTimeout(err)) throw err;
+                // Network TypeError, timeout and abort all leave capture
+                // unresolved. The durable body above protects a later retry.
+                lastError = err;
               }
 
               if (
@@ -256,12 +256,9 @@ export function useRazorpay(): UseRazorpayReturn {
                   code: answer.code,
                 })
               ) {
-                // The server answered (not a timeout) and the payment was
-                // refunded or never captured. The
-                // body is stored so the next attempt reconciles this payment
-                // before charging again; without it, a second charge would
-                // start with no reconcile gate over captured money.
-                rememberPendingVerify(pendingVerifyStorage(), verifyBody);
+                // Only server codes that prove refund completion (or the
+                // gateway's no-capture response) permit a fresh checkout.
+                clearPendingVerify(pendingVerifyStorage(), response.razorpay_payment_id);
                 throw new Error(answer.message);
               }
 
@@ -271,10 +268,9 @@ export function useRazorpay(): UseRazorpayReturn {
               // inviting a retry that charges twice. The stored body is what
               // a later visit replays when this tab is closed before the loop
               // finishes (see pendingVerify).
-              rememberPendingVerify(pendingVerifyStorage(), verifyBody);
-              let lastError: unknown = new Error('Verification timed out');
               for (let attempt = 0; attempt < 3; attempt += 1) {
                 await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+                let settledMessage: string | null = null;
                 try {
                   const { verifyResponse, verifyData } = await postVerify(verifyBody, 45000);
                   if (verifyResponse.ok) {
@@ -282,20 +278,23 @@ export function useRazorpay(): UseRazorpayReturn {
                     resolve({ ...response, order_name: verifyData.order_name ?? '' });
                     return;
                   }
-                  // Definitive server rejections (amount mismatch, stock,
-                  // bad signature) are terminal: no order will appear.
+                  // Only settled refund/no-capture codes allow another charge.
                   lastError = new Error(verifyData.error || 'Payment verification failed');
                   if (
-                    verifyResponse.status === 400 ||
-                    verifyResponse.status === 402 ||
-                    verifyResponse.status === 409
+                    isSettledVerifyFailure({
+                      ok: false,
+                      status: verifyResponse.status,
+                      orderName: null,
+                      code: verifyData.code ?? null,
+                    })
                   ) {
-                    break;
+                    clearPendingVerify(pendingVerifyStorage(), response.razorpay_payment_id);
+                    settledMessage = verifyData.error || 'Payment verification failed';
                   }
                 } catch (err) {
                   lastError = err;
-                  if (!isTimeout(err)) break;
                 }
+                if (settledMessage) throw new Error(settledMessage);
               }
               throw lastError instanceof Error
                 ? new Error(

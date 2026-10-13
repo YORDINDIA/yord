@@ -261,6 +261,8 @@ const SETTLED_CODES = new Set([
   'AMOUNT_MISMATCH', // refunded before this attempt could see it
   'OUT_OF_STOCK', // refunded before this attempt could see it
   'ORDER_NUMBER_OVERFLOW', // refunded
+  'UNKNOWN_VARIANT', // cart validation returned this only after refunding capture
+  'BAD_AMOUNT', // cart validation returned this only after refunding capture
   // REFUND_FAILED is deliberately absent: the money is still captured, so the
   // body stays stored and each replay retries the refund server-side. The
   // replay settles once the refund lands (ORDER_REFUNDED, or a 402 when the

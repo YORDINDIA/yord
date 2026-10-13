@@ -80,7 +80,7 @@ prefix.
 ```bash
 export DATABASE_URL='postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres'
 
-# Core tables, then every migration in numeric order (001-016 today; the glob
+# Core tables, then every migration in numeric order (001-017 today; the glob
 # picks up new ones automatically, so keep the range in this comment current).
 psql "$DATABASE_URL" -f scripts/schema.sql
 for f in supabase/migrations/0*.sql; do
@@ -168,17 +168,22 @@ the resume state.
 
 Conventions to keep the database consistent with the apps:
 
-- Object keys: `products/<handle>/<NN>.webp`, `blog/<handle>.webp`,
+- Object keys: `products/<handle>/<name>--<16-hex-revision>.webp`,
+  `blog/<handle>.webp`,
   `blog-placeholders/<category>.webp`, and `products/_unmatched/<stem>.webp` for
   loose files. Admin and AI uploads use `admin/<uuid>.webp` and `ai/<ts>.webp`.
 - Store the returned public URL in `product_images.storage_url` and
   `articles.storage_image_url`; keep the original URL in `src` / `image_src`.
-- Upload with `scripts/utils/r2_helpers.py::upload_image(key, data,
-  content_type)` — it stores images as a single WebP variant (at most 1600px
-  wide, quality 80), rewrites the key's extension to `.webp`, sets
-  `Cache-Control: public, max-age=31536000, immutable` and retries. Its return
-  value is `(public_url, error)`. The same helper builds the key and URL for the
-  other scripts.
+- Product images use `scripts/utils/r2_helpers.py::upload_product_image(key,
+  data, content_type)`: it stores a WebP original (at most 1600px wide) and
+  the 320/640/960/1280px siblings expected by the storefront loader. The helper
+  includes a digest of the complete output set in the object names; database
+  URLs change only after all siblings upload, so a failed upload leaves the old
+  revision intact and cannot expose a mixed set.
+  Other media uses `upload_image(key, data, content_type)`, which writes a
+  single optimized WebP (at most 1600px wide, quality 80) with
+  `Cache-Control: public, max-age=31536000, immutable`. Both return
+  `(public_url, error)` and retry failed uploads.
 - Never write the old Supabase URLs. The project that hosted them is deleted;
   every `...supabase.co/storage/...` URL 404s.
 
@@ -313,6 +318,27 @@ cd ../admin-dashboard && npm run build:worker && npm run deploy:worker
 # Secrets (same vars as §6, per app): echo "$V" | npx wrangler secret put NAME
 ```
 
+### Git-connected Workers Builds
+
+Workers Builds can connect each existing Worker to this GitHub repository and
+deploy on pushes to `main`. First authorize/install the Cloudflare GitHub App
+for the `YORDINDIA` organization from **Workers & Pages → Worker → Settings →
+Builds → Connect**. This authorization is separate from
+`CLOUDFLARE_API_TOKEN`; it cannot be completed by the account token alone.
+After authorization, configure one production trigger per app with repository
+root `/`, production branch `main`, and build caching enabled:
+
+| Worker | Build command | Deploy command |
+|---|---|---|
+| `yord-frontend` | `npm ci --legacy-peer-deps && npm run build:worker --workspace=frontend` | `npm run deploy:worker --workspace=frontend` |
+| `yord-admin` | `npm ci --legacy-peer-deps && npm run build:worker --workspace=admin-dashboard` | `npm run deploy:worker --workspace=admin-dashboard` |
+
+Use the Node version from `.nvmrc`/CI (`20.19.4`). Configure the `NEXT_PUBLIC_*`
+values needed by each app as build-trigger environment variables because they
+are inlined at build time. Keep server credentials as Worker runtime secrets;
+do not put them in build logs or non-secret build variables. See root
+`CLAUDE.md` for the environment-variable inventory and command references.
+
 Rules learned getting here:
 
 - Supabase enables RLS on new tables with no policies, so anon catalog reads
@@ -358,10 +384,20 @@ Rules learned getting here:
   default to each column. Worth remembering for any new table: **nothing in this
   schema has an id default**, so an insert that omits `id` fails — and if that
   insert sits after a capture, it fails with the customer's money already taken.
-- `016_adopt_order_claim.sql` (landing alongside this doc) adds
+- `016_adopt_order_claim.sql` adds
   `orders.claim_adopted_at` and the `adopt_order_claim(p_order_id bigint,
-  p_total numeric)` compare-and-swap RPC that verify-payment uses to adopt an
-  order — the CAS guard is what makes a replayed or raced adoption harmless.
+  p_total numeric)` compare-and-swap RPC. It is retained for migration
+  compatibility; migration 017 replaces this one-shot adoption protocol.
+- `017_checkout_claim_leases.sql` adds token-owned, expiring checkout leases;
+  persistent per-order/per-line stock decrement and restore records; and
+  transactional order completion. Leases start at 90 seconds and successful
+  stock operations renew them; expired claims can be taken over using the
+  durable stock ledger. It blocks incomplete pre-017 orders because their stock
+  movement history cannot be reconstructed safely. Apply migration
+  017 **before** deploying the matching verify-payment route. During the
+  cutover, pause checkout from the storefront until both steps are complete:
+  the migration makes the old `decrement_variant_stock` RPC fail closed, so an
+  old route binary refunds rather than mutating stock outside the ledger.
 - Unlike Netlify, Workers has no static-to-dynamic fallback: any `cookies()`
   read (cookie-bound Supabase server client) in a prerendered route's tree is
   a runtime 500. The `(main)` layout and all `generateStaticParams` pages

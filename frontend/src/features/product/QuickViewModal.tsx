@@ -34,7 +34,9 @@ interface QuickViewModalProps {
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const titleId = useId();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
-    () => getFirstByPosition(product.product_variants)
+    () =>
+      sortByPosition(product.product_variants).find((variant) => variant.inventory_quantity > 0) ??
+      getFirstByPosition(product.product_variants)
   );
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -43,7 +45,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const [prevProduct, setPrevProduct] = useState(product);
   if (prevProduct !== product) {
     setPrevProduct(product);
-    setSelectedVariant(getFirstByPosition(product.product_variants));
+    setSelectedVariant(
+      sortByPosition(product.product_variants).find((variant) => variant.inventory_quantity > 0) ??
+        getFirstByPosition(product.product_variants)
+    );
     setCurrentImageIndex(0);
     setQuantity(1);
   }

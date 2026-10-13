@@ -3,11 +3,18 @@ import { createStaticClient } from '@/lib/supabase/server';
 import { buildSearchOrFilter } from '@/lib/search';
 import { PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { logDbError } from '@/lib/logger';
+import { isRateLimited, clientIp } from '@/lib/rate-limit';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+const RATE_LIMIT = 60;
+const RATE_WINDOW_MS = 60_000;
 
 export async function GET(request: NextRequest) {
+  if (isRateLimited(`search:${clientIp(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const rawQuery = searchParams.get('q') || '';
   const query = rawQuery.trim().slice(0, 100);

@@ -54,7 +54,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from utils.config import resolve_supabase_secret_key, resolve_supabase_url  # noqa: E402
-from utils.r2_helpers import upload_image  # noqa: E402
+from utils.r2_helpers import upload_product_image  # noqa: E402
 from utils.supabase_helpers import get_supabase_client  # noqa: E402
 
 load_dotenv()
@@ -183,7 +183,9 @@ def upload_images(product: dict) -> list[dict]:
         if not path.exists():
             raise FileNotFoundError(f"missing image for {product['handle']}: {path}")
         key = f"products/{product['handle']}/{slot}"
-        url, error = upload_image(key, path.read_bytes(), content_type="image/png")
+        url, error = upload_product_image(
+            key, path.read_bytes(), content_type="image/png"
+        )
         if error or not url:
             raise RuntimeError(f"upload failed for {key}: {error}")
         if not verify_url(url):

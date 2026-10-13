@@ -93,7 +93,7 @@ export function CatalogGrid({
     isError,
     refetch,
   } = useProductsInfinite(activeQuery, sortChanged
-    ? { data: [], count: totalCount, page: 1, pageSize: query.pageSize }
+    ? undefined
     : {
       data: initialProducts,
       count: totalCount,

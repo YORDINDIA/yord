@@ -12,6 +12,7 @@ const h = vi.hoisted(() => {
     result: { data: [] as unknown, error: null as unknown },
     clientThrows: false,
     calls: 0,
+    rateLimited: false,
   };
   const limit = vi.fn(async () => {
     state.calls += 1;
@@ -32,7 +33,9 @@ const h = vi.hoisted(() => {
     };
   });
   const logDbError = vi.fn();
-  return { state, limit, createStaticClient, logDbError };
+  const isRateLimited = vi.fn(() => state.rateLimited);
+  const clientIp = vi.fn(() => '203.0.113.9');
+  return { state, limit, createStaticClient, logDbError, isRateLimited, clientIp };
 });
 
 vi.mock('@/lib/logger', () => ({
@@ -41,6 +44,10 @@ vi.mock('@/lib/logger', () => ({
   logInfo: vi.fn(),
 }));
 vi.mock('@/lib/supabase/server', () => ({ createStaticClient: h.createStaticClient }));
+vi.mock('@/lib/rate-limit', () => ({
+  isRateLimited: h.isRateLimited,
+  clientIp: h.clientIp,
+}));
 
 import { GET } from '@/app/api/search/route';
 
@@ -53,6 +60,7 @@ beforeEach(() => {
   h.state.result = { data: [], error: null };
   h.state.clientThrows = false;
   h.state.calls = 0;
+  h.state.rateLimited = false;
 });
 
 describe('GET /api/search', () => {
@@ -85,6 +93,15 @@ describe('GET /api/search', () => {
     const res = await GET(request('http://localhost/api/search?q=a'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ products: [] });
+    expect(h.state.calls).toBe(0);
+  });
+
+  it('rate limits public requests by client IP before querying Supabase', async () => {
+    h.state.rateLimited = true;
+    const res = await GET(request('http://localhost/api/search?q=coldplay'));
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: 'Too many requests' });
+    expect(h.isRateLimited).toHaveBeenCalledWith('search:203.0.113.9', 60, 60_000);
     expect(h.state.calls).toBe(0);
   });
 });

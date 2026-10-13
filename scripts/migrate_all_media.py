@@ -28,6 +28,7 @@ import os
 import sys
 import json
 import argparse
+import hashlib
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
@@ -69,6 +70,13 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def metafield_file_stem(metafield_id: Any, url: str) -> str:
+    """Stable, URL-specific name for one file in a metafield value."""
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+    return f"{metafield_id}-{digest}"
+
 
 # Configuration
 MAX_WORKERS = 5
@@ -508,7 +516,7 @@ class MetafieldFileMigrator:
             matches = re.findall(url_pattern, value, re.IGNORECASE)
             urls.extend(matches)
 
-        return list(set(urls))
+        return sorted(set(urls))
 
     def _migrate_single_file(self, metafield: Dict, url: str) -> Optional[str]:
         """Migrate a single file from metafield."""
@@ -522,7 +530,7 @@ class MetafieldFileMigrator:
             ext = self.processor.get_extension_from_url(url)
             owner_resource = metafield.get('owner_resource', 'unknown')
             owner_id = metafield.get('owner_id', 0)
-            metafield_id = metafield.get('id')
+            file_stem = metafield_file_stem(metafield.get('id'), url)
 
             # Create backup
             if not self.dry_run:
@@ -533,11 +541,11 @@ class MetafieldFileMigrator:
                     str(owner_id)
                 )
                 backup_path.mkdir(parents=True, exist_ok=True)
-                with open(backup_path / f'{metafield_id}{ext}', 'wb') as f:
+                with open(backup_path / f'{file_stem}{ext}', 'wb') as f:
                     f.write(file_data)
 
             # Check if it's an image that should be converted
-            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.webp']
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.webp', '.avif']
             if ext.lower() in image_extensions:
                 webp_data, _ = self.processor.convert_to_webp(file_data)
                 upload_data = webp_data
@@ -550,10 +558,10 @@ class MetafieldFileMigrator:
                 upload_content_type = content_type or 'application/octet-stream'
 
             if self.dry_run:
-                return f'[DRY_RUN]{METAFIELDS_STORAGE_PATH}/{owner_resource}/{owner_id}/{metafield_id}{upload_ext}'
+                return f'[DRY_RUN]{METAFIELDS_STORAGE_PATH}/{owner_resource}/{owner_id}/{file_stem}{upload_ext}'
 
             # Upload
-            storage_path = f'{METAFIELDS_STORAGE_PATH}/{owner_resource}/{owner_id}/{metafield_id}{upload_ext}'
+            storage_path = f'{METAFIELDS_STORAGE_PATH}/{owner_resource}/{owner_id}/{file_stem}{upload_ext}'
             public_url, error = self.uploader.upload_image(
                 storage_path,
                 upload_data,

@@ -91,9 +91,21 @@ export default function VariantEditor({
   productId: number;
 }) {
   const [rows, setRows] = useState<VariantRow[]>(variants);
+  const [baselineRows, setBaselineRows] = useState<VariantRow[]>(variants);
+  const [rowsVersion, setRowsVersion] = useState(0);
+  const [previousVariants, setPreviousVariants] = useState(variants);
   const router = useRouter();
 
-  const baselineById = new Map(variants.map((row) => [row.id, row]));
+  if (previousVariants !== variants) {
+    // `router.refresh()` preserves client component state. Adopt the refreshed
+    // server rows as both the displayed values and the new dirty baseline.
+    setPreviousVariants(variants);
+    setRows(variants);
+    setBaselineRows(variants);
+    setRowsVersion((version) => version + 1);
+  }
+
+  const baselineById = new Map(baselineRows.map((row) => [row.id, row]));
   const changedRows = rows.filter((row) => {
     const base = baselineById.get(row.id);
     return (
@@ -127,9 +139,12 @@ export default function VariantEditor({
 
   const { state, pending, formAction } = useActionForm(updateVariantsAction, {
     onResult: (result) => {
-      // The action revalidates the route; refresh so the editor baseline matches
-      // what was actually saved and the dirty bar clears.
-      if (result.status === 'success') router.refresh();
+      if (result.status === 'success') {
+        // Clear dirty state immediately; the refreshed server props below then
+        // become authoritative (including any concurrent inventory changes).
+        setBaselineRows(rows);
+        router.refresh();
+      }
     },
   });
 
@@ -308,6 +323,7 @@ export default function VariantEditor({
       )}
 
       <DataTable
+        key={rowsVersion}
         caption="Product variants"
         columns={columns}
         rows={rows}

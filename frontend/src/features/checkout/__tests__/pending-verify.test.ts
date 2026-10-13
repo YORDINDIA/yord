@@ -149,6 +149,8 @@ describe('isSettledVerifyFailure', () => {
       'AMOUNT_MISMATCH',
       'OUT_OF_STOCK',
       'ORDER_NUMBER_OVERFLOW',
+      'UNKNOWN_VARIANT',
+      'BAD_AMOUNT',
     ]) {
       expect(isSettledVerifyFailure(attempt({ status: 500, code }))).toBe(true);
     }
@@ -160,7 +162,7 @@ describe('isSettledVerifyFailure', () => {
     expect(isSettledVerifyFailure(attempt({ status: 500 }))).toBe(false);
     // Captured money the refund did not return: never safe to charge again.
     expect(isSettledVerifyFailure(attempt({ status: 500, code: 'REFUND_FAILED' }))).toBe(false);
-    expect(isSettledVerifyFailure(attempt({ status: 400, code: 'UNKNOWN_VARIANT' }))).toBe(false);
+    expect(isSettledVerifyFailure(attempt({ status: 409, code: 'ORDER_CANCELLED' }))).toBe(false);
     expect(isSettledVerifyFailure(attempt({ status: 409, code: 'ORDER_INCOMPLETE' }))).toBe(false);
     expect(isSettledVerifyFailure(attempt({ status: 502, code: 'PAYMENT_FETCH_FAILED' }))).toBe(false);
   });
@@ -285,6 +287,19 @@ describe('reconcilePendingVerify', () => {
     rememberPendingVerify(storage, verifyBody());
     const post = vi.fn(async () => {
       throw new DOMException('The operation timed out', 'TimeoutError');
+    });
+
+    const outcome = await reconcilePendingVerify({ storage, post });
+
+    expect(outcome).toEqual({ kind: 'blocked', message: REPLAY_BLOCKED_MESSAGE });
+    expect(readPendingVerify(storage)?.body).toBe(verifyBody());
+  });
+
+  it('blocks and keeps the body when fetch rejects with a network TypeError', async () => {
+    const storage = fakeStorage();
+    rememberPendingVerify(storage, verifyBody());
+    const post = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
     });
 
     const outcome = await reconcilePendingVerify({ storage, post });

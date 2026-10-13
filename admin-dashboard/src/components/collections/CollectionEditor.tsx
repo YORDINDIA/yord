@@ -181,7 +181,7 @@ export default function CollectionEditor({
         </select>
         <div className="helper" style={{ marginTop: 4 }}>
           {isAuto
-            ? 'Used when a shopper has not picked a sort. Manual is not offered: an auto collection has no saved picker order.'
+            ? 'Used when a shopper has not picked a sort. The auto collection supports newest, price and title order; manual is not offered because it has no saved picker order.'
             : 'Used when a shopper has not picked a sort on the storefront.'}
         </div>
       </div>

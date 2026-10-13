@@ -52,7 +52,13 @@ from utils.config import (
     resolve_r2_public_base_url,
     resolve_r2_secret_access_key,
 )
-from utils.r2_helpers import R2NotConfiguredError, configure_r2, to_webp_variant, upload_image
+from utils.r2_helpers import (
+    R2NotConfiguredError,
+    configure_r2,
+    to_webp_variant,
+    upload_image,
+    upload_product_image,
+)
 
 load_dotenv()
 
@@ -170,7 +176,13 @@ def upload_one(relative: Path) -> Tuple[str, str | None, str | None]:
     except OSError as error:
         return str(relative), None, f"read failed: {error}"
 
-    url, error = upload_image(key_for(relative), data, content_type=_mime_for(source))
+    content_type = _mime_for(source)
+    if relative.parts[0] == "products" and content_type in {
+        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif",
+    }:
+        url, error = upload_product_image(key_for(relative), data, content_type=content_type)
+    else:
+        url, error = upload_image(key_for(relative), data, content_type=content_type)
     if error:
         return str(relative), None, error
     return str(relative), url, None

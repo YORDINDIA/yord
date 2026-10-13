@@ -210,9 +210,9 @@ export async function updateCollectionAction(
         // normalises it away instead of persisting it. Otherwise the stored
         // value is kept, exactly like `published`/`collection_type` above.
         sort_order: isAuto
-          ? before.sort_order === 'manual'
+          ? input.sort_order === 'manual'
             ? null
-            : (before.sort_order ?? null)
+            : (input.sort_order || null)
           : (input.sort_order || null),
         // Smart collections only: AND (default) vs OR across their rules.
         disjunctive: isAuto ? before.disjunctive : collectionType === 'smart' ? input.disjunctive : null,
@@ -722,11 +722,12 @@ export async function bulkUpdateCollectionStatusAction(
     // `collects(count)`: the generated types carry no relationship metadata, so
     // an embed would need an untyped cast (see lib/data/client.ts `groupBy`).
     const counts = new Map<number, number>();
+    const members = new Map<number, number[]>();
     const WINDOW = 1000;
     for (let from = 0; ; from += WINDOW) {
       const { data: collects, error } = await context.service
         .from('collects')
-        .select('collection_id')
+        .select('collection_id, product_id')
         .in('collection_id', ids)
         .order('collection_id', { ascending: true })
         .order('product_id', { ascending: true })
@@ -734,8 +735,36 @@ export async function bulkUpdateCollectionStatusAction(
       if (error) return actionError('Could not count those collections. Nothing was changed.');
       for (const row of collects ?? []) {
         counts.set(row.collection_id, (counts.get(row.collection_id) ?? 0) + 1);
+        const productIds = members.get(row.collection_id) ?? [];
+        productIds.push(row.product_id);
+        members.set(row.collection_id, productIds);
       }
       if ((collects?.length ?? 0) < WINDOW) break;
+    }
+
+    const activeProductIds = new Set<number>();
+    if (published) {
+      const productIds = [...new Set([...members.values()].flat())];
+      for (let from = 0; from < productIds.length; from += WINDOW) {
+        const { data: products, error } = await context.service
+          .from('products')
+          .select('id, status')
+          .in('id', productIds.slice(from, from + WINDOW));
+        if (error) {
+          return actionError('Could not check those products. Nothing was changed.');
+        }
+        for (const product of products ?? []) {
+          if (product.status === 'active') activeProductIds.add(product.id);
+        }
+      }
+    }
+
+    const activeCounts = new Map<number, number>();
+    for (const [collectionId, productIds] of members) {
+      activeCounts.set(
+        collectionId,
+        productIds.filter((productId) => activeProductIds.has(productId)).length,
+      );
     }
 
     // Publishing refuses rows that would go live empty — an empty collection
@@ -745,6 +774,7 @@ export async function bulkUpdateCollectionStatusAction(
     // storefront header/footer link them and the row gates the route, so a
     // bulk unpublish would turn those links into 404s.
     const blocked: string[] = [];
+    const blockedInactive: string[] = [];
     const skippedAuto: string[] = [];
     const publishable: number[] = [];
     const needsStamp: number[] = [];
@@ -757,6 +787,10 @@ export async function bulkUpdateCollectionStatusAction(
       }
       if (published && count === 0 && !isAuto) {
         blocked.push(row.title);
+        continue;
+      }
+      if (published && !isAuto && (activeCounts.get(row.id) ?? 0) === 0) {
+        blockedInactive.push(row.title);
         continue;
       }
       publishable.push(row.id);
@@ -790,7 +824,7 @@ export async function bulkUpdateCollectionStatusAction(
       action: 'bulk_update_status',
       entity: ENTITY,
       entityId: ids.join(','),
-      after: { published, count: publishable.length, blocked, skippedAuto },
+      after: { published, count: publishable.length, blocked, blockedInactive, skippedAuto },
     });
 
     revalidatePath('/collections');
@@ -803,16 +837,20 @@ export async function bulkUpdateCollectionStatusAction(
       skippedAuto.length > 0
         ? ` ${skippedAuto.length} auto collection${skippedAuto.length === 1 ? '' : 's'} (${skippedAuto.join(', ')}) stayed published: the storefront links them.`
         : '';
+    const inactiveNote =
+      blockedInactive.length > 0
+        ? ` ${blockedInactive.length} inactive-only collection${blockedInactive.length === 1 ? '' : 's'} stayed unpublished (${blockedInactive.join(', ')}). Add an active product first.`
+        : '';
 
     // Nothing published/unpublished at all is a failure with nothing changed;
     // a partially applied selection is a success that reports what it skipped,
     // so the banner does not claim a write that did land did not happen.
     if (publishable.length === 0) {
-      return actionError(`${emptyNote}${autoNote}`.trim() || 'Nothing was changed.');
+      return actionError(`${emptyNote}${inactiveNote}${autoNote}`.trim() || 'Nothing was changed.');
     }
 
     return actionOk(
-      `${published ? 'Published' : 'Unpublished'} ${publishable.length} collection${publishable.length === 1 ? '' : 's'}.${emptyNote}${autoNote}`,
+      `${published ? 'Published' : 'Unpublished'} ${publishable.length} collection${publishable.length === 1 ? '' : 's'}.${emptyNote}${inactiveNote}${autoNote}`,
     );
   });
 }

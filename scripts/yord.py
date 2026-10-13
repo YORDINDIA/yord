@@ -53,6 +53,9 @@ PIPELINE = [
     ("collections", "populate_collections.py", ["--mode=keyword"], True),
     ("verify", "verify_migration.py", [], False),
     ("optimize", "optimize_images.py", [], False),
+    # Optimization can rewrite product originals; refresh the loader's
+    # responsive siblings immediately afterward in the same execute pipeline.
+    ("variants", "generate_image_variants.py", [], True),
 ]
 
 SUPABASE_ENV = [

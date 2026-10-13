@@ -43,6 +43,9 @@ function isValidOrderData(data: unknown): data is OrderData {
   if (typeof d.phone !== 'string' || d.phone.trim().length === 0 || d.phone.length > 20) return false;
   const a = d.shippingAddress;
   if (!a || typeof a !== 'object') return false;
+  if (a.address2 !== undefined && (typeof a.address2 !== 'string' || a.address2.length > 500)) {
+    return false;
+  }
   for (const key of ['firstName', 'lastName', 'address1', 'city', 'state', 'pincode', 'country'] as const) {
     if (typeof a[key] !== 'string' || a[key].trim().length === 0 || a[key].length > 500) return false;
   }
@@ -66,14 +69,115 @@ type ClaimOrder = {
   cancelled_at: string | null;
 };
 
-// A compensated order is terminal for its payment id: the payment was
-// refunded, so no later verify may adopt the row, re-decrement the stock the
-// compensation restored, or answer success. Post-capture failures stamp the
-// row (refunded + cancelled) instead of deleting it precisely so this check
-// has something to find — a deleted row let the client's own retry re-claim
-// the payment (nothing left to lose a 23505 race against), re-decrement the
-// just-restored stock, and mint a second 'paid' order for money that had
-// already been refunded.
+type CheckoutLineSnapshot = {
+  product_id: number;
+  variant_id: number;
+  title: string;
+  variant_title: string;
+  price: number;
+  quantity: number;
+  requires_shipping: boolean;
+  taxable: boolean;
+  gift_card: boolean;
+};
+
+type CheckoutShippingSnapshot = {
+  first_name: string;
+  last_name: string;
+  address1: string;
+  address2: string | null;
+  city: string;
+  province: string;
+  country: string;
+  zip: string;
+  phone: string;
+};
+
+function cartIdentity(orderData: OrderData) {
+  return orderData.cartItems.map((line) => ({
+    variant_id: line.variantId,
+    quantity: line.quantity,
+  }));
+}
+
+function shippingSnapshot(orderData: OrderData): CheckoutShippingSnapshot {
+  const address = orderData.shippingAddress;
+  return {
+    first_name: address.firstName,
+    last_name: address.lastName,
+    address1: address.address1,
+    address2: address.address2?.trim() || null,
+    city: address.city,
+    province: address.state,
+    country: address.country,
+    zip: address.pincode,
+    phone: orderData.phone.trim(),
+  };
+}
+
+function lineItemSnapshot(
+  orderData: OrderData,
+  byId: Map<number, {
+    product_id: number;
+    productTitle: string;
+    title: string | null;
+    price: number;
+  }>
+): CheckoutLineSnapshot[] {
+  return orderData.cartItems.map((item) => {
+    const variant = byId.get(item.variantId)!;
+    return {
+      product_id: variant.product_id,
+      variant_id: item.variantId,
+      title: variant.productTitle,
+      variant_title: variant.title ?? '',
+      price: variant.price,
+      quantity: item.quantity,
+      requires_shipping: true,
+      taxable: true,
+      gift_card: false,
+    };
+  });
+}
+
+async function acquireExistingCheckoutClaim(
+  supabase: CheckoutSupabase,
+  orderId: number,
+  ownerToken: string,
+  orderData: OrderData
+): Promise<{ status: string; lineItems?: CheckoutLineSnapshot[]; shipping?: CheckoutShippingSnapshot }> {
+  const { data, error } = await supabase.rpc('acquire_checkout_claim', {
+    p_order_id: orderId,
+    p_owner_token: ownerToken,
+    p_cart_items: cartIdentity(orderData),
+    p_shipping: shippingSnapshot(orderData),
+    p_lease_seconds: 90,
+  });
+  if (error) {
+    logDbError('verify-payment:claim-acquire', error);
+    return { status: 'error' };
+  }
+  const result = data as {
+    status?: unknown;
+    line_items?: unknown;
+    shipping?: unknown;
+  } | null;
+  if (!result || typeof result.status !== 'string') return { status: 'error' };
+  return {
+    status: result.status,
+    ...(Array.isArray(result.line_items)
+      ? { lineItems: result.line_items as CheckoutLineSnapshot[] }
+      : {}),
+    ...(result.shipping && typeof result.shipping === 'object'
+      ? { shipping: result.shipping as CheckoutShippingSnapshot }
+      : {}),
+  };
+}
+
+// A compensated order is terminal for checkout processing. The cancellation
+// marker blocks further stock/order writes even while financial_status remains
+// paid because a route-owned refund is pending; replay logic below retries
+// only those route-owned refunds.
 function isCompensatedOrder(
   order: Pick<ClaimOrder, 'financial_status' | 'cancelled_at'>
 ): boolean {
@@ -93,12 +197,17 @@ function compensatedReplayResponse() {
   );
 }
 
-// A replay of a compensated payment. When the route's own refund failed (a
-// refund-failed stamp on the row) and the gateway still holds the capture,
-// the replay retries that refund: answering ORDER_REFUNDED over captured
-// money would let the client drop the body and charge the shopper again.
-// Only that stamp triggers a retry — an admin-cancelled or partially
-// refunded order is never refunded from here.
+const REFUND_LEASE_MS = 30_000;
+
+function hasRouteRefundMarker(note: string): boolean {
+  return note.includes('[checkout-refund pending]') ||
+    note.includes('[checkout-refund failed]') ||
+    note.includes('[checkout-refund in-flight ') ||
+    note.includes(' refund-failed]');
+}
+
+// A replay of a compensated payment. Only a route-owned refund marker may
+// trigger a refund retry; an admin cancellation is never retried here.
 async function answerCompensatedReplay(
   supabase: CheckoutSupabase,
   razorpay: Razorpay,
@@ -107,22 +216,93 @@ async function answerCompensatedReplay(
 ): Promise<NextResponse> {
   const { data } = await supabase.from('orders').select('note').eq('id', orderId).maybeSingle();
   const note = (data as { note?: string | null } | null)?.note ?? '';
-  if (!note.includes(' refund-failed]')) return compensatedReplayResponse();
+  if (note.includes('[checkout-refund completed]')) return compensatedReplayResponse();
+  const routeOwnedRefund = hasRouteRefundMarker(note);
   try {
     const payment = await razorpay.payments.fetch(paymentId);
     if (payment.status !== 'captured') return compensatedReplayResponse();
+    if (!routeOwnedRefund) {
+      return NextResponse.json(
+        { error: 'This order was cancelled; contact support before retrying payment.', code: 'ORDER_CANCELLED' },
+        { status: 409 }
+      );
+    }
   } catch (fetchError) {
     logDbError('verify-payment:razorpay-fetch', fetchError);
     return NextResponse.json({ error: 'Could not confirm payment' }, { status: 502 });
   }
+  const lease = await claimRefundLease(supabase, orderId, note, 'refund retried on replay');
+  if (!lease) {
+    return NextResponse.json(
+      { error: 'Your refund is still being processed. Please try again shortly.', code: 'REFUND_FAILED' },
+      { status: 500 }
+    );
+  }
   if (await refundCapturedPayment(razorpay, paymentId, 'refund retried on replay')) {
-    await persistCompensation(supabase, orderId, 'refund-retried', 'refund succeeded on replay');
+    await persistRefundOutcome(supabase, orderId, lease.note, true);
     return compensatedReplayResponse();
   }
+  await persistRefundOutcome(supabase, orderId, lease.note, false);
   return NextResponse.json(
     { error: 'Your refund is still being processed. Please contact support.', code: 'REFUND_FAILED' },
     { status: 500 }
   );
+}
+
+async function claimRefundLease(
+  supabase: CheckoutSupabase,
+  orderId: number,
+  currentNote: string,
+  reason: string
+): Promise<{ note: string } | null> {
+  const inFlight = [...currentNote.matchAll(/\[checkout-refund in-flight ([^\]]+)\]/g)].at(-1);
+  const leaseTimestamp = inFlight ? Date.parse(inFlight[1].trim().split(/\s+/)[0]) : NaN;
+  const inFlightIndex = inFlight?.index ?? -1;
+  const lastFailureIndex = Math.max(
+    currentNote.lastIndexOf('[checkout-refund failed]'),
+    currentNote.lastIndexOf(' refund-failed]')
+  );
+  // A historical failure permits a new retry, but it must not bypass a newer
+  // in-flight lease. Outcomes are appended after their lease marker, so only a
+  // failure later in the note releases the most recent lease immediately.
+  const latestLeaseFailed = lastFailureIndex > inFlightIndex;
+  if (
+    !latestLeaseFailed &&
+    Number.isFinite(leaseTimestamp) &&
+    Date.now() - leaseTimestamp < REFUND_LEASE_MS
+  ) {
+    return null;
+  }
+  const token = crypto.randomUUID();
+  const leaseNote = `${currentNote}\n[checkout-refund in-flight ${new Date().toISOString()} ${token}]`;
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ note: `${leaseNote}\n[checkout-refund reason] ${reason}` })
+    .eq('id', orderId)
+    .eq('note', currentNote)
+    .select('id')
+    .maybeSingle();
+  if (error || !data) return null;
+  return { note: `${leaseNote}\n[checkout-refund reason] ${reason}` };
+}
+
+async function persistRefundOutcome(
+  supabase: CheckoutSupabase,
+  orderId: number,
+  leaseNote: string,
+  refunded: boolean
+): Promise<void> {
+  const outcome = refunded ? 'completed' : 'failed';
+  const statusNote = `${leaseNote}\n[checkout-refund ${outcome}]`;
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      note: statusNote,
+      ...(refunded ? { financial_status: 'refunded' } : {}),
+    })
+    .eq('id', orderId)
+    .eq('note', leaseNote);
+  if (error) logDbError('verify-payment:refund-stamp', error);
 }
 
 // The behavioral analytics session id is optional client input, so it is
@@ -158,98 +338,6 @@ function buildOrderIdentity():
   return { ok: true, orderName, uniqueOrderNumber };
 }
 
-// Stock restore for post-payment failures, inspected per line with
-// allSettled: one failed restore must neither throw (which would skip the
-// refund) nor pass silently. Returns the failures so the caller can persist
-// them; never throws, so the refund path below it always runs.
-async function restoreStock(
-  supabase: CheckoutSupabase,
-  cartItems: CartLine[]
-): Promise<{ ok: boolean; failures: { variantId: number; quantity: number; detail: string }[] }> {
-  const settled = await Promise.allSettled(
-    cartItems.map((line) =>
-      supabase.rpc('decrement_variant_stock', {
-        p_variant_id: line.variantId,
-        p_qty: -line.quantity,
-      })
-    )
-  );
-  const failures = settled
-    .map((result, i) => {
-      if (result.status === 'rejected') {
-        return {
-          variantId: cartItems[i].variantId,
-          quantity: cartItems[i].quantity,
-          detail: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        };
-      }
-      const res = result.value as { error?: { message?: string } | null; data?: unknown[] };
-      if (res?.error) {
-        return {
-          variantId: cartItems[i].variantId,
-          quantity: cartItems[i].quantity,
-          detail: res.error.message ?? 'restore RPC error',
-        };
-      }
-      // The restore RPC updates unconditionally for a negative qty, so it
-      // returns a row whenever the variant still exists — empty data means the
-      // variant row is gone and this stock did NOT go back. A failure worth a
-      // note, never a silent success.
-      if (!Array.isArray(res?.data) || res.data.length === 0) {
-        return {
-          variantId: cartItems[i].variantId,
-          quantity: cartItems[i].quantity,
-          detail: 'restore matched no variant row',
-        };
-      }
-      return null;
-    })
-    .filter((f): f is { variantId: number; quantity: number; detail: string } => f !== null);
-  if (failures.length > 0) {
-    logDbError('verify-payment:restore', JSON.stringify(failures).slice(0, 500));
-  }
-  return { ok: failures.length === 0, failures };
-}
-
-// Persist a failed compensation on the order row (orders.note) plus the log
-// aggregator, so an incomplete restore is reconcilable instead of silent.
-// `terminal` also stamps the row refunded + cancelled: that stamp is the
-// marker a replay of the same payment id must find (see isCompensatedOrder),
-// and callers write it before the slow work (stock restore, refund call) so
-// the window in which a concurrent retry can still adopt the row is one write
-// wide. Best-effort and never throws.
-async function persistCompensation(
-  supabase: CheckoutSupabase,
-  orderId: number | null,
-  kind: string,
-  detail: string,
-  terminal = false
-): Promise<void> {
-  try {
-    if (orderId !== null) {
-      const { data: row } = await supabase
-        .from('orders')
-        .select('note')
-        .eq('id', orderId)
-        .maybeSingle();
-      const prev = ((row as { note?: string | null } | null)?.note ?? '').slice(-1500);
-      const stamp = `[stock-compensation ${new Date().toISOString()} ${kind}] ${detail}`.slice(0, 2000);
-      await supabase
-        .from('orders')
-        .update({
-          note: prev ? `${prev}\n${stamp}` : stamp,
-          ...(terminal
-            ? { financial_status: 'refunded', cancelled_at: new Date().toISOString() }
-            : {}),
-        })
-        .eq('id', orderId);
-    }
-  } catch {
-    // The log line below is the durable record when the note write fails.
-  }
-  logDbError('verify-payment:compensation', `${kind} order=${orderId} ${detail}`.slice(0, 500));
-}
-
 // Refunds a captured payment when checkout cannot complete (oversell, order
 // write failure, amount mismatch). Best-effort: failures are logged, never
 // thrown, so the original error still reaches the caller.
@@ -279,15 +367,12 @@ async function refundAndRecord(
   paymentId: string,
   reason: string
 ): Promise<boolean> {
+  const { data } = await supabase.from('orders').select('note').eq('id', orderId).maybeSingle();
+  const note = (data as { note?: string | null } | null)?.note ?? '';
+  const lease = await claimRefundLease(supabase, orderId, note, reason);
+  if (!lease) return false;
   const refunded = await refundCapturedPayment(razorpay, paymentId, reason);
-  if (!refunded) {
-    await persistCompensation(
-      supabase,
-      orderId,
-      'refund-failed',
-      `${reason}; payment still captured`
-    );
-  }
+  await persistRefundOutcome(supabase, orderId, lease.note, refunded);
   return refunded;
 }
 
@@ -401,11 +486,12 @@ async function backfillShippingAddress(
   orderId: number,
   orderData: OrderData
 ): Promise<boolean> {
-  const { data: existing } = await supabase
+  const { data: existing, error: readError } = await supabase
     .from('order_shipping_addresses')
     .select('order_id')
     .eq('order_id', orderId)
     .maybeSingle();
+  if (readError) logDbError('verify-payment:shipping-backfill-read', readError);
   if (existing) return true;
   const shipping = orderData.shippingAddress;
   const { error } = await supabase.from('order_shipping_addresses').insert({
@@ -421,7 +507,15 @@ async function backfillShippingAddress(
     phone: orderData.phone.trim(),
   });
   if (!error) return true;
-  if ((error as { code?: string } | null)?.code === '23505') return true;
+  if ((error as { code?: string } | null)?.code === '23505') {
+    const { data: racedAddress, error: racedReadError } = await supabase
+      .from('order_shipping_addresses')
+      .select('order_id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (racedReadError) logDbError('verify-payment:shipping-backfill-read', racedReadError);
+    return Boolean(racedAddress);
+  }
   logDbError('verify-payment:shipping-backfill', error);
   return false;
 }
@@ -434,20 +528,27 @@ async function backfillShippingAddress(
 // every state that reaches this function except a finished order.
 async function answerPolledState(
   supabase: CheckoutSupabase,
+  razorpay: Razorpay,
   state: 'complete' | 'no_address' | 'incomplete' | 'terminal',
   order: ClaimOrder,
   paymentId: string,
   razorpayOrderId: string,
-  orderData: OrderData,
+  orderData: OrderData | null,
   incompleteError: string
 ): Promise<NextResponse> {
-  if (state === 'terminal') return compensatedReplayResponse();
+  if (state === 'terminal') {
+    return answerCompensatedReplay(supabase, razorpay, order.id, paymentId);
+  }
   if (state === 'complete') {
     return successBody(paymentId, razorpayOrderId, order, {
       message: 'Payment already recorded',
     });
   }
-  if (state === 'no_address' && (await backfillShippingAddress(supabase, order.id, orderData))) {
+  if (
+    state === 'no_address' &&
+    orderData &&
+    (await backfillShippingAddress(supabase, order.id, orderData))
+  ) {
     return successBody(paymentId, razorpayOrderId, order, {
       message: 'Payment already recorded',
     });
@@ -470,7 +571,7 @@ export async function POST(request: NextRequest) {
     }
     const { supabase, razorpay, keySecret } = clients;
     const body = await request.json();
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderData } = body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
     const analyticsSid =
       typeof body.analyticsSid === 'string' && ANALYTICS_SID_SHAPE.test(body.analyticsSid)
         ? body.analyticsSid
@@ -478,13 +579,6 @@ export async function POST(request: NextRequest) {
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: 'Missing payment details' }, { status: 400 });
-    }
-
-    if (!isValidOrderData(orderData)) {
-      return NextResponse.json(
-        { error: 'Invalid order data', code: 'UNKNOWN_VARIANT' },
-        { status: 400 }
-      );
     }
 
     // Constant-time HMAC comparison
@@ -511,6 +605,7 @@ export async function POST(request: NextRequest) {
       .eq('confirmation_number', razorpay_payment_id)
       .maybeSingle();
     const found = (preExisting as ClaimOrder | null) ?? null;
+    const validOrderData: OrderData | null = isValidOrderData(body.orderData) ? body.orderData : null;
     if (found) {
       if (isCompensatedOrder(found)) {
         return answerCompensatedReplay(supabase, razorpay, found.id, razorpay_payment_id);
@@ -519,29 +614,20 @@ export async function POST(request: NextRequest) {
       if (state !== 'incomplete') {
         return answerPolledState(
           supabase,
+          razorpay,
           state,
           found,
           razorpay_payment_id,
           razorpay_order_id,
-          orderData,
+          validOrderData,
           'A previous attempt left this payment incomplete. Please wait a moment and try again.'
         );
       }
     }
 
-    // Authoritative pricing from DB variants via the shared helper
-    // (client prices ignored; money math lives in lib/pricing).
-    const validated = await validateCartLines(supabase, orderData.cartItems);
-    if (!validated.ok) {
-      logWarn('verify-payment', validated.code, validated.error);
-      return NextResponse.json(
-        { error: validated.error, code: validated.code },
-        { status: validated.status }
-      );
-    }
-    const { subtotal, gstAmount, total, totalPaise, byId } = validated;
-
-    // Confirm the captured payment covers the server-computed total
+    // Confirm capture before cart validation: cart state may have changed
+    // after the gateway captured money, and every validation rejection must
+    // refund that capture before it can be called settled by the client.
     let paymentAmount = 0;
     let paymentCurrency = '';
     try {
@@ -556,280 +642,331 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not confirm payment' }, { status: 502 });
     }
 
-    if (paymentCurrency !== 'INR' || paymentAmount !== totalPaise) {
-      // Card already captured, but the server-computed total moved (e.g. price
-      // edited mid-checkout) or the currency is wrong: refund rather than keep
-      // money for an order we will not create.
-      const refunded = await refundCapturedPayment(
-        razorpay,
-        razorpay_payment_id,
-        `amount mismatch: paid ${paymentAmount} ${paymentCurrency}, expected ${totalPaise} INR`
-      );
-      return NextResponse.json(
-        {
-          error: refunded
-            ? 'Paid amount does not match order total. Payment refunded.'
-            : 'Paid amount does not match order total',
-          // The code is the client's money signal (see OUT_OF_STOCK below):
-          // only a refund that went through may read as settled.
-          code: refunded ? 'AMOUNT_MISMATCH' : 'REFUND_FAILED',
-        },
-        { status: refunded ? 402 : 500 }
-      );
-    }
-
-    const identity = buildOrderIdentity();
-    if (!identity.ok) {
-      logDbError('verify-payment:order-number', identity.reason);
-      const refunded = await refundCapturedPayment(
-        razorpay,
-        razorpay_payment_id,
-        `order number unsafe: ${identity.reason}`
-      );
-      return NextResponse.json(
-        {
-          error: refunded
-            ? 'Payment confirmed but order save failed. Payment refunded.'
-            : 'Payment confirmed but order save failed',
-          code: refunded ? 'ORDER_NUMBER_OVERFLOW' : 'REFUND_FAILED',
-        },
-        { status: 500 }
-      );
-    }
-    const { orderName, uniqueOrderNumber } = identity;
-
+    const ownerToken = crypto.randomUUID();
     let order: ClaimOrder | null = null;
+    let persistedLineItems: CheckoutLineSnapshot[] | null = null;
+    let persistedShipping: CheckoutShippingSnapshot | null = null;
+
     if (found) {
-      // Incomplete claim from a crashed attempt with the same totals: adopt it
-      // through the CAS RPC rather than minting a second order for one
-      // payment. The RPC flips claim_adopted_at only for a still-'paid',
-      // uncancelled, line-less row whose total matches, so the re-decrement
-      // below happens exactly once per claim — a concurrent attempt that
-      // adopted first, or a compensation that ran in between, makes the CAS
-      // return false and this attempt answers from the resulting state without
-      // writing anything (no decrement, no line items, no stamp).
-      if (Number(found.total_price) === total) {
-        const { data: adopted, error: adoptError } = await supabase.rpc('adopt_order_claim', {
-          p_order_id: found.id,
-          p_total: total,
-        });
-        if (adoptError) logDbError('verify-payment:adopt-claim', adoptError);
-        if (adopted === true) {
-          order = found;
-        } else {
-          return answerPolledState(
-            supabase,
-            await waitForCompletion(supabase, found.id),
-            found,
-            razorpay_payment_id,
-            razorpay_order_id,
-            orderData,
-            'A previous attempt left this payment incomplete. Please wait a moment and try again.'
-          );
-        }
-      } else {
-        // A claim whose total no longer matches any recomputation can never be
-        // adopted by anyone. Non-terminal: the money decision belongs to the
-        // attempt that holds the payment; this only marks the row for
-        // reconciliation.
-        await persistCompensation(
-          supabase,
-          found.id,
-          'claim-total-mismatch',
-          `claim total ${found.total_price} does not match this attempt's ${total}`,
-          false
+      // Existing claims use their immutable server snapshot. Do not validate
+      // today's catalog or let a changed client payload trigger a refund
+      // against a live owner's captured payment.
+      if (!validOrderData) {
+        return NextResponse.json(
+          { error: 'This payment is still being processed.', code: 'ORDER_INCOMPLETE' },
+          { status: 409 }
         );
+      }
+      const claim = await acquireExistingCheckoutClaim(supabase, found.id, ownerToken, validOrderData);
+      if (claim.status === 'completed') {
+        return successBody(razorpay_payment_id, razorpay_order_id, found, {
+          message: 'Payment already recorded',
+        });
+      }
+      if (claim.status === 'compensated') {
+        return answerCompensatedReplay(supabase, razorpay, found.id, razorpay_payment_id);
+      }
+      if (
+        claim.status !== 'owned' ||
+        !claim.lineItems ||
+        !claim.shipping
+      ) {
         return NextResponse.json(
           {
-            error: 'A previous attempt left this payment incomplete. Please wait a moment and try again.',
+            error: 'A previous attempt is still processing this payment. Please retry shortly.',
             code: 'ORDER_INCOMPLETE',
           },
           { status: 409 }
         );
       }
-    }
+      order = found;
+      persistedLineItems = claim.lineItems;
+      persistedShipping = claim.shipping;
 
-    if (!order) {
-      // Claim-before-decrement: the order row (unique on confirmation_number,
-      // migration 004) serializes concurrent verifies for the same payment.
-      // The loser fails here with 23505 BEFORE touching stock, so it can no
-      // longer refund the payment out from under the winner.
-      const { data: claimed, error: claimError } = await supabase
-        .from('orders')
-        .insert({
-          name: orderName,
-          order_number: uniqueOrderNumber,
-          email: orderData.email.toLowerCase().trim(),
-          phone: orderData.phone.trim(),
-          financial_status: 'paid',
-          fulfillment_status: 'unfulfilled',
-          currency: 'INR',
-          total_price: total,
-          subtotal_price: subtotal,
-          total_tax: gstAmount,
-          total_shipping_price: 0,
-          confirmation_number: razorpay_payment_id,
-          token: razorpay_order_id,
-          processed_at: new Date().toISOString(),
-        })
-        .select('id, name, total_price, financial_status, cancelled_at')
-        .single();
-
-      if (claimError || !claimed) {
-        const code = (claimError as { code?: string } | null)?.code;
-        if (code === '23505') {
-          // Lost the race: the winner owns this payment. Return the winner's
-          // order once its line items commit — no stock moves, no refund —
-          // unless the winner compensated it, in which case the payment is
-          // terminal and this attempt fails with it.
-          const { data: raced } = await supabase
-            .from('orders')
-            .select('id, name, total_price, financial_status, cancelled_at')
-            .eq('confirmation_number', razorpay_payment_id)
-            .maybeSingle();
-          const winner = (raced as ClaimOrder | null) ?? null;
-          if (winner && isCompensatedOrder(winner)) return compensatedReplayResponse();
-          const state = winner ? await waitForCompletion(supabase, winner.id) : 'incomplete';
-          if (winner && state !== 'incomplete') {
-            return answerPolledState(
-              supabase,
-              state,
-              winner,
-              razorpay_payment_id,
-              razorpay_order_id,
-              orderData,
-              'This payment is being processed. Please wait a moment and try again.'
-            );
+      if (
+        paymentCurrency !== 'INR' ||
+        paymentAmount !== Math.round(Number(found.total_price) * 100)
+      ) {
+        const { data: compensation, error: compensationError } = await supabase.rpc(
+          'compensate_checkout_order',
+          {
+            p_order_id: found.id,
+            p_owner_token: ownerToken,
+            p_reason: 'captured payment does not match the stored order total',
           }
-          if (winner && Number(winner.total_price) === total) {
-            const { data: adopted, error: adoptError } = await supabase.rpc('adopt_order_claim', {
-              p_order_id: winner.id,
-              p_total: total,
-            });
-            if (adoptError) logDbError('verify-payment:adopt-claim', adoptError);
-            if (adopted === true) {
-              order = winner;
-            } else {
-              // Lost the CAS (another attempt adopted or finished it) or the
-              // RPC failed: answer from the resulting state and write nothing.
-              return answerPolledState(
-                supabase,
-                await waitForCompletion(supabase, winner.id),
-                winner,
-                razorpay_payment_id,
-                razorpay_order_id,
-                orderData,
-                'This payment is being processed. Please wait a moment and try again.'
-              );
-            }
-          } else {
-            if (winner) {
-              await persistCompensation(
-                supabase,
-                winner.id,
-                'claim-total-mismatch',
-                `claim total ${winner.total_price} does not match this attempt's ${total}`,
-                false
-              );
-            }
-            return NextResponse.json(
-              {
-                error: 'This payment is being processed. Please wait a moment and try again.',
-                code: 'ORDER_INCOMPLETE',
-              },
-              { status: 409 }
-            );
-          }
-        } else {
-          // Explicit BIGINT contract: an INTEGER-range rejection names the
-          // missing widening migration instead of a generic save failure.
-          const msg = String(
-            (claimError as { message?: string } | null)?.message ?? claimError
-          );
-          const overflow =
-            code === '22003' || /out of range|integer/i.test(msg);
-          logDbError('verify-payment:order-claim', claimError);
-          const refunded = await refundCapturedPayment(
-            razorpay,
-            razorpay_payment_id,
-            overflow ? 'order_number overflow (missing BIGINT widening)' : 'order claim failed after capture'
-          );
+        );
+        const compensationStatus = (compensation as { status?: string } | null)?.status;
+        if (compensationError || compensationStatus !== 'compensated') {
+          logDbError('verify-payment:claim-compensation', compensationError ?? compensation);
           return NextResponse.json(
-            {
-              error: refunded
-                ? 'Payment confirmed but order save failed. Payment refunded.'
-                : 'Payment confirmed but order save failed',
-              code: !refunded ? 'REFUND_FAILED' : overflow ? 'ORDER_NUMBER_OVERFLOW' : undefined,
-            },
-            { status: 500 }
+            { error: 'This payment is still being processed.', code: 'ORDER_INCOMPLETE' },
+            { status: 409 }
           );
         }
-      } else {
-        order = claimed as ClaimOrder;
+        const refunded = await refundAndRecord(
+          supabase,
+          razorpay,
+          found.id,
+          razorpay_payment_id,
+          'stored order amount mismatch after capture'
+        );
+        return NextResponse.json(
+          {
+            error: refunded
+              ? 'Paid amount does not match order total. Payment refunded.'
+              : 'Paid amount does not match order total',
+            code: refunded ? 'AMOUNT_MISMATCH' : 'REFUND_FAILED',
+          },
+          { status: refunded ? 402 : 500 }
+        );
       }
     }
 
+    if (!validOrderData) {
+      const refunded = await refundCapturedPayment(
+        razorpay,
+        razorpay_payment_id,
+        'invalid order data after capture'
+      );
+      return NextResponse.json(
+        {
+          error: refunded ? 'Invalid order data. Payment refunded.' : 'Invalid order data',
+          code: refunded ? 'UNKNOWN_VARIANT' : 'REFUND_FAILED',
+        },
+        { status: refunded ? 400 : 500 }
+      );
+    }
+    const orderData = validOrderData;
+
     if (!order) {
-      logDbError('verify-payment:order-claim', 'claim resolved to no order');
-      return NextResponse.json({ error: 'Payment verification failed' }, { status: 500 });
+      // New claims validate against current catalog data. Recovered claims
+      // instead use their immutable database snapshots above; current stock
+      // has already been decremented for any ledger entries marked applied.
+      // Authoritative pricing comes from the DB, never the client payload.
+      const validated = await validateCartLines(supabase, orderData.cartItems);
+      if (!validated.ok) {
+        logWarn('verify-payment', validated.code, validated.error);
+        const reason = `cart validation failed after capture: ${validated.code}`;
+        const refunded = await refundCapturedPayment(razorpay, razorpay_payment_id, reason);
+        return NextResponse.json(
+          {
+            error: refunded ? `${validated.error}. Payment refunded.` : validated.error,
+            code: refunded ? validated.code : 'REFUND_FAILED',
+          },
+          { status: refunded ? validated.status : 500 }
+        );
+      }
+      const { subtotal, gstAmount, total, totalPaise, byId } = validated;
+
+      if (paymentCurrency !== 'INR' || paymentAmount !== totalPaise) {
+        const refunded = await refundCapturedPayment(
+          razorpay,
+          razorpay_payment_id,
+          `amount mismatch: paid ${paymentAmount} ${paymentCurrency}, expected ${totalPaise} INR`
+        );
+        return NextResponse.json(
+          {
+            error: refunded
+              ? 'Paid amount does not match order total. Payment refunded.'
+              : 'Paid amount does not match order total',
+            code: refunded ? 'AMOUNT_MISMATCH' : 'REFUND_FAILED',
+          },
+          { status: refunded ? 402 : 500 }
+        );
+      }
+
+      const currentLineItems = lineItemSnapshot(orderData, byId);
+      const currentShipping = shippingSnapshot(orderData);
+      const identity = buildOrderIdentity();
+      if (!identity.ok) {
+        logDbError('verify-payment:order-number', identity.reason);
+        const refunded = await refundCapturedPayment(
+          razorpay,
+          razorpay_payment_id,
+          `order number unsafe: ${identity.reason}`
+        );
+        return NextResponse.json(
+          {
+            error: refunded
+              ? 'Payment confirmed but order save failed. Payment refunded.'
+              : 'Payment confirmed but order save failed',
+            code: refunded ? 'ORDER_NUMBER_OVERFLOW' : 'REFUND_FAILED',
+          },
+          { status: 500 }
+        );
+      }
+
+      const { data: createdId, error: createError } = await supabase.rpc(
+        'create_checkout_claim',
+        {
+          p_name: identity.orderName,
+          p_order_number: identity.uniqueOrderNumber,
+          p_email: orderData.email.toLowerCase().trim(),
+          p_phone: orderData.phone.trim(),
+          p_currency: 'INR',
+          p_total: total,
+          p_subtotal: subtotal,
+          p_tax: gstAmount,
+          p_confirmation_number: razorpay_payment_id,
+          p_payment_order_id: razorpay_order_id,
+          p_owner_token: ownerToken,
+          p_line_items: currentLineItems,
+          p_shipping: currentShipping,
+          p_lease_seconds: 90,
+        }
+      );
+      if (createError) {
+        logDbError('verify-payment:order-claim', createError);
+        // A failed HTTP/RPC response is ambiguous: PostgreSQL may have
+        // committed the claim before the connection dropped. Preserve the
+        // payment for a replay instead of refunding a possibly live owner.
+        return NextResponse.json(
+          {
+            error: 'This payment is still being processed. Please retry shortly.',
+            code: 'ORDER_INCOMPLETE',
+          },
+          { status: 409 }
+        );
+      }
+
+      if (createdId !== null) {
+        order = {
+          id: Number(createdId),
+          name: identity.orderName,
+          total_price: total,
+          financial_status: 'paid',
+          cancelled_at: null,
+        };
+        persistedLineItems = currentLineItems;
+        persistedShipping = currentShipping;
+      } else {
+        const { data: racedOrder, error: racedOrderError } = await supabase
+          .from('orders')
+          .select('id, name, total_price, financial_status, cancelled_at')
+          .eq('confirmation_number', razorpay_payment_id)
+          .maybeSingle();
+        if (racedOrderError) {
+          logDbError('verify-payment:order-claim-read', racedOrderError);
+          return NextResponse.json(
+            { error: 'This payment is still being processed.', code: 'ORDER_INCOMPLETE' },
+            { status: 409 }
+          );
+        }
+        const winner = (racedOrder as ClaimOrder | null) ?? null;
+        if (!winner) {
+          return NextResponse.json(
+            { error: 'This payment is still being processed.', code: 'ORDER_INCOMPLETE' },
+            { status: 409 }
+          );
+        }
+        if (isCompensatedOrder(winner)) {
+          return answerCompensatedReplay(supabase, razorpay, winner.id, razorpay_payment_id);
+        }
+        const claim = await acquireExistingCheckoutClaim(
+          supabase,
+          winner.id,
+          ownerToken,
+          orderData
+        );
+        if (claim.status === 'completed') {
+          return successBody(razorpay_payment_id, razorpay_order_id, winner, {
+            message: 'Payment already recorded',
+          });
+        }
+        if (claim.status === 'compensated') {
+          return answerCompensatedReplay(supabase, razorpay, winner.id, razorpay_payment_id);
+        }
+        if (claim.status !== 'owned' || !claim.lineItems || !claim.shipping) {
+          return NextResponse.json(
+            { error: 'A previous attempt is still processing this payment.', code: 'ORDER_INCOMPLETE' },
+            { status: 409 }
+          );
+        }
+        if (
+          paymentCurrency !== 'INR' ||
+          paymentAmount !== Math.round(Number(winner.total_price) * 100)
+        ) {
+          return NextResponse.json(
+            { error: 'A previous attempt is still processing this payment.', code: 'ORDER_INCOMPLETE' },
+            { status: 409 }
+          );
+        }
+        order = winner;
+        persistedLineItems = claim.lineItems;
+        persistedShipping = claim.shipping;
+      }
+    }
+
+    if (!order || !persistedLineItems || !persistedShipping) {
+      logDbError('verify-payment:order-claim', 'claim resolved without its durable snapshots');
+      return NextResponse.json(
+        { error: 'This payment is still being processed.', code: 'ORDER_INCOMPLETE' },
+        { status: 409 }
+      );
     }
     const orderId = order.id;
+    const orderTotal = Number(order.total_price);
 
-    // Atomic guarded decrements: one RPC per line. Each RPC only returns a
-    // row when enough stock exists, so oversell is impossible even under
-    // concurrent checkouts. Settled (not Promise.all) so one transport
-    // failure cannot skip the compensation + refund below.
-    const decrementSettled = await Promise.allSettled(
-      orderData.cartItems.map((line) =>
-        supabase.rpc('decrement_variant_stock', {
-          p_variant_id: line.variantId,
-          p_qty: line.quantity,
+    // The database ledger makes every line operation idempotent by order and
+    // cart position. Lease loss or an ambiguous transport result is unresolved:
+    // preserve the captured payment for retry rather than refunding a live owner.
+    const stockResults = await Promise.allSettled(
+      persistedLineItems.map((_, lineNumber) =>
+        supabase.rpc('apply_checkout_stock', {
+          p_order_id: orderId,
+          p_owner_token: ownerToken,
+          p_line_number: lineNumber,
+          p_lease_seconds: 90,
         })
       )
     );
-    const decrementOk = decrementSettled.map((result) => {
-      if (result.status === 'rejected') return false;
-      const res = result.value as { error?: unknown; data?: unknown[] };
-      return !res?.error && Array.isArray(res?.data) && res.data.length > 0;
-    });
+    const stockStates = stockResults.map((result) =>
+      result.status === 'fulfilled' && !result.value.error
+        ? String(result.value.data)
+        : 'unknown'
+    );
 
-    if (decrementOk.includes(false)) {
-      // Compensate only the lines that did decrement, then refund. The refund
-      // runs even when restores or the terminal stamp fail.
-      const succeeded = orderData.cartItems.filter((_, i) => decrementOk[i]);
-      let stockRestoreFailed: unknown = null;
-      // Terminal first, then the slow compensation. The stamp is what a
-      // concurrent retry for the same payment id has to find, and restoring
-      // stock before it left a window in which that retry could adopt the
-      // still-'paid' row and re-decrement the stock this path is putting back.
-      await persistCompensation(
-        supabase,
-        orderId,
-        'out-of-stock',
-        'guarded decrement refused after capture',
-        true
+    if (stockStates.includes('not_owner') || stockStates.includes('unknown')) {
+      const firstFailure = stockResults.find(
+        (result) => result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)
       );
-      try {
-        const restored = await restoreStock(supabase, succeeded);
-        if (!restored.ok) {
-          stockRestoreFailed = restored.failures;
-          await persistCompensation(
-            supabase,
-            orderId,
-            'restore-failed',
-            JSON.stringify(restored.failures).slice(0, 500)
-          );
-        }
-      } catch (compError) {
-        logDbError('verify-payment:compensation', compError);
+      if (firstFailure?.status === 'rejected') {
+        logDbError('verify-payment:stock-apply', firstFailure.reason);
+      } else if (firstFailure?.status === 'fulfilled') {
+        logDbError('verify-payment:stock-apply', firstFailure.value.error);
       }
-      const firstFailure = decrementSettled.find(
-        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && ((r.value as { error?: unknown })?.error || !((r.value as { data?: unknown[] })?.data ?? []).length))
+      return NextResponse.json(
+        { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
+        { status: 409 }
       );
-      if (firstFailure?.status === 'fulfilled') {
-        logDbError('verify-payment:decrement', (firstFailure.value as { error?: unknown })?.error);
-      } else if (firstFailure?.status === 'rejected') {
-        logDbError('verify-payment:decrement', firstFailure.reason);
+    }
+
+    if (stockStates.includes('unavailable')) {
+      const { data: compensation, error: compensationError } = await supabase.rpc(
+        'compensate_checkout_order',
+        {
+          p_order_id: orderId,
+          p_owner_token: ownerToken,
+          p_reason: 'insufficient stock after capture',
+        }
+      );
+      const compensationResult = compensation as {
+        status?: string;
+        restore_ok?: boolean;
+        missing_lines?: number;
+      } | null;
+      if (compensationError || compensationResult?.status !== 'compensated') {
+        logDbError('verify-payment:stock-compensation', compensationError ?? compensation);
+        return NextResponse.json(
+          { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
+          { status: 409 }
+        );
+      }
+      if (compensationResult.restore_ok === false) {
+        logDbError(
+          'verify-payment:stock-restore',
+          `order=${orderId} missing_lines=${compensationResult.missing_lines ?? 'unknown'}`
+        );
       }
       const refunded = await refundAndRecord(
         supabase,
@@ -838,154 +975,78 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         'insufficient stock after capture'
       );
-      // The code is the client's money signal: OUT_OF_STOCK means the payment
-      // went back and a fresh checkout is safe, so a failed refund must be
-      // named REFUND_FAILED instead — captured money an admin has to
-      // reconcile, never a settled answer.
       return NextResponse.json(
         {
           error: refunded
             ? 'Insufficient stock for one or more items. Payment refunded.'
             : 'Insufficient stock for one or more items',
           code: refunded ? 'OUT_OF_STOCK' : 'REFUND_FAILED',
-          ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
+          ...(compensationResult.restore_ok === false ? { stock_restore_failed: true } : {}),
         },
+        { status: refunded ? 409 : 500 }
+      );
+    }
+
+    const { data: completion, error: completionError } = await supabase.rpc(
+      'complete_checkout_order',
+      {
+        p_order_id: orderId,
+        p_owner_token: ownerToken,
+        p_line_items: persistedLineItems,
+        p_shipping: persistedShipping,
+      }
+    );
+    if (completionError) {
+      logDbError('verify-payment:checkout-complete', completionError);
+      return NextResponse.json(
+        { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
         { status: 409 }
       );
     }
-
-    const lineItems = orderData.cartItems.map((item) => {
-      const variant = byId.get(item.variantId)!;
-      return {
-        order_id: orderId,
-        product_id: variant.product_id,
-        variant_id: item.variantId,
-        title: variant.productTitle,
-        variant_title: variant.title,
-        price: variant.price,
-        quantity: item.quantity,
-        requires_shipping: true,
-        taxable: true,
-        gift_card: false,
-      };
-    });
-
-    const { error: lineItemsError } = await supabase.from('line_items').insert(lineItems);
-
-    if (lineItemsError) {
-      logDbError('verify-payment:line-items', lineItemsError);
-      // The row is stamped compensated, never deleted: it is the only
-      // server-side record that this payment was refunded, and deleting it let
-      // a retry re-claim the payment and mint a second 'paid' order for the
-      // same money. The stamp lands before the stock restore so a concurrent
-      // retry finds a terminal row, not an item-less one it could adopt. The
-      // refund is guaranteed: compensation failures are persisted, never
-      // thrown.
-      let stockRestoreFailed = false;
-      await persistCompensation(
-        supabase,
-        orderId,
-        'line-items-failed',
-        'line item insert failed after capture',
-        true
-      );
-      try {
-        const restored = await restoreStock(supabase, orderData.cartItems);
-        if (!restored.ok) {
-          stockRestoreFailed = true;
-          await persistCompensation(
-            supabase,
-            orderId,
-            'restore-failed',
-            JSON.stringify(restored.failures).slice(0, 500)
-          );
+    const completionStatus = String(completion);
+    if (completionStatus === 'write_failed') {
+      const { data: compensation, error: compensationError } = await supabase.rpc(
+        'compensate_checkout_order',
+        {
+          p_order_id: orderId,
+          p_owner_token: ownerToken,
+          p_reason: 'transactional order finalization failed',
         }
-      } catch (compError) {
-        logDbError('verify-payment:compensation', compError);
+      );
+      const compensationResult = compensation as {
+        status?: string;
+        restore_ok?: boolean;
+        missing_lines?: number;
+      } | null;
+      if (compensationError || compensationResult?.status !== 'compensated') {
+        logDbError('verify-payment:finalize-compensation', compensationError ?? compensation);
+        return NextResponse.json(
+          { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
+          { status: 409 }
+        );
       }
       const refunded = await refundAndRecord(
         supabase,
         razorpay,
         orderId,
         razorpay_payment_id,
-        'line items insert failed after capture'
+        'transactional order finalization failed'
       );
       return NextResponse.json(
         {
           error: refunded
             ? 'Payment confirmed but order save failed. Payment refunded.'
             : 'Payment confirmed but order save failed',
-          // REFUND_FAILED: the row is stamped compensated but the money is
-          // still captured — the client must keep the verify body for
-          // reconciliation instead of treating this as a finished refund.
-          ...(refunded ? {} : { code: 'REFUND_FAILED' }),
-          ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
+          code: refunded ? 'ORDER_REFUNDED' : 'REFUND_FAILED',
+          ...(compensationResult.restore_ok === false ? { stock_restore_failed: true } : {}),
         },
         { status: 500 }
       );
     }
-
-    // Shipping address: fulfillment has no destination without it. Its insert
-    // is a post-payment failure path like line items — a failure restores
-    // stock, stamps the undeliverable order compensated (kept, so a replay of
-    // the same payment id cannot re-claim it), and refunds.
-    const shipping = orderData.shippingAddress;
-    const { error: shippingError } = await supabase.from('order_shipping_addresses').insert({
-      order_id: orderId,
-      first_name: shipping.firstName,
-      last_name: shipping.lastName,
-      address1: shipping.address1,
-      address2: shipping.address2 ?? null,
-      city: shipping.city,
-      province: shipping.state,
-      country: shipping.country,
-      zip: shipping.pincode,
-      phone: orderData.phone.trim(),
-    });
-
-    if (shippingError) {
-      logDbError('verify-payment:shipping-address', shippingError);
-      let stockRestoreFailed = false;
-      await persistCompensation(
-        supabase,
-        orderId,
-        'shipping-address-failed',
-        'shipping address insert failed after capture',
-        true
-      );
-      try {
-        const restored = await restoreStock(supabase, orderData.cartItems);
-        if (!restored.ok) {
-          stockRestoreFailed = true;
-          await persistCompensation(
-            supabase,
-            orderId,
-            'restore-failed',
-            JSON.stringify(restored.failures).slice(0, 500)
-          );
-        }
-      } catch (compError) {
-        logDbError('verify-payment:compensation', compError);
-      }
-      const refunded = await refundAndRecord(
-        supabase,
-        razorpay,
-        orderId,
-        razorpay_payment_id,
-        'shipping address insert failed after capture'
-      );
+    if (completionStatus !== 'completed' && completionStatus !== 'already_completed') {
       return NextResponse.json(
-        {
-          error: refunded
-            ? 'Payment confirmed but order save failed. Payment refunded.'
-            : 'Payment confirmed but order save failed',
-          // REFUND_FAILED: the row is stamped compensated but the money is
-          // still captured — the client must keep the verify body for
-          // reconciliation instead of treating this as a finished refund.
-          ...(refunded ? {} : { code: 'REFUND_FAILED' }),
-          ...(stockRestoreFailed ? { stock_restore_failed: true } : {}),
-        },
-        { status: 500 }
+        { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
+        { status: 409 }
       );
     }
 
@@ -995,8 +1056,9 @@ export async function POST(request: NextRequest) {
     // checkout that actually completed inserts one; the idempotent replay
     // paths above return early and never reach this, so a reconcile retry
     // cannot double-count. Best-effort: a failure here logs and moves on.
-    try {
-      const { error: analyticsError } = await supabase.from('analytics_events').insert({
+    if (completionStatus === 'completed') {
+      try {
+        const { error: analyticsError } = await supabase.from('analytics_events').insert({
         type: 'order_completed',
         sid: analyticsSid ?? crypto.randomUUID(),
         path: '/checkout',
@@ -1006,18 +1068,19 @@ export async function POST(request: NextRequest) {
           // old `order_id` name invited a join against orders.id, which this
           // value is not.
           payment_id: razorpay_payment_id,
-          value: total,
+          value: orderTotal,
           items: orderData.cartItems.reduce(
             (sum: number, line: CartLine) => sum + line.quantity,
             0
           ),
         },
-      });
-      if (analyticsError) {
-        logWarn('verify-payment:analytics', 'INSERT_FAILED', String(analyticsError.message).slice(0, 200));
+        });
+        if (analyticsError) {
+          logWarn('verify-payment:analytics', 'INSERT_FAILED', String(analyticsError.message).slice(0, 200));
+        }
+      } catch (analyticsThrown) {
+        logWarn('verify-payment:analytics', 'INSERT_THREW', String(analyticsThrown).slice(0, 200));
       }
-    } catch (analyticsThrown) {
-      logWarn('verify-payment:analytics', 'INSERT_THREW', String(analyticsThrown).slice(0, 200));
     }
 
     return successBody(razorpay_payment_id, razorpay_order_id, {

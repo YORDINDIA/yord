@@ -47,9 +47,9 @@ export interface CustomerListFilters {
  * `customer_id → created_at` of each customer's most recent order, for the
  * customers on one page.
  *
- * One bounded `IN (…)` over at most `pageSize` ids instead of a query per row.
- * Ordered newest-first, so the first row seen for a customer is their last
- * order. An empty id list returns early: PostgREST rejects `in ()`.
+ * A bounded set of per-customer top-one queries. A shared paginated `IN (…)`
+ * scan can read an unbounded order history when even one listed customer has
+ * never ordered, because that customer's id can never be found.
  */
 async function lastOrderDatesFor(
   supabase: ServerClient,
@@ -57,19 +57,26 @@ async function lastOrderDatesFor(
 ): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
 
-  const orderRows = await rows<Pick<Order, 'customer_id' | 'created_at'>>(
-    'orders',
-    supabase
-      .from('orders')
-      .select('customer_id, created_at')
-      .in('customer_id', ids)
-      .order('created_at', { ascending: false, nullsFirst: false }),
-  );
-
   const latest = new Map<number, string>();
-  for (const order of orderRows) {
-    if (order.customer_id === null || !order.created_at) continue;
-    if (!latest.has(order.customer_id)) latest.set(order.customer_id, order.created_at);
+  const concurrency = 10;
+  for (let from = 0; from < ids.length; from += concurrency) {
+    const batch = ids.slice(from, from + concurrency);
+    const results = await Promise.all(batch.map(async (customerId) => {
+      const orderRows = await rows<Pick<Order, 'customer_id' | 'created_at'>>(
+        'orders',
+        supabase
+          .from('orders')
+          .select('customer_id, created_at')
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(1),
+      );
+      return { customerId, createdAt: orderRows[0]?.created_at ?? null };
+    }));
+
+    for (const { customerId, createdAt } of results) {
+      if (createdAt) latest.set(customerId, createdAt);
+    }
   }
   return latest;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, Check, KeyRound, Loader2 } from 'lucide-react';
@@ -21,6 +21,7 @@ function ResetPasswordContent() {
   const [confirmError, setConfirmError] = useState<string | null>(null);
   // null = checking, true = valid recovery session, false = expired/invalid link
   const [hasSession, setHasSession] = useState<boolean | null>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -31,6 +32,10 @@ function ResetPasswordContent() {
       if (event === 'PASSWORD_RECOVERY' || session) setHasSession(true);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => () => {
+    if (redirectTimer.current !== null) clearTimeout(redirectTimer.current);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +62,7 @@ function ResetPasswordContent() {
       }
 
       setSuccess(true);
-      setTimeout(() => {
+      redirectTimer.current = setTimeout(() => {
         router.push('/auth/login');
       }, 3000);
     } catch (err) {

@@ -54,7 +54,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
   // into dynamic rendering and every request reruns the Supabase reads,
   // bypassing `revalidate = 3600`. The page prerenders with the default
   // order (newest, page 1); sort changes refetch client-side via
-  // `CatalogGrid clientSort`, and deep ?page= links still seed the grid.
+  // `CatalogGrid clientSort`. Artist URLs do not currently read `?page=`.
   const pageSize = 16;
 
   // Static (cookie-free) client so `revalidate = 3600` actually applies.

@@ -253,7 +253,9 @@ def main() -> int:
         y = 4 + (i // 2) * (th_h + 26)
         sheet.paste(t, (x, y))
         draw.text((x + 4, y + t.height + 4), name.replace("diljit-dosanjh-punjabi-aa-gaye-oye-", ""), fill=(240, 240, 240))
-    sheet.save("/tmp/punjabi_preview/composite_sheet.png")
+    preview_dir = Path("/tmp/punjabi_preview")
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    sheet.save(preview_dir / "composite_sheet.png")
     print("contact sheet: /tmp/punjabi_preview/composite_sheet.png")
     return 0
 

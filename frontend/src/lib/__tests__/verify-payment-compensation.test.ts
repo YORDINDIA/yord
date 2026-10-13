@@ -42,13 +42,29 @@ const h = vi.hoisted(() => {
     shipping: [] as Row[],
     analytics: [] as Row[],
     refunds: [] as string[],
+    claims: new Map<number, Row>(),
+    stockOperations: new Map<string, Row>(),
     variants: new Map<number, Variant>(),
     payments: new Map<string, Payment>(),
     raceStock: new Set<number>(),
     nextOrderId: 1,
     hideNextLookup: false,
     races: 0,
-    fail: { lineItems: false, shipping: false, restore: false, restoreEmpty: false, refund: false },
+    refundCalls: 0,
+    refundGate: null as null | {
+      started: () => void;
+      startedPromise: Promise<void>;
+      release: () => void;
+      wait: Promise<void>;
+    },
+    fail: {
+      lineItems: false,
+      shipping: false,
+      shippingRace: false,
+      restore: false,
+      restoreEmpty: false,
+      refund: false,
+    },
   };
 
   // PostgREST projects the selected columns and returns SQL NULL for a column
@@ -112,6 +128,14 @@ const h = vi.hoisted(() => {
       return { data: null, error: null };
     }
     if (table === 'order_shipping_addresses') {
+      if (state.fail.shippingRace) {
+        state.fail.shippingRace = false;
+        state.shipping.push({ order_id: list[0].order_id });
+        return {
+          data: null,
+          error: { code: '23505', message: 'duplicate shipping address' },
+        };
+      }
       if (state.fail.shipping) {
         return { data: null, error: { code: '23503', message: 'shipping address insert failed' } };
       }
@@ -149,69 +173,217 @@ const h = vi.hoisted(() => {
             select: (cols: string) => ({ single: () => projected(cols), maybeSingle: () => projected(cols) }),
           };
         },
-        update: (patch: Row) => ({
-          eq: (col: string, value: unknown) => {
-            if (table !== 'orders') throw new Error(`unexpected update on ${table}`);
-            const row = state.orders.find((o) => o[col] === value);
+        update: (patch: Row) => {
+          if (table !== 'orders') throw new Error(`unexpected update on ${table}`);
+          const filters: [string, unknown][] = [];
+          const run = () => {
+            const row = state.orders.find((candidate) =>
+              filters.every(([column, value]) => candidate[column] === value)
+            );
             if (row) Object.assign(row, patch);
-            return Promise.resolve({ data: null, error: null });
-          },
-        }),
+            return Promise.resolve({ data: row ? { id: row.id } : null, error: null });
+          };
+          const builder = {
+            eq: (col: string, value: unknown) => {
+              filters.push([col, value]);
+              return builder;
+            },
+            select: () => builder,
+            maybeSingle: run,
+            then: (onFulfilled?: (v: unknown) => unknown) => run().then(onFulfilled),
+          };
+          return builder;
+        },
       };
     },
-    rpc(
-      name: string,
-      args: { p_variant_id: number; p_qty: number } | { p_order_id: number; p_total: number }
-    ) {
-      if (name === 'adopt_order_claim') {
-        // The migration 016 CAS, translated: adopt only a still-'paid',
-        // uncancelled, unclaimed, line-less row whose total matches. Loose
-        // null checks mirror SQL's `IS NULL` (a fresh row's absent columns
-        // read as null).
-        const { p_order_id, p_total } = args as { p_order_id: number; p_total: number };
-        const row = state.orders.find((o) => o.id === p_order_id);
-        if (
-          !row ||
-          Number(row.total_price) !== Number(p_total) ||
-          row.financial_status !== 'paid' ||
-          row.cancelled_at != null ||
-          row.claim_adopted_at != null ||
-          state.lineItems.some((li) => li.order_id === row.id)
-        ) {
-          return Promise.resolve({ data: false, error: null });
+    rpc(name: string, args: Record<string, unknown>) {
+      if (name === 'create_checkout_claim') {
+        const confirmation = args.p_confirmation_number;
+        if (state.orders.some((order) => order.confirmation_number === confirmation)) {
+          state.races += 1;
+          return Promise.resolve({ data: null, error: null });
         }
-        row.claim_adopted_at = new Date().toISOString();
-        const stamp = `[stock-compensation ${new Date().toISOString()} adopt-claim] CAS adoption; stock re-decremented`;
-        row.note = row.note ? `${row.note}\n${stamp}` : stamp;
-        return Promise.resolve({ data: true, error: null });
+        const id = state.nextOrderId++;
+        const created: Row = {
+          id,
+          name: args.p_name,
+          total_price: args.p_total,
+          financial_status: 'paid',
+          cancelled_at: null,
+          confirmation_number: confirmation,
+          note: '',
+        };
+        state.orders.push(created);
+        state.claims.set(id, {
+          status: 'active',
+          owner_token: args.p_owner_token,
+          expires_at: Date.now() + Number(args.p_lease_seconds) * 1000,
+          total: args.p_total,
+          lines: args.p_line_items,
+          shipping: args.p_shipping,
+        });
+        const lines = args.p_line_items as Row[];
+        lines.forEach((line, line_number) => {
+          state.stockOperations.set(`${id}:${line_number}`, {
+            decrement_state: 'pending',
+            restore_state: 'pending',
+            variant_id: line.variant_id,
+            quantity: line.quantity,
+          });
+        });
+        return Promise.resolve({ data: id, error: null });
       }
-      if (name !== 'decrement_variant_stock') throw new Error(`unexpected rpc ${name}`);
-      const { p_variant_id, p_qty } = args as { p_variant_id: number; p_qty: number };
-      const variant = state.variants.get(p_variant_id);
-      if (!variant) return Promise.resolve({ data: [], error: null });
-      if (p_qty < 0) {
-        // Restore: the real RPC updates unconditionally for a negative qty.
-        if (state.fail.restore) return Promise.resolve({ data: null, error: { message: 'restore failed' } });
-        // Empty data with no error: the variant row vanished between the
-        // decrement and the restore, so nothing was actually put back.
-        if (state.fail.restoreEmpty) return Promise.resolve({ data: [], error: null });
-        variant.inventory_quantity -= p_qty;
+      if (name === 'acquire_checkout_claim') {
+        const orderId = Number(args.p_order_id);
+        const row = state.orders.find((order) => order.id === orderId);
+        if (!row) return Promise.resolve({ data: { status: 'missing' }, error: null });
+        let claim = state.claims.get(orderId);
+        if (!claim) {
+          claim = { status: 'legacy_blocked' };
+          state.claims.set(orderId, claim);
+        }
+        if (claim.status !== 'active') {
+          return Promise.resolve({ data: { status: claim.status }, error: null });
+        }
+        if (Number(claim.total) !== Number(row.total_price)) {
+          return Promise.resolve({ data: { status: 'payload_mismatch' }, error: null });
+        }
+        const lines = claim.lines as Row[];
+        const cartIdentity = lines.map((line) => ({
+          variant_id: line.variant_id,
+          quantity: line.quantity,
+        }));
+        if (
+          JSON.stringify(cartIdentity) !== JSON.stringify(args.p_cart_items) ||
+          JSON.stringify(claim.shipping) !== JSON.stringify(args.p_shipping)
+        ) {
+          return Promise.resolve({ data: { status: 'payload_mismatch' }, error: null });
+        }
+        if (
+          Number(claim.expires_at) > Date.now() &&
+          claim.owner_token !== args.p_owner_token
+        ) {
+          return Promise.resolve({ data: { status: 'busy' }, error: null });
+        }
+        claim.owner_token = args.p_owner_token;
+        claim.expires_at = Date.now() + Number(args.p_lease_seconds) * 1000;
         return Promise.resolve({
-          data: [{ id: variant.id, inventory_quantity: variant.inventory_quantity }],
+          data: { status: 'owned', line_items: claim.lines, shipping: claim.shipping },
           error: null,
         });
       }
-      // Guarded decrement: returns no row when the stock is not there, which
-      // is how the route detects an oversell after capture. `raceStock`
-      // simulates stock that vanished between validation and the decrement.
-      if (state.raceStock.has(p_variant_id) || variant.inventory_quantity < p_qty) {
+      if (name === 'apply_checkout_stock') {
+        const orderId = Number(args.p_order_id);
+        const claim = state.claims.get(orderId);
+        if (
+          !claim ||
+          claim.status !== 'active' ||
+          claim.owner_token !== args.p_owner_token ||
+          Number(claim.expires_at) <= Date.now()
+        ) {
+          return Promise.resolve({ data: 'not_owner', error: null });
+        }
+        const key = `${orderId}:${Number(args.p_line_number)}`;
+        const operation = state.stockOperations.get(key);
+        if (!operation) return Promise.resolve({ data: 'invalid_line', error: null });
+        if (operation.decrement_state === 'applied') {
+          claim.expires_at = Date.now() + 90_000;
+          return Promise.resolve({ data: 'applied', error: null });
+        }
+        if (operation.decrement_state === 'unavailable') {
+          return Promise.resolve({ data: 'unavailable', error: null });
+        }
+        const variant = state.variants.get(Number(operation.variant_id));
+        if (
+          !variant ||
+          state.raceStock.has(variant.id) ||
+          variant.inventory_quantity < Number(operation.quantity)
+        ) {
+          operation.decrement_state = 'unavailable';
+          return Promise.resolve({ data: 'unavailable', error: null });
+        }
+        variant.inventory_quantity -= Number(operation.quantity);
+        operation.decrement_state = 'applied';
+        claim.expires_at = Date.now() + 90_000;
+        return Promise.resolve({ data: 'applied', error: null });
+      }
+      if (name === 'compensate_checkout_order') {
+        const orderId = Number(args.p_order_id);
+        const claim = state.claims.get(orderId);
+        const order = state.orders.find((candidate) => candidate.id === orderId);
+        if (!claim || !order) return Promise.resolve({ data: { status: 'missing' }, error: null });
+        if (claim.status === 'compensated') {
+          return Promise.resolve({ data: { status: 'compensated', restore_ok: true }, error: null });
+        }
+        if (
+          claim.status !== 'active' ||
+          claim.owner_token !== args.p_owner_token ||
+          Number(claim.expires_at) <= Date.now()
+        ) {
+          return Promise.resolve({ data: { status: 'not_owner' }, error: null });
+        }
+        let missing = 0;
+        for (const [key, operation] of state.stockOperations) {
+          if (!key.startsWith(`${orderId}:`) || operation.decrement_state !== 'applied' || operation.restore_state !== 'pending') continue;
+          const variant = state.variants.get(Number(operation.variant_id));
+          if (!variant || state.fail.restore || state.fail.restoreEmpty) {
+            operation.restore_state = 'missing';
+            missing += 1;
+          } else {
+            variant.inventory_quantity += Number(operation.quantity);
+            operation.restore_state = 'restored';
+          }
+        }
+        claim.status = 'compensated';
+        claim.owner_token = null;
+        claim.expires_at = null;
+        order.cancelled_at = new Date().toISOString();
+        order.note = `${String(order.note ?? '')}\n[stock-compensation checkout-compensated] ${
+          missing ? 'restore-failed: missing stock row' : 'stock restored'
+        }\n[checkout-refund pending]`;
+        return Promise.resolve({
+          data: { status: 'compensated', restore_ok: missing === 0, missing_lines: missing },
+          error: null,
+        });
+      }
+      if (name === 'complete_checkout_order') {
+        const orderId = Number(args.p_order_id);
+        const claim = state.claims.get(orderId);
+        const order = state.orders.find((candidate) => candidate.id === orderId);
+        if (!claim || !order) return Promise.resolve({ data: 'missing', error: null });
+        if (claim.status === 'completed') return Promise.resolve({ data: 'already_completed', error: null });
+        if (
+          claim.status !== 'active' ||
+          claim.owner_token !== args.p_owner_token ||
+          Number(claim.expires_at) <= Date.now()
+        ) {
+          return Promise.resolve({ data: 'not_owner', error: null });
+        }
+        if (state.fail.lineItems || state.fail.shipping) {
+          return Promise.resolve({ data: 'write_failed', error: null });
+        }
+        state.lineItems.push(
+          ...(args.p_line_items as Row[]).map((line) => ({ order_id: orderId, ...line }))
+        );
+        if (state.fail.shippingRace) {
+          state.fail.shippingRace = false;
+          state.shipping.push({ order_id: orderId, ...(args.p_shipping as Row) });
+        } else if (!state.shipping.some((address) => address.order_id === orderId)) {
+          state.shipping.push({ order_id: orderId, ...(args.p_shipping as Row) });
+        }
+        claim.status = 'completed';
+        claim.owner_token = null;
+        claim.expires_at = null;
+        order.financial_status = 'paid';
+        return Promise.resolve({ data: 'completed', error: null });
+      }
+      if (name === 'adopt_order_claim') {
+        return Promise.resolve({ data: false, error: null });
+      }
+      if (name === 'decrement_variant_stock') {
         return Promise.resolve({ data: [], error: null });
       }
-      variant.inventory_quantity -= p_qty;
-      return Promise.resolve({
-        data: [{ id: variant.id, inventory_quantity: variant.inventory_quantity }],
-        error: null,
-      });
+      throw new Error(`unexpected rpc ${name}`);
     },
   };
 
@@ -223,6 +395,17 @@ const h = vi.hoisted(() => {
         return Promise.resolve({ ...payment });
       },
       refund: (id: string) => {
+        state.refundCalls += 1;
+        const gate = state.refundGate;
+        if (gate) {
+          state.refundGate = null;
+          gate.started();
+          return gate.wait.then(() => {
+            if (state.fail.refund) throw new Error('refund rejected by gateway');
+            state.refunds.push(id);
+            return { id: `rfnd_${state.refunds.length}` };
+          });
+        }
         if (state.fail.refund) return Promise.reject(new Error('refund rejected by gateway'));
         state.refunds.push(id);
         return Promise.resolve({ id: `rfnd_${state.refunds.length}` });
@@ -256,10 +439,24 @@ vi.mock('@/lib/validate-cart', async () => {
       if (items.some((line) => !variantFor(line.variantId))) {
         return { ok: false, code: 'UNKNOWN_VARIANT', error: 'Invalid cart items', status: 400 };
       }
+      const requested = new Map<number, number>();
+      for (const line of items) requested.set(line.variantId, (requested.get(line.variantId) ?? 0) + line.quantity);
+      for (const [id, quantity] of requested) {
+        const variant = variantFor(id)!;
+        if (!Number.isFinite(variant.price) || variant.price < 0) {
+          return { ok: false, code: 'BAD_AMOUNT', error: 'Invalid cart items', status: 400 };
+        }
+        if (variant.inventory_quantity < quantity) {
+          return { ok: false, code: 'OUT_OF_STOCK', error: 'Insufficient stock', status: 409 };
+        }
+      }
       const subtotal = items.reduce(
         (sum, line) => sum + variantFor(line.variantId)!.price * line.quantity,
         0
       );
+      if (subtotal <= 0) {
+        return { ok: false, code: 'BAD_AMOUNT', error: 'Invalid cart items', status: 400 };
+      }
       const { gstAmount, total, totalPaise } = computeTotals(subtotal);
       const byId = new Map(
         items.map((line) => {
@@ -351,11 +548,22 @@ beforeEach(() => {
   h.state.shipping.length = 0;
   h.state.analytics.length = 0;
   h.state.refunds.length = 0;
+  h.state.claims.clear();
+  h.state.stockOperations.clear();
   h.state.raceStock.clear();
   h.state.nextOrderId = 1;
   h.state.hideNextLookup = false;
   h.state.races = 0;
-  h.state.fail = { lineItems: false, shipping: false, restore: false, restoreEmpty: false, refund: false };
+  h.state.refundCalls = 0;
+  h.state.refundGate = null;
+  h.state.fail = {
+    lineItems: false,
+    shipping: false,
+    shippingRace: false,
+    restore: false,
+    restoreEmpty: false,
+    refund: false,
+  };
   h.state.variants.clear();
   h.state.variants.set(VARIANT_ID, { id: VARIANT_ID, price: 1000, inventory_quantity: 5 });
   h.state.payments.clear();
@@ -397,6 +605,71 @@ describe('verify-payment: happy path', () => {
     expect(h.state.orders).toHaveLength(1);
     expect(h.state.lineItems).toHaveLength(1);
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(stockAfterFirst);
+    expect(h.state.refunds).toEqual([]);
+  });
+
+  it('allows only one concurrent verifier to finalize and decrement', async () => {
+    const results = await Promise.all([post(signedBody()), post(signedBody())]);
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect(h.state.orders).toHaveLength(1);
+    expect(h.state.lineItems).toHaveLength(1);
+    expect(h.state.shipping).toHaveLength(1);
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(3);
+    expect(h.state.refunds).toEqual([]);
+    expect(h.state.analytics).toHaveLength(1);
+  });
+});
+
+describe('verify-payment: post-capture cart validation', () => {
+  it.each([
+    {
+      name: 'unknown variant',
+      code: 'UNKNOWN_VARIANT',
+      status: 400,
+      configure: () => signedBody({
+        orderData: { ...ORDER_DATA, cartItems: [{ variantId: 999, quantity: 2 }] },
+      }),
+    },
+    {
+      name: 'bad amount',
+      code: 'BAD_AMOUNT',
+      status: 400,
+      configure: () => {
+        h.state.variants.get(VARIANT_ID)!.price = -1;
+        return signedBody();
+      },
+    },
+    {
+      name: 'out of stock before decrement',
+      code: 'OUT_OF_STOCK',
+      status: 409,
+      configure: () => {
+        h.state.variants.get(VARIANT_ID)!.inventory_quantity = 1;
+        return signedBody();
+      },
+    },
+  ])('refunds captured payment for $name', async ({ code, status, configure }) => {
+    const result = await post(configure());
+    expect(result.status).toBe(status);
+    expect(result.body.code).toBe(code);
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    expect(h.state.orders).toHaveLength(0);
+  });
+
+  it('returns REFUND_FAILED rather than a settled validation code when refund fails', async () => {
+    h.state.variants.get(VARIANT_ID)!.inventory_quantity = 1;
+    h.state.fail.refund = true;
+    const result = await post(signedBody());
+    expect(result.status).toBe(500);
+    expect(result.body.code).toBe('REFUND_FAILED');
+    expect(h.state.refunds).toEqual([]);
+  });
+
+  it('does not return UNKNOWN_VARIANT for malformed order data until refund succeeds', async () => {
+    h.state.fail.refund = true;
+    const result = await post(signedBody({ orderData: {} }));
+    expect(result.status).toBe(500);
+    expect(result.body.code).toBe('REFUND_FAILED');
     expect(h.state.refunds).toEqual([]);
   });
 });
@@ -508,27 +781,130 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   });
 
   it('records a failed refund on the surviving row', async () => {
-    h.state.raceStock.add(VARIANT_ID);
+    h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5 });
+    h.state.raceStock.add(12);
+    h.state.payments.get(PAYMENT_ID)!.amount = 295000;
     h.state.fail.refund = true;
 
-    const first = await post(signedBody());
-    expect(first.status).toBe(409);
+    const body = signedBody({
+      orderData: {
+        ...ORDER_DATA,
+        cartItems: [
+          { variantId: VARIANT_ID, quantity: 2 },
+          { variantId: 12, quantity: 1 },
+        ],
+      },
+    });
+    const first = await post(body);
+    expect(first.status).toBe(500);
     expect(String(first.body.error)).toBe('Insufficient stock for one or more items');
     expect(h.state.refunds).toEqual([]);
     expect(first.body.code).toBe('REFUND_FAILED');
-    expect(String(h.state.orders[0].note)).toContain('refund-failed');
+    expect(String(h.state.orders[0].note)).toContain('[checkout-refund failed]');
     // A replay retries the refund, never re-claims: while the gateway keeps
     // refusing, the answer stays REFUND_FAILED so the client keeps the body.
-    const second = await post(signedBody());
+    const second = await post(body);
     expect(second.body.code).toBe('REFUND_FAILED');
     expect(h.state.refunds).toEqual([]);
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
+    expect(h.state.stockOperations.get('1:0')?.restore_state).toBe('restored');
     // Once the refund lands, the payment settles as refunded.
     h.state.fail.refund = false;
-    const third = await post(signedBody());
+    const third = await post(body);
     expect(third.body.code).toBe('ORDER_REFUNDED');
     expect(h.state.refunds).toEqual([PAYMENT_ID]);
     expect(h.state.orders).toHaveLength(1);
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
+    expect(h.state.variants.get(12)!.inventory_quantity).toBe(5);
+    expect(h.state.stockOperations.get('1:0')?.restore_state).toBe('restored');
+  });
+
+  it('does not let a previous failed refund bypass a newer in-flight lease', async () => {
+    h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5 });
+    h.state.raceStock.add(12);
+    h.state.payments.get(PAYMENT_ID)!.amount = 295000;
+    h.state.fail.refund = true;
+    const body = signedBody({
+      orderData: {
+        ...ORDER_DATA,
+        cartItems: [
+          { variantId: VARIANT_ID, quantity: 2 },
+          { variantId: 12, quantity: 1 },
+        ],
+      },
+    });
+    expect((await post(body)).body.code).toBe('REFUND_FAILED');
+
+    h.state.fail.refund = false;
+    h.state.refundCalls = 0;
+    let started!: () => void;
+    let release!: () => void;
+    const startedPromise = new Promise<void>((resolve) => { started = resolve; });
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    h.state.refundGate = { started, startedPromise, release, wait };
+
+    const retry = post(body);
+    await startedPromise;
+    const concurrentReplay = await post(body);
+    expect(concurrentReplay.status).toBe(500);
+    expect(concurrentReplay.body.code).toBe('REFUND_FAILED');
+    expect(h.state.refundCalls).toBe(1);
+
+    release();
+    const retryResponse = await retry;
+    expect(retryResponse.body.code).toBe('ORDER_REFUNDED');
+    expect(h.state.refundCalls).toBe(1);
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+  });
+
+  it('recovers a route-owned refund pending after the process stopped before refunding', async () => {
+    h.state.orders.push({
+      id: 1,
+      name: 'YORD-1759600000-AAAA',
+      total_price: 2360,
+      financial_status: 'paid',
+      cancelled_at: new Date().toISOString(),
+      confirmation_number: PAYMENT_ID,
+      note: '[stock-compensation 2026-01-01T00:00:00.000Z line-items-failed] failed\n[checkout-refund pending]',
+    });
+    const replay = await post(signedBody());
+    expect(replay.status).toBe(409);
+    expect(replay.body.code).toBe('ORDER_REFUNDED');
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    expect(h.state.orders[0].financial_status).toBe('refunded');
+  });
+
+  it('recovers an expired refund lease and claims concurrent replays only once', async () => {
+    const expired = new Date(Date.now() - 60_000).toISOString();
+    h.state.orders.push({
+      id: 1,
+      name: 'YORD-1759600000-AAAA',
+      total_price: 2360,
+      financial_status: 'paid',
+      cancelled_at: new Date().toISOString(),
+      confirmation_number: PAYMENT_ID,
+      note: `[checkout-refund in-flight ${expired} abandoned-token]`,
+    });
+    const [first, second] = await Promise.all([post(signedBody()), post(signedBody())]);
+    expect([first.body.code, second.body.code].sort()).toEqual(['ORDER_REFUNDED', 'REFUND_FAILED']);
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    expect(h.state.orders[0].financial_status).toBe('refunded');
+  });
+
+  it('does not retry an admin cancellation or claim captured money is settled', async () => {
+    h.state.orders.push({
+      id: 1,
+      name: 'YORD-1759600000-AAAA',
+      total_price: 2360,
+      financial_status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      confirmation_number: PAYMENT_ID,
+      note: 'cancelled by admin',
+    });
+    const replay = await post(signedBody());
+    expect(replay.status).toBe(409);
+    expect(replay.body.code).toBe('ORDER_CANCELLED');
+    expect(h.state.refunds).toEqual([]);
   });
 
   it('answers REFUND_FAILED, not a settled code, when an amount-mismatch refund fails', async () => {
@@ -595,10 +971,13 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   });
 });
 
-describe('verify-payment: crashed-claim adoption (CAS)', () => {
+describe('verify-payment: lease-backed claim recovery', () => {
   const CLAIM_ID = 500;
 
-  function seedIncompleteClaim(overrides: Row = {}) {
+  function seedIncompleteClaim(
+    orderOverrides: Row = {},
+    leaseOverrides: { expiresAt?: number; lineState?: 'pending' | 'applied'; owner?: string } = {}
+  ) {
     h.state.orders.push({
       id: CLAIM_ID,
       name: 'YORD-1759600000-AAAA',
@@ -610,38 +989,75 @@ describe('verify-payment: crashed-claim adoption (CAS)', () => {
       currency: 'INR',
       total_price: 2360,
       confirmation_number: PAYMENT_ID,
-      claim_adopted_at: null,
       note: '',
-      ...overrides,
+      ...orderOverrides,
     });
+    const lines = [{
+      product_id: 7,
+      variant_id: VARIANT_ID,
+      title: 'Tee',
+      variant_title: 'M',
+      price: 1000,
+      quantity: 2,
+      requires_shipping: true,
+      taxable: true,
+      gift_card: false,
+    }];
+    const shipping = {
+      first_name: 'A',
+      last_name: 'B',
+      address1: '1 Road',
+      address2: null,
+      city: 'Mumbai',
+      province: 'MH',
+      country: 'India',
+      zip: '400001',
+      phone: '9876543210',
+    };
+    h.state.claims.set(CLAIM_ID, {
+      status: 'active',
+      owner_token: leaseOverrides.owner ?? 'crashed-owner',
+      expires_at: leaseOverrides.expiresAt ?? Date.now() - 1_000,
+      total: 2360,
+      lines,
+      shipping,
+    });
+    h.state.stockOperations.set(`${CLAIM_ID}:0`, {
+      decrement_state: leaseOverrides.lineState ?? 'pending',
+      restore_state: 'pending',
+      variant_id: VARIANT_ID,
+      quantity: 2,
+    });
+    if (leaseOverrides.lineState === 'applied') {
+      // The first decrement took the last two units; recovery must trust the
+      // ledger rather than revalidate this now-zero stock.
+      h.state.variants.get(VARIANT_ID)!.inventory_quantity = 0;
+    }
   }
 
-  it('adopts a crashed claim through the CAS: one decrement, one line item, success', async () => {
+  it('recovers an expired owner before any decrement without duplicating work', async () => {
     seedIncompleteClaim();
 
     const attempt = await post(signedBody());
     expect(attempt.status).toBe(200);
     expect(attempt.body).toMatchObject({ success: true, db_order_id: CLAIM_ID });
 
-    const row = h.state.orders[0];
-    expect(row.claim_adopted_at).toBeTruthy();
-    expect(String(row.note)).toContain('adopt-claim');
-    expect(row.financial_status).toBe('paid');
+    expect(h.state.claims.get(CLAIM_ID)?.status).toBe('completed');
+    expect(h.state.stockOperations.get(`${CLAIM_ID}:0`)?.decrement_state).toBe('applied');
+    expect(h.state.orders[0].financial_status).toBe('paid');
     expect(h.state.lineItems).toHaveLength(1);
     expect(h.state.shipping).toHaveLength(1);
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(3);
     expect(h.state.refunds).toEqual([]);
   }, 15000);
 
-  it('refuses a claim that was already adopted and answers without writing', async () => {
-    seedIncompleteClaim({ claim_adopted_at: new Date().toISOString() });
+  it('does not steal a live lease after the short completion poll', async () => {
+    seedIncompleteClaim({}, { expiresAt: Date.now() + 60_000, owner: 'live-owner' });
 
     const attempt = await post(signedBody());
-    // The CAS finds claim_adopted_at already set and returns false; the route
-    // re-polls, the claim stays line-less, and the answer is the
-    // wait-and-retry 409 — with zero writes of any kind.
     expect(attempt.status).toBe(409);
     expect(attempt.body.code).toBe('ORDER_INCOMPLETE');
+    expect(h.state.claims.get(CLAIM_ID)?.owner_token).toBe('live-owner');
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
     expect(h.state.lineItems).toHaveLength(0);
     expect(h.state.shipping).toHaveLength(0);
@@ -649,34 +1065,59 @@ describe('verify-payment: crashed-claim adoption (CAS)', () => {
     expect(h.state.analytics).toEqual([]);
   }, 15000);
 
-  it('adopt_order_claim returns false for a row it already adopted', async () => {
-    seedIncompleteClaim();
-
-    const first = await h.chain.rpc('adopt_order_claim', { p_order_id: CLAIM_ID, p_total: 2360 });
-    expect(first.data).toBe(true);
-    expect(first.error).toBeNull();
-    // The row now carries claim_adopted_at: the second call must lose the CAS
-    // even though the claim is still line-less — this is the predicate that
-    // keeps a re-decrement from happening twice.
-    const second = await h.chain.rpc('adopt_order_claim', { p_order_id: CLAIM_ID, p_total: 2360 });
-    expect(second.data).toBe(false);
-    expect(second.error).toBeNull();
+  it('recovers after the old owner already decremented stock', async () => {
+    seedIncompleteClaim({}, { lineState: 'applied' });
+    const attempt = await post(signedBody());
+    expect(attempt.status).toBe(200);
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(0);
+    expect(h.state.lineItems).toHaveLength(1);
+    expect(h.state.shipping).toHaveLength(1);
+    expect(h.state.stockOperations.get(`${CLAIM_ID}:0`)?.decrement_state).toBe('applied');
   });
 
-  it('refuses the CAS and marks the row when the totals do not match', async () => {
-    seedIncompleteClaim({ total_price: 999 });
+  it('blocks pre-migration claims whose stock history is unknown', async () => {
+    h.state.orders.push({
+      id: CLAIM_ID,
+      name: 'YORD-1759600000-AAAA',
+      total_price: 2360,
+      financial_status: 'paid',
+      cancelled_at: null,
+      confirmation_number: PAYMENT_ID,
+      note: '',
+    });
 
     const attempt = await post(signedBody());
     expect(attempt.status).toBe(409);
     expect(attempt.body.code).toBe('ORDER_INCOMPLETE');
-    // Marked for reconciliation, not compensated: still 'paid', no refund,
-    // no stock movement — the money decision belongs to the attempt that
-    // holds the payment.
-    expect(String(h.state.orders[0].note)).toContain('claim-total-mismatch');
+    expect(h.state.claims.get(CLAIM_ID)?.status).toBe('legacy_blocked');
     expect(h.state.orders[0].financial_status).toBe('paid');
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
     expect(h.state.refunds).toEqual([]);
   }, 15000);
+
+  it('fails closed when a stored claim total disagrees with its order', async () => {
+    seedIncompleteClaim({ total_price: 999 });
+    const attempt = await post(signedBody());
+    expect(attempt.status).toBe(409);
+    expect(attempt.body.code).toBe('ORDER_INCOMPLETE');
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
+    expect(h.state.refunds).toEqual([]);
+  });
+
+  it('keeps the old adoption and stock RPCs fail-closed', async () => {
+    seedIncompleteClaim();
+    const oldAdopt = await h.chain.rpc('adopt_order_claim', {
+      p_order_id: CLAIM_ID,
+      p_total: 2360,
+    });
+    const oldDecrement = await h.chain.rpc('decrement_variant_stock', {
+      p_variant_id: VARIANT_ID,
+      p_qty: 2,
+    });
+    expect(oldAdopt.data).toBe(false);
+    expect(oldDecrement.data).toEqual([]);
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
+  });
 });
 
 describe('verify-payment: address-only recovery', () => {
@@ -719,6 +1160,17 @@ describe('verify-payment: address-only recovery', () => {
     expect(replay.body).toMatchObject({ success: true, message: 'Payment already recorded' });
     expect(h.state.shipping).toHaveLength(1);
   });
+
+  it('treats a duplicate address insert as success when recovery already inserted it', async () => {
+    h.state.fail.shippingRace = true;
+    const attempt = await post(signedBody());
+    expect(attempt.status).toBe(200);
+    expect(attempt.body.success).toBe(true);
+    expect(h.state.shipping).toHaveLength(1);
+    expect(h.state.refunds).toEqual([]);
+    expect(h.state.orders[0].financial_status).toBe('paid');
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(3);
+  });
 });
 
 describe('verify-payment: restore integrity', () => {
@@ -752,8 +1204,15 @@ describe('verify-payment: restore integrity', () => {
     // note names the variant for reconciliation.
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(3);
     expect(String(h.state.orders[0].note)).toContain('restore-failed');
-    expect(String(h.state.orders[0].note)).toContain('restore matched no variant row');
+    expect(String(h.state.orders[0].note)).toContain('missing stock row');
     // The money path is unchanged: the refund ran regardless.
     expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    const beforeRetry = h.state.variants.get(VARIANT_ID)!.inventory_quantity;
+    await h.chain.rpc('compensate_checkout_order', {
+      p_order_id: 1,
+      p_owner_token: 'stale-owner',
+      p_reason: 'replayed compensation',
+    });
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(beforeRetry);
   });
 });

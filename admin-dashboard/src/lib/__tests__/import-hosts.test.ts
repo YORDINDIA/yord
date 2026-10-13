@@ -75,7 +75,14 @@ describe('legacyStorageHost', () => {
   });
 
   it('returns null when the URL is missing or unparseable', () => {
-    expect(legacyStorageHost(undefined)).toBeNull();
+    const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    try {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      expect(legacyStorageHost(undefined)).toBeNull();
+    } finally {
+      if (configuredUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      else process.env.NEXT_PUBLIC_SUPABASE_URL = configuredUrl;
+    }
     expect(legacyStorageHost('')).toBeNull();
     expect(legacyStorageHost('not a url')).toBeNull();
   });

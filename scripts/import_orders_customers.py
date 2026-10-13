@@ -25,8 +25,9 @@ Two further outputs are written to the working directory (cwd):
       Per-row write errors from the orders step -- written only when a row
       fails to upsert.
 
-Undoes are manual: delete the imported ids (see the snapshot), or use
-  python import_orders_customers.py --rollback <snapshot.json>
+Use --rollback with a new run-stamped snapshot to restore overwritten rows and
+remove only writes journaled by that run. Older snapshots without a write
+journal are refused rather than risking deletion of pre-existing data.
 
 Usage:
   python import_orders_customers.py              # dry-run (default, counts only)
@@ -43,12 +44,13 @@ import logging
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from utils.checkpoint import load_checkpoint, mark_entity_done
+from utils.checkpoint import clear_checkpoint, load_checkpoint, mark_entity_done
 from utils.cli import configure_logging, create_parser, resolve_execute
 from utils.supabase_helpers import get_supabase_client, get_supabase_count
 
@@ -73,6 +75,27 @@ STEP_FULFILLMENTS = "fulfillments"
 ALL_STEPS = [STEP_CUSTOMERS, STEP_AUTH, STEP_ORDERS, STEP_TRANSACTIONS, STEP_FULFILLMENTS]
 SNAPSHOT_TABLES = ["customers", "customer_addresses", "orders", "line_items",
                    "transactions", "fulfillments", "discount_codes", "order_discount_codes"]
+SNAPSHOT_TABLES += ["price_rules", "order_billing_addresses", "order_shipping_addresses"]
+SNAPSHOT_PAGE_SIZE = 1000
+SNAPSHOT_MAX_ROWS = 100_000
+ACTIVE_SNAPSHOT_PATH: Path | None = None
+
+# Tables touched by this importer and the identity used to restore/delete only
+# rows written by this run. order_discount_codes has no natural single-column
+# key; this importer only inserts absent (order_id, code) pairs.
+WRITE_KEYS = {
+    "customers": ("id",),
+    "customer_addresses": ("id",),
+    "orders": ("id",),
+    "line_items": ("id",),
+    "transactions": ("id",),
+    "fulfillments": ("id",),
+    "discount_codes": ("id",),
+    "price_rules": ("id",),
+    "order_billing_addresses": ("order_id",),
+    "order_shipping_addresses": ("order_id",),
+    "order_discount_codes": ("order_id", "code"),
+}
 
 # Synthetic ids are offset far from any Shopify-generated id (<=13 digits) so
 # a real id can never collide with these.
@@ -83,6 +106,31 @@ ORDER_STUB_BASE = 3_000_000_000_000_000         # legacy orders with only a Name
 FULFILLMENT_ID_BASE = 5_000_000_000_000_000
 TRANSACTION_ID_BASE = 7_000_000_000_000_000
 DISCOUNT_CODE_ID_BASE = 6_000_000_000_000_000
+PRICE_RULE_BASE = 6_500_000_000_000_000
+
+
+def stable_synthetic_id(base: int, source_identity: str) -> int:
+    """Derive a repeatable synthetic BIGINT from a source record identity."""
+    return base + int(hashlib.sha256(source_identity.encode()).hexdigest()[:12], 16)
+
+
+def price_rule_id(code: str) -> int:
+    return stable_synthetic_id(PRICE_RULE_BASE, code)
+
+
+def fulfillment_id(source_row: dict) -> int:
+    identity = json.dumps(source_row, sort_keys=True, separators=(",", ":"), default=str)
+    return stable_synthetic_id(FULFILLMENT_ID_BASE, identity)
+
+
+def step_row_error_count(report: dict) -> int:
+    """Count reported row failures so a partial step cannot be checkpointed."""
+    total = sum(
+        value for key, value in report.items()
+        if key.endswith("_errors") and isinstance(value, int)
+    )
+    auth_failed = report.get("auth_failed", 0)
+    return total + (auth_failed if isinstance(auth_failed, int) else 0)
 
 
 # ---------------------------------------------------------------------------
@@ -171,15 +219,26 @@ def load_customers() -> list[dict]:
 
 
 def load_orders() -> list[dict]:
-    """Group order_export CSV rows by order Id (fallback Name)."""
+    """Group all export rows by Shopify Name, including blank-Id continuations."""
     rows = read_csv(ORDERS_CSV)
-    by_id: dict[str, dict] = {}
+    rows_by_name: dict[str, list[dict]] = {}
+    last_name: str | None = None
     for r in rows:
-        key = clean(r.get("Id")) or clean(r.get("Name"))
-        if not key:
+        name = clean(r.get("Name"))
+        if name:
+            last_name = name
+        # Shopify continuation rows can omit Name as well as Id. They belong
+        # to the immediately preceding named order in the export.
+        name = name or last_name
+        if not name:
             continue
-        o = by_id.setdefault(key, {
-            "_id": key,
+        rows_by_name.setdefault(name, []).append(r)
+
+    orders = []
+    for name, order_rows in rows_by_name.items():
+        order = {
+            "_id": name,
+            "_source_name": name,
             "line_items": [],
             "order_number": None,
             "email": None, "phone": None,
@@ -191,71 +250,88 @@ def load_orders() -> list[dict]:
             "payment_method": None, "payment_reference": None,
             "payment_id": None, "refunded_amount": None,
             "billing": {}, "shipping_addr": {},
-        })
-        m = re.match(r"#+?YORD\d*(\d+)", key)
-        if m:
-            o["order_number"] = int(m.group(1))
-        o.setdefault("_all_rows", []).append(r)
-        for src, dst in [
-            ("Email", "email"), ("Phone", "phone"),
-            ("Financial Status", "financial_status"),
-            ("Fulfillment Status", "fulfillment_status"),
-            ("Cancelled at", "cancelled_at"),
-            ("Currency", "currency"),
-            ("Discount Code", "discount_code"),
-            ("Created at", "created_at"),
-            ("Paid at", "paid_at"),
-            ("Notes", "notes"),
-            ("Payment Method", "payment_method"),
-            ("Payment Reference", "payment_reference"),
-            ("Payment ID", "payment_id"),
-        ]:
-            if o[dst] is None:
-                o[dst] = clean(r.get(src))
-        for src, dst in [("Subtotal", "subtotal"), ("Shipping", "shipping"),
-                         ("Taxes", "taxes"), ("Total", "total"),
-                         ("Discount Amount", "discount_amount")]:
-            if o[dst] is None:
-                o[dst] = parse_money(r.get(src))
-        for field in ["Name", "Street", "Address1", "Address2", "Company",
-                      "City", "Zip", "Province", "Country", "Phone"]:
-            b = clean(r.get(f"Billing {field}"))
-            s = clean(r.get(f"Shipping {field}"))
-            if field == "Name":
-                if o["billing"].get("first_name") is None and b:
-                    o["billing"]["first_name"] = b
-                if o["shipping_addr"].get("first_name") is None and s:
-                    o["shipping_addr"]["first_name"] = s
-            else:
-                if b and o["billing"].get(field.lower()) is None:
-                    o["billing"][field.lower()] = b
-                if s and o["shipping_addr"].get(field.lower()) is None:
-                    o["shipping_addr"][field.lower()] = s
-        title = clean(r.get("Lineitem name"))
-        if title:
-            o["line_items"].append({
-                "title": title,
-                "quantity": int(parse_money(r.get("Lineitem quantity"), 1) or 1),
-                "price": parse_money(r.get("Lineitem price")),
-                "sku": clean(r.get("Lineitem sku")),
-                "requires_shipping": parse_bool(r.get("Lineitem requires shipping")),
-                "taxable": parse_bool(r.get("Lineitem taxable")),
-                "fulfillment_status": clean(r.get("Lineitem fulfillment status")),
-            })
-    orders = []
-    for key, o in by_id.items():
-        o.pop("_all_rows", None)
-        oid = int(key) if key.isdigit() else None
-        o["shopify_id"] = oid
-        # legacy orders (Name only, no numeric Id): deterministic synthetic id
+        }
+        id_rows = [r for r in order_rows if clean(r.get("Id"))]
+        source_id = clean(id_rows[0].get("Id")).lstrip("'") if id_rows else None
+        # Name, not Id, is the source for the customer-visible order name and
+        # order number. Shopify names include both "#1234" and "#YORD1234".
+        number = re.search(r"(\d+)\s*$", name)
+        if number:
+            order["order_number"] = int(number.group(1))
+
+        # Rows with an actual Shopify Id carry the authoritative order-level
+        # fields. Continuations are fallback only when that row omits a value.
+        metadata_rows = id_rows + [r for r in order_rows if not clean(r.get("Id"))]
+        if source_id and not source_id.isdigit():
+            raise ValueError(f"Order {name} has a non-numeric Shopify Id: {source_id!r}")
+        for r in metadata_rows:
+            for src, dst in [
+                ("Email", "email"), ("Phone", "phone"),
+                ("Financial Status", "financial_status"),
+                ("Fulfillment Status", "fulfillment_status"),
+                ("Cancelled at", "cancelled_at"),
+                ("Currency", "currency"),
+                ("Discount Code", "discount_code"),
+                ("Created at", "created_at"),
+                ("Paid at", "paid_at"),
+                ("Notes", "notes"),
+                ("Payment Method", "payment_method"),
+                ("Payment Reference", "payment_reference"),
+                ("Payment ID", "payment_id"),
+            ]:
+                if order[dst] is None:
+                    order[dst] = clean(r.get(src))
+            for src, dst in [
+                ("Subtotal", "subtotal"), ("Shipping", "shipping"),
+                ("Taxes", "taxes"), ("Total", "total"),
+                ("Discount Amount", "discount_amount"),
+            ]:
+                if order[dst] is None:
+                    order[dst] = parse_money(r.get(src))
+            for field in [
+                "Name", "Street", "Address1", "Address2", "Company",
+                "City", "Zip", "Province", "Country", "Phone",
+            ]:
+                billing = clean(r.get(f"Billing {field}"))
+                shipping = clean(r.get(f"Shipping {field}"))
+                if field == "Name":
+                    if order["billing"].get("first_name") is None and billing:
+                        order["billing"]["first_name"] = billing
+                    if order["shipping_addr"].get("first_name") is None and shipping:
+                        order["shipping_addr"]["first_name"] = shipping
+                else:
+                    if billing and order["billing"].get(field.lower()) is None:
+                        order["billing"][field.lower()] = billing
+                    if shipping and order["shipping_addr"].get(field.lower()) is None:
+                        order["shipping_addr"][field.lower()] = shipping
+
+        # Keep line items in source/export order, irrespective of which row was
+        # selected first for the order-level values.
+        for r in order_rows:
+            title = clean(r.get("Lineitem name"))
+            if title:
+                order["line_items"].append({
+                    "title": title,
+                    "quantity": int(parse_money(r.get("Lineitem quantity"), 1) or 1),
+                    "price": parse_money(r.get("Lineitem price")),
+                    "sku": clean(r.get("Lineitem sku")),
+                    "requires_shipping": parse_bool(r.get("Lineitem requires shipping")),
+                    "taxable": parse_bool(r.get("Lineitem taxable")),
+                    "fulfillment_status": clean(r.get("Lineitem fulfillment status")),
+                })
+
+        oid = int(source_id) if source_id and source_id.isdigit() else None
+        order["shopify_id"] = oid
+        # Allocate a deterministic synthetic id only when no usable source Id
+        # exists across any row belonging to this order.
         if oid is None:
-            o["shopify_id"] = ORDER_STUB_BASE + int(hashlib.md5(key.encode()).hexdigest()[:6], 16)
+            order["shopify_id"] = stable_synthetic_id(ORDER_STUB_BASE, name)
         # line-item ids need the numeric order id
-        for idx, li in enumerate(o["line_items"]):
-            base = oid if oid is not None else None
-            li["id"] = LINE_ITEM_ID_BASE + (base if base is not None else o["shopify_id"]) * 1000 + idx
+        for idx, li in enumerate(order["line_items"]):
+            base = oid if oid is not None else order["shopify_id"]
+            li["id"] = LINE_ITEM_ID_BASE + base * 1000 + idx
             li["li_index"] = idx
-        orders.append(o)
+        orders.append(order)
     return orders
 
 
@@ -298,6 +374,7 @@ def upsert_many(table: str, records: list[dict], client, batch_size: int = 200,
     for i in range(0, len(records), batch_size):
         batch = records[i:i + batch_size]
         try:
+            record_write_intent(table, batch)
             if on_conflict:
                 client.table(table).upsert(batch, on_conflict=on_conflict).execute()
             else:
@@ -307,6 +384,7 @@ def upsert_many(table: str, records: list[dict], client, batch_size: int = 200,
             logger.warning("batch upsert %s failed (%s); falling back row-by-row", table, str(e)[:200])
             for rec in batch:
                 try:
+                    record_write_intent(table, [rec])
                     if on_conflict:
                         client.table(table).upsert([rec], on_conflict=on_conflict).execute()
                     else:
@@ -329,44 +407,232 @@ def upsert_many(table: str, records: list[dict], client, batch_size: int = 200,
 # ---------------------------------------------------------------------------
 
 def write_snapshot(client, run_key: str, snapshot_dir: Path) -> Path:
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = snapshot_dir / f"{SNAPSHOT_PREFIX}{ts}.json"
-    data: dict[str, Any] = {"run_key": run_key, "tables": {}, "auth_user_emails": []}
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    path = snapshot_dir / f"{SNAPSHOT_PREFIX}{ts}-{uuid.uuid4().hex}.json"
+    data: dict[str, Any] = {
+        "run_key": run_key,
+        "tables": {},
+        "complete_tables": [],
+        "run_writes": {},
+        "auth_user_emails": [],
+        "auth_user_emails_complete": False,
+        "auth_created_user_ids": [],
+        "auth_create_pending_emails": [],
+    }
     for t in SNAPSHOT_TABLES:
-        rows = client.table(t).select("*").limit(10000).execute().data
+        rows = []
+        offset = 0
+        while True:
+            query = client.table(t).select("*")
+            # Order by the rollback identity so page membership is
+            # deterministic instead of depending on PostgREST's default order.
+            for key_field in WRITE_KEYS[t]:
+                query = query.order(key_field)
+            batch = query.range(
+                offset, offset + SNAPSHOT_PAGE_SIZE - 1
+            ).execute().data or []
+            rows.extend(batch)
+            if len(batch) < SNAPSHOT_PAGE_SIZE:
+                break
+            offset += SNAPSHOT_PAGE_SIZE
+            if len(rows) > SNAPSHOT_MAX_ROWS:
+                raise RuntimeError(
+                    f"Cannot create a complete rollback snapshot for {t}: "
+                    f"more than {SNAPSHOT_MAX_ROWS} rows"
+                )
         data["tables"][t] = rows
+        data["complete_tables"].append(t)
     try:
-        res = client.auth.admin.list_users(1, 5000)
-        users = res.get("users") if isinstance(res, dict) else res
-        data["auth_user_emails"] = [_user_email(u) for u in (users or []) if _user_email(u)]
+        users = []
+        page = 1
+        while len(users) < 5000:
+            res = client.auth.admin.list_users(page, min(500, 5000 - len(users)))
+            batch = res.get("users") if isinstance(res, dict) else res
+            batch = batch or []
+            users.extend(batch)
+            if len(batch) < 500:
+                data["auth_user_emails_complete"] = True
+                break
+            page += 1
+        data["auth_user_emails"] = [
+            _user_email(user) for user in users if _user_email(user)
+        ]
     except Exception as e:
         data["auth_user_emails"] = []
         data["auth_user_emails_error"] = str(e)[:200]
-    with open(path, "w") as f:
+    # Exclusive creation guarantees a snapshot is never silently overwritten,
+    # even if the run-id generator or clock is unexpectedly duplicated.
+    with open(path, "x", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
     logger.info("Snapshot written to %s", path)
     return path
 
 
-def rollback(client, snapshot_path: Path) -> None:
-    snap = json.load(open(snapshot_path))
-    email_set = set(snap.get("auth_user_emails") or [])
-    for t in ["fulfillments", "transactions", "line_items", "order_discount_codes",
-              "discount_codes", "orders", "customer_addresses", "customers"]:
-        ids = [r.get("id") for r in (snap.get("tables") or {}).get(t, []) if r.get("id") is not None]
-        if not ids:
-            print(f"  {t}: no pre-existing rows in snapshot, nothing to delete")
+def _write_identity(table: str, row: dict) -> dict:
+    fields = WRITE_KEYS.get(table)
+    if not fields or any(row.get(field) is None for field in fields):
+        raise RuntimeError(
+            f"Rollback tracking cannot identify a write to {table}: "
+            f"expected key fields {fields}"
+        )
+    return {field: row[field] for field in fields}
+
+
+def _same_identity(row: dict, identity: dict) -> bool:
+    return all(str(row.get(field)) == str(value) for field, value in identity.items())
+
+
+def record_write_intent(table: str, records: list[dict]) -> None:
+    """Journal keys before an upsert so rollback is scoped to this import."""
+    if ACTIVE_SNAPSHOT_PATH is None or not records:
+        return
+    if table not in SNAPSHOT_TABLES:
+        raise RuntimeError(f"Rollback snapshot does not cover writes to {table}")
+    with open(ACTIVE_SNAPSHOT_PATH, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    if table not in snapshot.get("complete_tables", []):
+        raise RuntimeError(f"Rollback snapshot for {table} is not complete")
+    entries = snapshot.setdefault("run_writes", {}).setdefault(table, [])
+    recorded = {json.dumps(entry["key"], sort_keys=True) for entry in entries}
+    prior_rows = snapshot.get("tables", {}).get(table, [])
+    for row in records:
+        identity = _write_identity(table, row)
+        key = json.dumps(identity, sort_keys=True)
+        if key in recorded:
             continue
-        print(f"  {t}: deleting {len(ids)} pre-existing row(s)...")
-        deleted = 0
-        for i in range(0, len(ids), 500):
-            chunk = ids[i:i + 500]
-            res = client.table(t).delete().in_("id", chunk).execute()
-            deleted += len(res.data or [])
-        print(f"    deleted {deleted}")
-    if email_set:
-        print(f"  auth users: {len(email_set)} pre-existing email(s) NOT deleted automatically; "
-              f"remove manually from the Supabase dashboard (auth -> users) if needed.")
+        prior = next((old for old in prior_rows if _same_identity(old, identity)), None)
+        if table == "order_discount_codes" and prior is not None:
+            raise RuntimeError(
+                "Refusing to import an existing order_discount_codes pair: "
+                "the table has no unique (order_id, code) conflict key for safe rollback"
+            )
+        entries.append({"key": identity, "before": prior})
+        recorded.add(key)
+    with open(ACTIVE_SNAPSHOT_PATH, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+
+
+def record_auth_create_intent(email: str) -> None:
+    if ACTIVE_SNAPSHOT_PATH is None:
+        raise RuntimeError("Auth creation has no active rollback snapshot")
+    with open(ACTIVE_SNAPSHOT_PATH, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    if not snapshot.get("auth_user_emails_complete"):
+        raise RuntimeError(
+            "Auth creation refused: snapshot could not confirm the complete "
+            "pre-run user list"
+        )
+    known = {value.lower() for value in snapshot.get("auth_user_emails", [])}
+    if email.lower() in known:
+        raise RuntimeError(f"Auth creation refused for pre-existing user {email}")
+    pending = snapshot.setdefault("auth_create_pending_emails", [])
+    if email.lower() not in {value.lower() for value in pending}:
+        pending.append(email)
+    with open(ACTIVE_SNAPSHOT_PATH, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+
+
+def record_auth_created(email: str, user_id: str | None) -> None:
+    if ACTIVE_SNAPSHOT_PATH is None or not user_id:
+        raise RuntimeError(
+            f"Auth user {email} was created without a journaled user id; "
+            "rollback will refuse until resolved manually"
+        )
+    with open(ACTIVE_SNAPSHOT_PATH, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    created = snapshot.setdefault("auth_created_user_ids", [])
+    if user_id not in created:
+        created.append(user_id)
+    snapshot["auth_create_pending_emails"] = [
+        value for value in snapshot.get("auth_create_pending_emails", [])
+        if value.lower() != email.lower()
+    ]
+    with open(ACTIVE_SNAPSHOT_PATH, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+
+
+def rollback(client, snapshot_path: Path) -> None:
+    with open(snapshot_path, encoding="utf-8") as f:
+        snap = json.load(f)
+    # Old snapshots are only pre-run dumps. They cannot distinguish rows this
+    # import created from pre-existing rows, so refuse before any DB operation.
+    if not isinstance(snap.get("run_writes"), dict) or not isinstance(
+        snap.get("complete_tables"), list
+    ):
+        raise RuntimeError(
+            "Rollback refused: this snapshot has no complete per-run write journal. "
+            "No database rows were changed; use the snapshot to restore manually."
+        )
+    writes = snap["run_writes"]
+    pending_auth = snap.get("auth_create_pending_emails", [])
+    if pending_auth:
+        raise RuntimeError(
+            "Rollback refused: auth creation outcome is uncertain for "
+            f"{', '.join(pending_auth)}. No database rows were changed."
+        )
+    auth_ids = snap.get("auth_created_user_ids", [])
+    if not isinstance(auth_ids, list) or any(not isinstance(user_id, str) for user_id in auth_ids):
+        raise RuntimeError(
+            "Rollback refused: invalid auth-user write journal. No database rows were changed."
+        )
+    for table, entries in writes.items():
+        if table not in WRITE_KEYS or table not in snap["complete_tables"]:
+            raise RuntimeError(
+                f"Rollback refused: snapshot cannot safely identify writes to {table}. "
+                "No database rows were changed."
+            )
+        if any(not isinstance(entry, dict) or not isinstance(entry.get("key"), dict)
+               for entry in entries):
+            raise RuntimeError(
+                f"Rollback refused: invalid write journal entry for {table}. "
+                "No database rows were changed."
+            )
+        for entry in entries:
+            if set(entry["key"]) != set(WRITE_KEYS[table]):
+                raise RuntimeError(
+                    f"Rollback refused: invalid identity for {table}. "
+                    "No database rows were changed."
+                )
+            before = entry.get("before")
+            if before is not None and (
+                not isinstance(before, dict) or not _same_identity(before, entry["key"])
+            ):
+                raise RuntimeError(
+                    f"Rollback refused: prior row identity mismatch for {table}. "
+                    "No database rows were changed."
+                )
+            if table == "order_discount_codes" and before is not None:
+                raise RuntimeError(
+                    "Rollback refused: order_discount_codes has no unique "
+                    "(order_id, code) conflict key. No database rows were changed."
+                )
+
+    restore_order = [
+        "customers", "price_rules", "orders", "customer_addresses",
+        "order_billing_addresses", "order_shipping_addresses", "line_items",
+        "transactions", "fulfillments", "discount_codes", "order_discount_codes",
+    ]
+    for table in restore_order:
+        for entry in writes.get(table, []):
+            before = entry.get("before")
+            if before is None:
+                continue
+            conflict = ",".join(entry["key"])
+            client.table(table).upsert([before], on_conflict=conflict).execute()
+            print(f"  {table}: restored prior row {entry['key']}")
+    for table in reversed(restore_order):
+        for entry in writes.get(table, []):
+            if entry.get("before") is not None:
+                continue
+            query = client.table(table).delete()
+            for field, value in entry["key"].items():
+                query = query.eq(field, value)
+            query.execute()
+            print(f"  {table}: removed run-created row {entry['key']}")
+
+    for user_id in auth_ids:
+        client.auth.admin.delete_user(user_id)
+        print(f"  auth users: removed run-created user {user_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +711,27 @@ def _user_email(u) -> str | None:
     return getattr(u, "email", None)
 
 
+def _user_id(user) -> str | None:
+    if isinstance(user, dict):
+        nested = user.get("user", user)
+        return nested.get("id") if isinstance(nested, dict) else None
+    nested = getattr(user, "user", user)
+    return getattr(nested, "id", None)
+
+
+def clear_auth_create_intent(email: str) -> None:
+    if ACTIVE_SNAPSHOT_PATH is None:
+        return
+    with open(ACTIVE_SNAPSHOT_PATH, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    snapshot["auth_create_pending_emails"] = [
+        value for value in snapshot.get("auth_create_pending_emails", [])
+        if value.lower() != email.lower()
+    ]
+    with open(ACTIVE_SNAPSHOT_PATH, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+
+
 def step_auth(client, orders: list[dict], execute: bool) -> dict:
     """Create confirmed Supabase auth users for customer + order emails.
 
@@ -487,15 +774,18 @@ def step_auth(client, orders: list[dict], execute: bool) -> dict:
     errors = []
     for em in to_create:
         try:
-            client.auth.admin.create_user({
+            record_auth_create_intent(em)
+            user = client.auth.admin.create_user({
                 "email": em,
                 "email_confirm": True,
                 "user_metadata": {"imported": "shopify"},
             })
+            record_auth_created(em, _user_id(user))
             created += 1
         except Exception as e:
             msg = str(e)
             if "already" in msg.lower() or "23505" in msg or "409" in msg:
+                clear_auth_create_intent(em)
                 skipped += 1
             else:
                 failed += 1
@@ -555,7 +845,7 @@ def step_orders(client, orders: list[dict], execute: bool, error_file: Path | No
         # they are visible but not mistaken for settled payments
         order_rows.append({
             "id": oid,
-            "name": o["_id"] if o["_id"].startswith("#") else f"#{o['_id']}",
+            "name": o["_source_name"] or o["_id"],
             "customer_id": cust,
             "order_number": o["order_number"],
             "email": o["email"],
@@ -635,13 +925,12 @@ def step_orders(client, orders: list[dict], execute: bool, error_file: Path | No
     # discount_codes rows so order_discount_codes FK is satisfied.
     # discount_codes requires a price_rules parent; synthetic parent rows use
     # a dedicated base range so admin-created price rules never collide.
-    PRICE_RULE_BASE = 6_500_000_000_000_000
     code_rows, code_amounts = [], {}
     for d in disc_rows:
         code_amounts.setdefault(d["code"], d["amount"])
     pr_ids = {}
-    for i, (code, amount) in enumerate(sorted(code_amounts.items())):
-        pr_id = PRICE_RULE_BASE + i + 1
+    for code, amount in sorted(code_amounts.items()):
+        pr_id = price_rule_id(code)
         pr_ids[code] = pr_id
         code_rows.append({
             "id": DISCOUNT_CODE_ID_BASE + int(hashlib.md5(code.encode()).hexdigest()[:8], 16),
@@ -649,9 +938,9 @@ def step_orders(client, orders: list[dict], execute: bool, error_file: Path | No
             "code": code,
         })
     price_rule_rows = []
-    for i, (code, amount) in enumerate(sorted(code_amounts.items())):
+    for code, amount in sorted(code_amounts.items()):
         price_rule_rows.append({
-            "id": PRICE_RULE_BASE + i + 1,
+            "id": pr_ids[code],
             "title": f"Imported: {code}",
             "value": -amount,
             "value_type": "fixed_amount",
@@ -817,9 +1106,9 @@ def step_fulfillments(client, orders: list[dict], courier: list[dict], execute: 
 
     status_map = {"Delivered": "shipped", "Cancelled": "cancelled", "Undelivered": "out_for_delivery"}
     frows = []
-    for i, (cr, oid, method) in enumerate(matched):
+    for cr, oid, method in matched:
         frows.append({
-            "id": FULFILLMENT_ID_BASE + i + 1,
+            "id": fulfillment_id(cr),
             "order_id": oid,
             "status": status_map.get((cr["status"] or "").strip(), "shipped"),
             "service": None,
@@ -870,6 +1159,7 @@ def _dd_mmyyyy_to_utc(value: str | None) -> str | None:
 
 
 def main() -> int:
+    global ACTIVE_SNAPSHOT_PATH
     parser = create_parser("Import Shopify customers/orders/fulfillments from data/shopify/*.csv")
     parser.add_argument("--steps", type=str, default=",".join(ALL_STEPS),
                         help=f"Comma-separated steps: {','.join(ALL_STEPS)} (default: all)")
@@ -888,7 +1178,11 @@ def main() -> int:
             print(f"Snapshot file not found: {snap_path}")
             return 2
         client = get_supabase_client()
-        rollback(client, snap_path)
+        try:
+            rollback(client, snap_path)
+        except RuntimeError as e:
+            print(str(e))
+            return 1
         print("Rollback complete.")
         return 0
 
@@ -907,6 +1201,7 @@ def main() -> int:
     ckpt = load_checkpoint(CHECKPOINT_FILE)
     done = set(ckpt.get("completed_entities", []))
     if args.fresh:
+        clear_checkpoint(CHECKPOINT_FILE)
         done = set()
         ckpt = {"completed_entities": []}
     to_run = [s for s in steps if s not in done]
@@ -931,9 +1226,15 @@ def main() -> int:
     if execute:
         snap_dir = Path(args.snapshot_dir).resolve()
         snap_dir.mkdir(parents=True, exist_ok=True)
-        write_snapshot(client, "|".join(to_run), snap_dir)
+        try:
+            ACTIVE_SNAPSHOT_PATH = write_snapshot(client, "|".join(to_run), snap_dir)
+        except Exception as e:
+            logger.exception("Could not write a complete rollback snapshot")
+            print(f"Cannot safely start import: rollback snapshot failed: {e}")
+            return 1
 
     report: dict[str, Any] = {}
+    row_errors = False
     error_file = Path.cwd() / "import_orders_customers_errors.json"
     try:
         for name in to_run:
@@ -951,7 +1252,11 @@ def main() -> int:
             else:
                 continue
             report[name] = r
-            if execute:
+            step_errors = step_row_error_count(r)
+            if step_errors:
+                row_errors = True
+                print(f"  step {name} had {step_errors} row error(s); not checkpointed")
+            elif execute:
                 mark_entity_done(CHECKPOINT_FILE, name)
                 print(f"  step {name} complete + checkpointed")
     except Exception:
@@ -966,7 +1271,7 @@ def main() -> int:
 
     if execute:
         print("\nDone. Verify: python verify_migration.py --quick")
-    return 0
+    return 1 if row_errors else 0
 
 
 if __name__ == "__main__":

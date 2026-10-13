@@ -10,20 +10,23 @@ shape and one variant policy. Credentials come from ``R2_ACCOUNT_ID`` /
 
 Delivery is plain object reads through ``R2_PUBLIC_BASE_URL`` (the bucket's
 r2.dev URL today, a custom domain later). R2 does not transform images, so
-every image is uploaded as a single web-optimized variant: WebP, at most
-``MAX_VARIANT_WIDTH`` wide (see ``to_webp_variant``). Animated GIFs, SVGs and
-HEIC files are uploaded untouched — re-encoding them would lose animation or
-vector data.
+regular image uploads are stored as a web-optimized WebP, at most
+``MAX_VARIANT_WIDTH`` wide (see ``to_webp_variant``). Product uploads also
+write the responsive siblings used by the storefront loader. Animated GIFs,
+SVGs and HEIC files are uploaded untouched — re-encoding them would lose
+animation or vector data.
 
 Object keys keep the public-id conventions the database and docs use:
-``products/<handle>/01.webp``, ``blog/<handle>.webp``,
+``products/<handle>/01--<revision>.webp``, ``blog/<handle>.webp``,
 ``blog-placeholders/<category>.webp``, ``metafields/<owner>/<id>/<name>.webp``.
 """
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
+import re
 import threading
 import time
 from typing import Optional, Tuple
@@ -53,12 +56,18 @@ VARIANT_QUALITY = 80
 VARIANT_MIME = 'image/webp'
 VARIANT_EXTENSION = '.webp'
 
-# Variant cache: derivatives are immutable, so a year-long TTL is safe.
+# Default cache for static media.
 CACHE_CONTROL = 'public, max-age=31536000, immutable'
+# Legacy product sibling backfills use short caching; new product writes include
+# a content revision in the key so changed images have a new URL.
+PRODUCT_MEDIA_CACHE_CONTROL = 'public, max-age=300, must-revalidate'
+PRODUCT_REVISION_SUFFIX = re.compile(r'--[0-9a-f]{16}$')
 
 # Formats we re-encode to a WebP variant. GIF/SVG/HEIC are deliberately absent:
 # WebP cannot carry SVG, and a static WebP would silently drop GIF animation.
-TRANSCODE_MIMES = frozenset({'image/jpeg', 'image/jpg', 'image/png', 'image/webp'})
+TRANSCODE_MIMES = frozenset({
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif',
+})
 
 # Stored extension for formats we upload as-is.
 EXTENSION_BY_MIME = {
@@ -69,6 +78,7 @@ EXTENSION_BY_MIME = {
     'image/gif': '.gif',
     'image/svg+xml': '.svg',
     'image/heic': '.heic',
+    'image/avif': '.avif',
     'application/pdf': '.pdf',
 }
 
@@ -195,6 +205,7 @@ def upload_image(
     data: bytes,
     content_type: str = 'image/webp',
     max_retries: int = RETRY_ATTEMPTS,
+    cache_control: str = CACHE_CONTROL,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Upload media to R2 and return ``(public_url, error)``.
 
@@ -246,7 +257,7 @@ def upload_image(
                 Key=key,
                 Body=data,
                 ContentType=content_type,
-                CacheControl=CACHE_CONTROL,
+                CacheControl=cache_control,
             )
             return public_url_for(key), None
         except Exception as e:
@@ -262,6 +273,88 @@ def upload_image(
     return None, last_error
 
 
+def upload_product_image(
+    key: str,
+    data: bytes,
+    content_type: str = 'image/png',
+    max_retries: int = RETRY_ATTEMPTS,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Upload a product original and every width used by the storefront loader.
+
+    The upload is all-or-error from the caller's perspective: it returns no
+    usable URL unless the original and 320/640/960/1280 siblings all succeed.
+    Product paths include a digest of the complete output set. A failed upload
+    can leave orphaned R2 objects, but the database continues to reference the
+    previous complete revision; retries reuse this revision's keys.
+    """
+    base_key = key.lstrip('/')
+    # The loader's sibling convention is defined for a single WebP original.
+    original = to_webp_variant(data)
+    if original is None:
+        return None, f"could not create a static WebP product image from {content_type}"
+
+    try:
+        with Image.open(io.BytesIO(original)) as image:
+            width, height = image.size
+    except Exception as error:
+        return None, f"could not inspect generated product WebP: {error}"
+
+    variants: list[Tuple[int, bytes]] = []
+    for target in (320, 640, 960, 1280):
+        if target >= width:
+            variant = original
+        else:
+            try:
+                with Image.open(io.BytesIO(original)) as image:
+                    resized = image.resize(
+                        (target, max(1, round(height * target / width))),
+                        Image.Resampling.LANCZOS,
+                    )
+                    buffer = io.BytesIO()
+                    resized.save(buffer, format='WEBP', quality=VARIANT_QUALITY, method=6)
+                    variant = buffer.getvalue()
+            except Exception as resize_error:
+                return None, f"{target}px variant generation failed: {resize_error}"
+        variants.append((target, variant))
+
+    digest = hashlib.sha256()
+    digest.update(b'yord-product-image-v1\0')
+    digest.update(original)
+    for target, variant in variants:
+        digest.update(f'\0{target}\0'.encode())
+        digest.update(variant)
+    revision = digest.hexdigest()[:16]
+
+    # Product writers may pass a source extension or an already-versioned URL
+    # key (the optimizer does). Normalize both so retries remain idempotent.
+    for extension in sorted(set(EXTENSION_BY_MIME.values()), key=len, reverse=True):
+        if base_key.lower().endswith(extension):
+            base_key = base_key[:-len(extension)]
+            break
+    folder, separator, filename = base_key.rpartition('/')
+    filename = PRODUCT_REVISION_SUFFIX.sub('', filename)
+    base_key = f'{folder}{separator}{filename}--{revision}'
+
+    original_url, error = upload_image(
+        base_key, original, VARIANT_MIME,
+        max_retries=max_retries,
+        cache_control=PRODUCT_MEDIA_CACHE_CONTROL,
+    )
+    if error or not original_url:
+        return None, f"original upload failed: {error or 'empty URL'}"
+
+    for target, variant in variants:
+        variant_url, error = upload_image(
+            f"{base_key}-{target}", variant, VARIANT_MIME,
+            max_retries=max_retries,
+            cache_control=PRODUCT_MEDIA_CACHE_CONTROL,
+        )
+        if error or not variant_url:
+            return None, f"{target}px variant upload failed: {error or 'empty URL'}"
+
+    return original_url, None
+
+
 def delete_image(key: str) -> bool:
     """Delete an object from R2. Best-effort, like the old bucket delete."""
     try:
@@ -275,17 +368,23 @@ def delete_image(key: str) -> bool:
 def is_r2_url(url: str) -> bool:
     """Check if a URL points at the configured R2 public bucket.
 
-    Matches the configured base URL so the check survives the move from the
-    r2.dev development URL to a custom domain; falls back to any ``.r2.dev``
-    host when the base URL is not set.
+    Matches the configured custom domain and historical ``.r2.dev`` URLs, so
+    stored URLs remain discoverable after changing the configured delivery URL.
     """
     if not url:
         return False
+    parsed = urlparse(url)
+    host = (parsed.hostname or '').lower()
+    if host.endswith('.r2.dev'):
+        return True
     base = resolve_r2_public_base_url()
-    if base:
-        return url.startswith(base + '/') or url == base
-    lowered = url.lower()
-    return '.r2.dev/' in lowered or lowered.endswith('.r2.dev')
+    if not base:
+        return False
+    configured = urlparse(base)
+    if parsed.netloc.lower() != configured.netloc.lower():
+        return False
+    base_path = configured.path.rstrip('/')
+    return not base_path or parsed.path == base_path or parsed.path.startswith(base_path + '/')
 
 
 def public_url_host() -> str:
@@ -303,9 +402,13 @@ def key_from_public_url(url: str) -> str:
     custom domain) and the leading slash, leaving the key used by
     ``put_object``/``delete_object``.
     """
-    path = unquote(urlparse(url).path)
-    base_path = unquote(urlparse(resolve_r2_public_base_url()).path).rstrip('/')
-    if base_path and path.startswith(base_path):
+    parsed = urlparse(url)
+    path = unquote(parsed.path)
+    configured = urlparse(resolve_r2_public_base_url())
+    base_path = unquote(configured.path).rstrip('/')
+    if base_path and parsed.netloc.lower() == configured.netloc.lower() and (
+        path == base_path or path.startswith(base_path + '/')
+    ):
         path = path[len(base_path):]
     return path.lstrip('/')
 

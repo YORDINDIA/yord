@@ -563,6 +563,17 @@ class CollectionTidy:
         """
         deleted: list[str] = []
         kept: list[str] = []
+        missing_targets = [
+            canonical
+            for canonical, duplicates in MERGES.items()
+            if any(handle in self.by_handle for handle in duplicates)
+            and canonical not in self.by_handle
+        ]
+        if missing_targets:
+            raise RuntimeError(
+                "Refusing to delete duplicate collections; canonical merge target(s) "
+                f"are missing: {', '.join(missing_targets)}"
+            )
         for handle in [h for hs in MERGES.values() for h in hs]:
             collection = self.by_handle.get(handle)
             if not collection:
@@ -741,6 +752,15 @@ def main() -> int:
             print(f"[DRY RUN] {len(tidy.errors)} problem(s) above need attention.")
             return 1
         return 0
+
+    # Any planning error makes the write set unsafe. In particular, a missing
+    # canonical merge target must never be followed by duplicate deletion.
+    if tidy.errors:
+        print(
+            f"\nRefusing to write: {len(tidy.errors)} unsafe planning error(s) "
+            "must be resolved first."
+        )
+        return 1
 
     snapshot = tidy._snapshot(desired)
     backfilled = tidy.backfill_published_at()

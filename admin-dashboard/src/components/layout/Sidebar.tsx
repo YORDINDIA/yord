@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react';
 import clsx from 'clsx';
 import BrandShimmer from '@/components/reactbits/BrandShimmer';
@@ -20,6 +20,24 @@ import styles from './layout.module.css';
 
 /** localStorage key holding the rail's collapsed/expanded choice. */
 const COLLAPSE_KEY = 'yord-admin-sidebar';
+const COLLAPSE_CHANGE_EVENT = 'yord-admin-sidebar-change';
+
+function getCollapsedSnapshot(): boolean | null {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
+  } catch {
+    return false;
+  }
+}
+
+function subscribeCollapsed(callback: () => void) {
+  window.addEventListener(COLLAPSE_CHANGE_EVENT, callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener(COLLAPSE_CHANGE_EVENT, callback);
+    window.removeEventListener('storage', callback);
+  };
+}
 
 /** Which entries carry a live count, and in which tone. */
 const BADGE_TONES: Partial<Record<SectionKey, string>> = {
@@ -39,28 +57,29 @@ function navTitle(key: SectionKey, count: number): string {
   return badge ? `${label} — ${count} ${badge}` : label;
 }
 
-/**
- * Read the stored collapse choice once, lazily (the ThemeToggle pattern). SSR
- * renders expanded; a stored choice flips the class on the first client render.
- * No structural mismatch: the labels are always rendered and hidden in CSS.
- */
-function readCollapsed(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(COLLAPSE_KEY) === 'collapsed';
-  } catch {
-    return false; // storage unavailable (private mode): stay expanded
-  }
-}
-
 export default function Sidebar({
   badges,
 }: {
   badges: { fulfillmentQueue: number; lowStock: number };
 }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const savedCollapsed = useSyncExternalStore(
+    subscribeCollapsed,
+    getCollapsedSnapshot,
+    () => null,
+  );
+  const collapsed = savedCollapsed ?? false;
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  function toggleCollapsed() {
+    const next = !collapsed;
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, next ? 'collapsed' : 'expanded');
+    } catch {
+      // The choice just does not survive a reload.
+    }
+    window.dispatchEvent(new Event(COLLAPSE_CHANGE_EVENT));
+  }
 
   // `/articles/*` resolves to the Content section, unknown paths to Dashboard,
   // so exactly one entry is ever active.
@@ -70,16 +89,6 @@ export default function Sidebar({
     if (key === 'orders') return badges.fulfillmentQueue;
     if (key === 'inventory') return badges.lowStock;
     return 0;
-  }
-
-  function toggleCollapsed() {
-    const next = !collapsed;
-    setCollapsed(next);
-    try {
-      window.localStorage.setItem(COLLAPSE_KEY, next ? 'collapsed' : 'expanded');
-    } catch {
-      // The choice just does not survive a reload.
-    }
   }
 
   return (
@@ -102,6 +111,7 @@ export default function Sidebar({
           mobileOpen && 'sidebar-open',
         )}
         aria-label="Admin sections"
+        style={savedCollapsed === null ? { visibility: 'hidden' } : undefined}
       >
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">

@@ -59,6 +59,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.cli import configure_logging, create_parser, resolve_execute
 from utils.config import resolve_r2_bucket
 from utils.r2_helpers import (
+    PRODUCT_MEDIA_CACHE_CONTROL,
     VARIANT_QUALITY,
     configure_r2,
     is_r2_url,
@@ -270,7 +271,12 @@ def process_image(
         result["bytes"] += len(variant_bytes)
 
         if execute:
-            _url, error = upload_image(vkey[: -len(WEBP_SUFFIX)], variant_bytes, "image/webp")
+            _url, error = upload_image(
+                vkey[: -len(WEBP_SUFFIX)],
+                variant_bytes,
+                "image/webp",
+                cache_control=PRODUCT_MEDIA_CACHE_CONTROL,
+            )
             if error:
                 result["errors"].append(f"{vkey}: upload failed: {error}")
                 result["planned"][-1]["uploaded"] = False
@@ -415,6 +421,11 @@ class VariantBackfill:
             with open(self.error_log_file, "w") as f:
                 json.dump(self.stats["errors"], f, indent=2)
             print(f"\nError log saved to: {self.error_log_file}")
+        if self.stats["failed"]:
+            raise RuntimeError(
+                f"{self.stats['failed']} eligible product image(s) failed; "
+                "see the error summary/log before treating the backfill as complete"
+            )
 
     def record(self, result: Dict[str, Any]) -> None:
         width = result.get("width")

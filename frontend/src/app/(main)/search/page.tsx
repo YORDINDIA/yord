@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { ProductCard } from '@/features/ui/ProductCard';
@@ -22,10 +22,13 @@ function SearchContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [searchInput, setSearchInput] = useState(query);
+  const requestId = useRef(0);
 
-  const searchProducts = useCallback(async (searchQuery: string) => {
+  const searchProducts = useCallback(async (searchQuery: string, signal?: AbortSignal) => {
+    const currentRequestId = ++requestId.current;
     if (!searchQuery.trim()) {
       setProducts([]);
+      setIsLoading(false);
       setIsError(false);
       return;
     }
@@ -33,12 +36,14 @@ function SearchContent() {
     setIsLoading(true);
     setIsError(false);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, { signal });
+      if (currentRequestId !== requestId.current) return;
       // A non-ok response is a failed read, not "no matches": rendering the
       // empty copy for it told the shopper their term had no results when the
       // request had actually failed.
       if (!response.ok) throw new Error(`Search failed (${response.status})`);
       const data = await response.json();
+      if (currentRequestId !== requestId.current) return;
       const results = data.products || [];
       setProducts(results);
       // One event per submitted query (this runs from the URL-sync effect,
@@ -50,23 +55,27 @@ function SearchContent() {
         results: results.length,
       });
     } catch (error) {
+      if (signal?.aborted || currentRequestId !== requestId.current) return;
       console.error('Search error:', error);
       setIsError(true);
       setProducts([]);
     } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestId.current) setIsLoading(false);
     }
   }, []);
 
-  // Sync URL query param (external navigation state) to input + results; deferred to avoid cascading render.
+  // Sync URL query param (external navigation state) to input + results. Abort
+  // on query changes, and also guard commits by request id for fetches that
+  // have already completed or cannot be cancelled by the browser.
   useEffect(() => {
-    if (query) {
-      const q = query;
-      queueMicrotask(() => {
-        setSearchInput(q);
-        void searchProducts(q);
-      });
-    }
+    requestId.current += 1;
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      setSearchInput(query);
+      void searchProducts(query, controller.signal);
+    });
+    return () => controller.abort();
   }, [query, searchProducts]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -77,8 +86,10 @@ function SearchContent() {
   };
 
   const clearSearch = () => {
+    requestId.current += 1;
     setSearchInput('');
     setProducts([]);
+    setIsLoading(false);
     setIsError(false);
     router.push('/search');
   };
