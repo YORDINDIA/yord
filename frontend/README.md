@@ -43,7 +43,7 @@ No test framework is configured.
 - `src/lib/supabase/` — `client.ts` (browser), `server.ts` (regular, service, static), `queries.ts` (all DB queries); `src/lib/stores/` — cart/wishlist
 - `src/types/database.ts` — Supabase schema types; path alias `@/*` maps to `src/*`
 
-Server Components fetch via `queries.ts` by default; `'use client'` only for interactivity. `src/middleware.ts` (re-exported via `src/proxy.ts`) guards `/account/*` through Supabase SSR sessions. Theme tokens (`--noir-*`, `--gold-*`, `--ivory-*`, per-artist colors) live in `src/app/globals.css`.
+Server Components fetch via `queries.ts` by default; `'use client'` only for interactivity. `src/middleware.ts` guards `/account/*` through Supabase SSR sessions (the Edge middleware convention is required by our pinned Cloudflare adapter). Theme tokens (`--noir-*`, `--gold-*`, `--ivory-*`, per-artist colors) live in `src/app/globals.css`.
 
 ## Images
 

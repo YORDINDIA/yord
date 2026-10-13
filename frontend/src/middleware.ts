@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { conceptsEnabled } from '@/features/concepts/gate';
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // Design concepts are dev-only unless NEXT_PUBLIC_SHOW_CONCEPTS=1. A layout
   // notFound() would stream a 200 under (main)/loading.tsx, so answer a real
   // 404 here by rewriting to a path that does not exist.
@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
   // Public reads degrade via lib/result.ts as they do in RSC; protected paths
   // fail closed, since no user can be proven.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
-    console.warn('[proxy] Supabase env not set — skipping session refresh.');
+    console.warn('[middleware] Supabase env not set — skipping session refresh.');
     if (isProtectedPath) return loginRedirect();
     return NextResponse.next({ request });
   }
