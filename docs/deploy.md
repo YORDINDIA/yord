@@ -341,6 +341,10 @@ do not put them in build logs or non-secret build variables. See root
 
 Rules learned getting here:
 
+- The storefront keeps its auth gate in `frontend/src/middleware.ts` rather
+  than Next 16's `proxy.ts`: `proxy.ts` uses Node middleware, which the pinned
+  `@opennextjs/cloudflare` 1.15.1 adapter cannot bundle. Revisit this when
+  upgrading Next and the adapter together.
 - Supabase enables RLS on new tables with no policies, so anon catalog reads
   return zero rows. `supabase/migrations/009_public_catalog_reads.sql` adds the
   published-only SELECT policies (mirrors 005's articles policy). Writes stay

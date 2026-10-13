@@ -46,7 +46,7 @@ src/
 │   ├── supabase/        # client.ts / server.ts (regular, service, static) + queries.ts
 │   └── stores/          # Zustand stores (cartStore, wishlistStore)
 ├── providers/           # ThemeProvider, PostHog/React Query providers
-└── proxy.ts             # Next 16 middleware: guards /account/*
+└── middleware.ts        # Edge middleware: guards /account/*
 ```
 
 Schema types come from `@yord/db-types` — there is no local `types/database.ts`.
@@ -60,7 +60,9 @@ Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/u
 - Zustand stores are client-side only with localStorage persistence
 
 ### Authentication Flow
-- Middleware (`src/proxy.ts` — Next 16's renamed `middleware.ts`) protects `/account/*` routes
+- Edge middleware (`src/middleware.ts`) protects `/account/*` routes. It uses
+  the middleware convention rather than Next 16's Node-based `proxy.ts` because
+  the pinned OpenNext Cloudflare adapter does not support Node middleware.
 - Uses Supabase Auth with SSR cookie-based sessions
 - Auth pages redirect authenticated users to `/account`
 
