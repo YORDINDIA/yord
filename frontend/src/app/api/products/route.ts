@@ -5,6 +5,7 @@ import {
   getProductsByCollectionHandle,
 } from '@/lib/supabase/queries';
 import { isSupabaseUnconfigured } from '@/lib/result';
+import { parseCatalogFilters } from '@/lib/catalogFilters';
 import { logDbError } from '@/lib/logger';
 import { isRateLimited, clientIp } from '@/lib/rate-limit';
 
@@ -15,6 +16,11 @@ const QuerySchema = z.object({
   handle: z.string().min(1).max(200).optional(),
   artist: z.string().max(200).optional(),
   type: z.string().max(200).optional(),
+  // Same rules as the page parser: a malformed size, an unknown price band or a
+  // stock value other than `1` is a 400 here, where the page would drop it.
+  size: z.string().regex(/^[\w .+/-]{1,24}$/).optional(),
+  price: z.enum(['under-1000', '1000-1999', '2000-2999', '3000-plus']).optional(),
+  stock: z.literal('1').optional(),
   // No `.default('newest')`: absent means "the shopper passed no `?sort=`", and
   // only the query helper knows whether that should fall back to a collection's
   // own `sort_order`. Defaulting here would silently override it on pages 2+.
@@ -46,14 +52,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
   }
   const q = parsed.data;
+  const filters = parseCatalogFilters(Object.fromEntries(request.nextUrl.searchParams));
 
   try {
     // Public catalog reads (RLS applies); no service key. The query helpers
     // below construct their own server/static clients.
     if (q.mode === 'filter') {
       const { data, count } = await getProductsFiltered({
-        artist: q.artist,
-        productType: q.type,
+        artist: filters.artist,
+        productType: filters.type,
+        size: filters.size,
+        price: filters.price,
+        stock: filters.stock,
         page: q.page,
         pageSize: q.pageSize,
         sortBy: q.sort,
@@ -66,7 +76,7 @@ export async function GET(request: NextRequest) {
     }
     const result = await getProductsByCollectionHandle(
       q.handle,
-      { sort: q.sort, page: q.page, pageSize: q.pageSize },
+      { sort: q.sort, page: q.page, pageSize: q.pageSize, filters },
       { publishedOnly: q.mode === 'collection', useStatic: true },
     );
     if (!result) {

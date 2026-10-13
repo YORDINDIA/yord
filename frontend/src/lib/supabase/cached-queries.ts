@@ -3,6 +3,7 @@ import {
   getFeaturedProducts as getFeaturedUncached,
   getTopProductsByArtistHandle as getTopProductsUncached,
   getConcertProductsByHandles as getConcertProductsUncached,
+  getCatalogSizes as getCatalogSizesUncached,
 } from './queries';
 
 export const CATALOG_REVALIDATE_SECONDS = 3600;
@@ -41,3 +42,9 @@ export const getConcertProductsCached = (handles: string[], limitPerArtist = 3) 
     }
   )();
 };
+
+/** Size filter options (1h cache): a facet list, not stock truth. */
+export const getCatalogSizesCached = unstable_cache(getCatalogSizesUncached, ['catalog-size-labels'], {
+  revalidate: CATALOG_REVALIDATE_SECONDS,
+  tags: [CACHE_TAGS.products],
+});

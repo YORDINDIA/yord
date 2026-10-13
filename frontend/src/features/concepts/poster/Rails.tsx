@@ -4,7 +4,7 @@ import { ProductCard } from '@/features/ui/ProductCard';
 import type { ArtistRail } from '@/features/concepts/loaders';
 import { Arrow } from './Arrow';
 import { tankerEm } from './metrics';
-import { FLAT_CARD, cardProps, inkFor } from './shared';
+import { cardProps, inkFor } from './shared';
 
 export function Rail({ rail, side }: { rail: ArtistRail; side: 'left' | 'right' }) {
   const { artist, products } = rail;
@@ -45,7 +45,7 @@ export function Rail({ rail, side }: { rail: ArtistRail; side: 'left' | 'right' 
         >
           {products.slice(0, 4).map((p) => (
             <div key={p.id} className="poster-tile poster-invert">
-              <ProductCard {...cardProps(p)} className={FLAT_CARD} />
+              <ProductCard {...cardProps(p)} />
             </div>
           ))}
         </div>

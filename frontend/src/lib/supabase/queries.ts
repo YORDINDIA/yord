@@ -4,7 +4,7 @@ import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 import { stripHtml } from '@yord/ui';
 import { catalogOrder, resolveSort, type SortOption } from '@/lib/product';
 import { firstDisplayableImageUrl } from '@/lib/media';
-import { escapeLike } from '@/lib/search';
+import { applyCatalogFilters, catalogSelect, isSizeLabel, sortSizes, type CatalogFilterValues } from '@/lib/catalogFilters';
 import { fetchProductsByIds, isRangePastEnd, PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { fetchAutoCollectionPage, isAutoCollection } from '@/lib/data/autoCollections';
 import { isSupabaseUnconfigured, queryOrThrow, throwDbError } from '@/lib/result';
@@ -207,6 +207,39 @@ export async function getProductTypes(): Promise<string[]> {
 
   const types = [...new Set((data || []).map(p => p.product_type).filter(Boolean))] as string[];
   return types.sort();
+}
+
+/**
+ * Sizes in stock across active products: distinct `option1` (the size axis,
+ * see QuickViewModal) of variants with stock. `product_options` is mostly
+ * unpopulated, so the variants are the source; PostgREST caps a response at
+ * 1000 rows, so this pages until a short page. Callers cache it (1h).
+ */
+export async function getCatalogSizes(): Promise<string[]> {
+  if (isSupabaseUnconfigured()) return [];
+  const supabase = createStaticClient();
+  const PAGE = 1000;
+  const sizes = new Set<string>();
+  // ponytail: pages every in-stock variant; a distinct-sizes RPC if the catalog grows past ~20k variants.
+  for (let from = 0; ; from += PAGE) {
+    const rows = await queryOrThrow<{ option1: string | null }[]>(
+      'products:sizes',
+      'products',
+      () => supabase
+        .from('product_variants')
+        .select('option1, products!inner(status)')
+        .gt('inventory_quantity', 0)
+        .eq('products.status', 'active')
+        .not('option1', 'is', null)
+        .order('id')
+        .range(from, from + PAGE - 1),
+    );
+    // Upper-cased so "xs" and "XS" are one option; colours, fits and Shopify's
+    // "Default Title" placeholder are not sizes.
+    for (const r of rows ?? []) if (r.option1 && isSizeLabel(r.option1)) sizes.add(r.option1.trim().toUpperCase());
+    if (!rows || rows.length < PAGE) break;
+  }
+  return sortSizes(sizes);
 }
 
 type ArtistCollectionRow = {
@@ -457,6 +490,8 @@ export interface CollectionPageOptions {
   sort?: SortOption;
   page?: number;
   pageSize?: number;
+  /** Applied to auto collections only; curated lists page by id first. */
+  filters?: CatalogFilterValues;
 }
 
 /**
@@ -506,6 +541,7 @@ export async function getProductsByCollectionHandle(
       sort,
       page: options.page ?? 1,
       pageSize: options.pageSize ?? 12,
+      filters: options.filters,
     });
   }
 
@@ -544,8 +580,7 @@ export async function getProductsByCollectionHandle(
 // existing `@/lib/supabase/queries` import sites keep working.
 export type { SortOption } from '@/lib/product';
 
-export interface ProductFilterOptions {
-  artist?: string;
+export interface ProductFilterOptions extends Omit<CatalogFilterValues, 'type'> {
   productType?: string;
   page?: number;
   pageSize?: number;
@@ -555,27 +590,18 @@ export interface ProductFilterOptions {
 export async function getProductsFiltered(
   options: ProductFilterOptions = {}
 ): Promise<{ data: ProductWithDetails[]; count: number }> {
-  const { artist, productType, page = 1, pageSize = 20, sortBy = 'newest' } = options;
+  const { productType, page = 1, pageSize = 20, sortBy = 'newest', ...rest } = options;
+  const filters: CatalogFilterValues = { ...rest, type: productType };
   // Backend-less builds degrade the filter UI to empty instead of failing.
   if (isSupabaseUnconfigured()) return { data: [], count: 0 };
   const supabase = await createServerClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from('products')
-    .select(PRODUCT_SELECT, { count: 'exact' })
-    .eq('status', 'active');
-
-  // Apply artist filter (match vendor name case-insensitively, escaped)
-  if (artist) {
-    query = query.ilike('vendor', `%${escapeLike(artist)}%`);
-  }
-
-  // Apply product type filter
-  if (productType) {
-    query = query.ilike('product_type', `%${escapeLike(productType)}%`);
-  }
+  let query = applyCatalogFilters(
+    supabase.from('products').select(catalogSelect(filters), { count: 'exact' }).eq('status', 'active'),
+    filters
+  );
 
   // Apply sorting. Price sorts order by the cached min_price in SQL (see
   // supabase/migrations/001_min_price.sql); rows that predate the backfill

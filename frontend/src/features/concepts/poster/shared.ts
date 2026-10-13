@@ -1,8 +1,5 @@
 import type { ConceptProduct } from '@/features/concepts/loaders';
 
-/** ProductCard lifts and shadows itself on hover; the poster world stays flat. */
-export const FLAT_CARD = 'shadow-none! hover:shadow-none! hover:translate-y-0!';
-
 export function cardProps(p: ConceptProduct) {
   return {
     handle: p.handle,

@@ -1,0 +1,52 @@
+/* Product card. The image frame is cut on the bottom-left corner (the Stagelight
+   chamfer) with a self-coloured 1px edge: the inner layer is inset by --e and its
+   cut is pulled in by e * (2 - sqrt 2), so the edge stays an even width. */
+
+.pc-frame {
+  --c: 22px;
+  --e: 1px;
+  --ci: calc(var(--c) - var(--e) * 0.586);
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: color-mix(in srgb, var(--text-primary) 16%, var(--surface-card));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
+}
+
+.pc-frame__in {
+  position: absolute;
+  inset: var(--e);
+  overflow: hidden;
+  background: var(--surface-raised);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--ci) 100%, 0 calc(100% - var(--ci)));
+}
+
+/* Bare icon controls over the photo: on-media ink with one tight shadow cast
+   from above, no tile behind the glyph. */
+.pc-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--text-on-media);
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5));
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.pc-act:hover { color: var(--accent-on-media); }
+.pc-act:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -4px; }
+
+/* With a real pointer the controls wait for hover or focus; a pressed control
+   (a wishlisted heart) stays. Touch always shows them. Controls only, never
+   content. */
+@media (hover: hover) {
+  .pc:not(:hover):not(:focus-within) .pc-act:not([aria-pressed='true']) { opacity: 0; }
+}
+
+.pc-cta__arrow { flex: none; transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.pc-cta:hover:not(:disabled) .pc-cta__arrow { transform: translate(2px, -2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-act,
+  .pc-cta__arrow { transition: none; }
+}

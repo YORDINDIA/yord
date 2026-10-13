@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
 import { logDbError } from '@/lib/logger';
-import { PRODUCT_SELECT, isRangePastEnd } from '@/lib/data/productsByIds';
+import { isRangePastEnd } from '@/lib/data/productsByIds';
+import { applyCatalogFilters, catalogSelect, type CatalogFilterValues } from '@/lib/catalogFilters';
 import type { ProductWithDetails } from '@yord/db-types';
 import { catalogOrder, type SortOption } from '@/lib/product';
 
@@ -49,7 +50,7 @@ export function isGridListedCollection(handle: string | null | undefined): boole
  */
 export async function fetchAutoCollectionPage(
   supabase: SupabaseClient,
-  opts: { sort?: SortOption; page?: number; pageSize?: number } = {},
+  opts: { sort?: SortOption; page?: number; pageSize?: number; filters?: CatalogFilterValues } = {},
 ): Promise<{ data: ProductWithDetails[]; count: number }> {
   // `manual` orders `collects.position`, which auto collections have none of
   // (they read `products` directly). New Arrivals / All ship with a real
@@ -61,10 +62,11 @@ export async function fetchAutoCollectionPage(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from('products')
-    .select(PRODUCT_SELECT, { count: 'exact' })
-    .eq('status', 'active');
+  const filters = opts.filters ?? {};
+  let query = applyCatalogFilters(
+    supabase.from('products').select(catalogSelect(filters), { count: 'exact' }).eq('status', 'active'),
+    filters,
+  );
 
   // `min_price` is backfilled for every row (463/463 verified 2025-10-02), so
   // SQL ordering by it agrees with the price shown on the card. The clause list

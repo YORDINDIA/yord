@@ -3,7 +3,7 @@ import { ProductCard } from '@/features/ui/ProductCard';
 import type { ConceptProduct } from '@/features/concepts/loaders';
 import { Arrow } from './Arrow';
 import { Swatches } from './Swatches';
-import { FLAT_CARD, cardProps } from './shared';
+import { cardProps } from './shared';
 import type { SwatchData } from './accent';
 
 type Width = 'full' | 'wide' | 'mid';
@@ -57,7 +57,7 @@ export function Masonry({
                 if (!p) return null;
                 return (
                   <div key={p.id} className="poster-tile poster-invert" data-w={w}>
-                    <ProductCard {...cardProps(p)} className={FLAT_CARD} />
+                    <ProductCard {...cardProps(p)} />
                   </div>
                 );
               })}

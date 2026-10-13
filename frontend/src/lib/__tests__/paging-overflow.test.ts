@@ -225,8 +225,9 @@ describe('getProductsFiltered (/products)', () => {
     expect(result).toEqual({ data: [], count: 105 });
     expect(fake.calls).toContainEqual({
       table: 'products',
-      method: 'ilike',
-      args: ['vendor', '%coldplay%'],
+      method: 'eq',
+      // Artist is collection membership (see applyCatalogFilters).
+      args: ['artist_c.collections.handle', 'coldplay'],
     });
   });
 

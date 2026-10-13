@@ -1,155 +1,132 @@
+import type { Metadata } from 'next';
+import { ARTISTS } from '@yord/db-types';
 import { getProductsFiltered, getProductTypes, getArtistsWithMetadata } from '@/lib/supabase/queries';
+import { getCatalogSizesCached } from '@/lib/supabase/cached-queries';
 import { degrade } from '@/lib/result';
 import { parseSortParam, parsePageParam } from '@/lib/product';
+import { parseCatalogFilters } from '@/lib/catalogFilters';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
-import { ProductToolbar } from '@/features/catalog/ProductToolbar';
-import { buildFilterUrl } from '@/features/catalog/catalogUrl';
-import { ShoppingBag } from 'lucide-react';
-import Link from 'next/link';
+import { CatalogLayout } from '@/features/catalog/CatalogLayout';
+import { buildFilterUrl, type CatalogFilters } from '@/features/catalog/catalogUrl';
+import { CtaLink } from '@/features/ui/CtaLink';
 import { JsonLd, breadcrumbSchema } from '@/lib/seo/jsonld';
 
-export const metadata = {
-  title: 'All Concert Merchandise | Shop 50+ Artists',
-  description: 'Browse our complete collection of premium concert merchandise for 50+ artists. Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran & more. Free shipping above ₹1,999.',
-  alternates: { canonical: '/products' },
-};
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-interface ProductsPageProps {
-  searchParams: Promise<{
-    page?: string;
-    type?: string;
-    artist?: string;
-    sort?: string;
-  }>;
+const PAGE_SIZE = 24;
+
+/** The heading names the narrowest filter the shopper chose. */
+function headingFor(f: ReturnType<typeof parseCatalogFilters>, artistName?: string): string {
+  if (artistName && f.type) return `${artistName} ${f.type}`;
+  if (artistName) return artistName;
+  if (f.type) return f.type;
+  return 'All products';
 }
 
-export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
+  const f = parseCatalogFilters(await searchParams);
+  if (!f.artist && !f.type && !f.size && !f.price && !f.stock) {
+    return {
+      title: 'All Concert Merchandise | Shop 65+ Artists',
+      description:
+        'Browse our complete collection of premium concert merchandise for 65+ artists. Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran & more. Free shipping on every order.',
+      alternates: { canonical: '/products' },
+    };
+  }
+  const artistName = f.artist ? (ARTISTS[f.artist]?.name ?? f.artist.replace(/-/g, ' ')) : undefined;
+  const subject = [artistName, f.type].filter(Boolean).join(' ') || 'Concert';
+  // Artist and category views are pages worth indexing; size, price and stock
+  // are facets of them.
+  const canonical = buildFilterUrl({ artist: f.artist, type: f.type }, {});
+  return {
+    title: `${subject} Merchandise`,
+    description: `Shop ${subject} merchandise at YORD India. Free shipping on every order.`,
+    alternates: { canonical },
+    ...(f.size || f.price || f.stock ? { robots: { index: false, follow: true } } : {}),
+  };
+}
+
+export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const page = parsePageParam(params.page);
-  const pageSize = 20;
-  const artistFilter = params.artist || undefined;
-  const typeFilter = params.type || undefined;
+  const filters = parseCatalogFilters(params);
   const sortBy = parseSortParam(params.sort);
 
   // The product list is load-bearing: a failed read throws and the error
-  // boundary renders. Filter metadata is optional: on failure the page still
-  // renders, just without the artist/type filter rows.
-  const [{ data: products, count }, typesResult, artistsResult] = await Promise.all([
+  // boundary renders. Facet lists are optional: on failure the panel drops them.
+  const [{ data: products, count }, typesResult, artistsResult, sizesResult] = await Promise.all([
     getProductsFiltered({
-      artist: artistFilter,
-      productType: typeFilter,
+      artist: filters.artist,
+      productType: filters.type,
+      size: filters.size,
+      price: filters.price,
+      stock: filters.stock,
       page,
-      pageSize,
+      pageSize: PAGE_SIZE,
       sortBy,
     }),
     degrade(getProductTypes(), [] as string[], 'products:types', 'products'),
     degrade(getArtistsWithMetadata(), [], 'products:artists', 'collections'),
+    degrade(getCatalogSizesCached(), [] as string[], 'products:sizes', 'products'),
   ]);
-  const productTypes = typesResult.ok ? typesResult.value : [];
   const artists = artistsResult.ok ? artistsResult.value : [];
+  const currentArtist = filters.artist ? artists.find((a) => a.handle === filters.artist) : undefined;
 
-  // Find the current artist for styling
-  const currentArtist = artistFilter
-    ? artists.find(a => a.vendorName.toLowerCase() === artistFilter.toLowerCase()) || null
-    : null;
-
-  const hasFilters = artistFilter || typeFilter;
-  const baseFilters = { artist: artistFilter, type: typeFilter, sort: sortBy };
+  const rawFilters: CatalogFilters = {
+    artist: filters.artist,
+    type: filters.type,
+    size: filters.size,
+    price: filters.price,
+    stock: filters.stock ? '1' : undefined,
+    sort: sortBy,
+  };
+  const hasFilters = Boolean(filters.artist || filters.type || filters.size || filters.price || filters.stock);
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
+    <>
       <JsonLd
         data={breadcrumbSchema([
           { name: 'Home', url: '/' },
           { name: 'Products', url: '/products' },
         ])}
       />
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div
-            className="w-16 h-16 mx-auto mb-6 rounded-full flex items-center justify-center"
-            style={{
-              backgroundColor: currentArtist
-                ? `${currentArtist.accentColor}15`
-                : 'rgba(212, 175, 55, 0.1)'
-            }}
-          >
-            <ShoppingBag
-              className="w-8 h-8"
-              style={{ color: 'var(--accent)' }}
-            />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-4">
-            {currentArtist ? currentArtist.name : typeFilter || 'All Products'}
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
-            {count} {count === 1 ? 'product' : 'products'} available
-            {currentArtist && ` from ${currentArtist.name}`}
-            {typeFilter && !currentArtist && ` in ${typeFilter}`}
-          </p>
-        </div>
-
-        <ProductToolbar
-          artists={artists}
-          productTypes={productTypes}
-          baseFilters={baseFilters}
-          artistFilter={artistFilter}
-          typeFilter={typeFilter}
-          sortBy={sortBy}
-          currentArtist={currentArtist}
+      <CatalogLayout
+        title={headingFor(filters, currentArtist?.name ?? filters.artist)}
+        count={count}
+        // Filtered views list their filters under the bar instead.
+        description={hasFilters ? undefined : 'Premium concert merchandise for 65+ artists. Free shipping on every order.'}
+        facets={{
+          filters: rawFilters,
+          path: '/products',
+          sortBy,
+          artists,
+          types: typesResult.ok ? typesResult.value : [],
+          sizes: sizesResult.ok ? sizesResult.value : [],
+        }}
+      >
+        {/* Page 1 is SSR HTML; pages 2+ append via /api/products. The grid owns
+            the empty, page-overflow and failed-read states. */}
+        <CatalogGrid
+          initialProducts={products}
+          totalCount={count}
+          initialPage={page}
+          query={{
+            mode: 'filter',
+            artist: filters.artist,
+            type: filters.type,
+            size: filters.size,
+            price: filters.price,
+            stock: filters.stock,
+            sort: sortBy,
+            pageSize: PAGE_SIZE,
+          }}
+          emptyTitle={hasFilters ? 'Nothing matches these filters' : 'No products found'}
+          emptyMessage={hasFilters ? 'Try removing a filter.' : 'Check back soon for new arrivals.'}
+          emptyAction={hasFilters ? <CtaLink href="/products">Clear filters</CtaLink> : undefined}
+          // Page 1 of the *filtered* list, so a deep `?page=` keeps the filters.
+          pageOneHref={buildFilterUrl(rawFilters, {})}
         />
-
-        {/* Product Grid — page 1 is SSR HTML; pages 2+ append via /api/products */}
-        {products.length > 0 ? (
-          <CatalogGrid
-            initialProducts={products}
-            totalCount={count}
-            initialPage={page}
-            query={{
-              mode: 'filter',
-              artist: artistFilter,
-              type: typeFilter,
-              sort: sortBy,
-              pageSize,
-            }}
-          />
-        ) : page > 1 && count > 0 ? (
-          // A `?page=` past the end is not an empty catalog: the header above
-          // says how many products exist, so say the same thing here (the
-          // collection grid makes the identical distinction).
-          <div className="text-center py-16">
-            <ShoppingBag className="w-16 h-16 mx-auto text-text-muted mb-4" />
-            <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-muted mb-4">
-              Nothing on this page
-            </p>
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-8">
-              Page {page} is past the end of this list of {count} products.
-            </p>
-            <Link
-              href={buildFilterUrl(baseFilters, {})}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-            >
-              BACK TO PAGE 1
-            </Link>
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <ShoppingBag className="w-16 h-16 mx-auto text-text-muted mb-4" />
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-4">
-              No products found{hasFilters ? ' with the selected filters' : ''}.
-            </p>
-            {hasFilters && (
-              <Link
-                href="/products"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-              >
-                Clear Filters
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-    </main>
+      </CatalogLayout>
+    </>
   );
 }

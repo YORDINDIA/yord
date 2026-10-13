@@ -11,6 +11,9 @@ export interface ProductsQuery {
   handle?: string;
   artist?: string;
   type?: string;
+  size?: string;
+  price?: string;
+  stock?: boolean;
   sort: SortOption;
   pageSize: number;
 }
@@ -32,6 +35,9 @@ async function fetchProductsPage(query: ProductsQuery, page: number): Promise<Pr
   if (query.handle) params.set('handle', query.handle);
   if (query.artist) params.set('artist', query.artist);
   if (query.type) params.set('type', query.type);
+  if (query.size) params.set('size', query.size);
+  if (query.price) params.set('price', query.price);
+  if (query.stock) params.set('stock', '1');
 
   const res = await fetch(`/api/products?${params.toString()}`);
   if (!res.ok) throw new Error(`Catalog request failed (${res.status})`);
