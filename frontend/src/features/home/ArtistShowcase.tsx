@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { SectionHeading } from '@/features/ui/SectionHeading';
 import { SECTION_PADDING } from './section';
+import { orderArtistsWithPinnedFirst } from '@/features/artist/orderArtists';
 import '@/features/ui/reveal.css';
 import type { ArtistData } from '@yord/db-types';
 
@@ -19,25 +20,8 @@ import type { ArtistData } from '@yord/db-types';
  * "Artist not found" page. Display name, accent and hero still come from the
  * static metadata, merged into `ArtistData` by the query layer.
  */
-/**
- * Handles the owner wants first in the rail, ahead of the product-count order
- * the query layer returns. Pinned here rather than in `getArtistsWithMetadata`
- * because this ordering is homepage merchandising, not a property of the data —
- * `/artists`, the header, the footer and the catalog filters keep the count
- * order. A pinned handle that has no published products simply is not in the
- * list, so nothing renders for it.
- */
-const RAIL_PINNED_HANDLES = ['diljit-dosanjh'];
-
-function railOrder(artists: ArtistData[]): ArtistData[] {
-  const pinned = RAIL_PINNED_HANDLES.flatMap((handle) =>
-    artists.filter((artist) => artist.handle === handle),
-  );
-  return [...pinned, ...artists.filter((artist) => !RAIL_PINNED_HANDLES.includes(artist.handle))];
-}
-
 export function ArtistShowcase({ artists }: { artists: ArtistData[] }) {
-  const ordered = railOrder(artists);
+  const ordered = orderArtistsWithPinnedFirst(artists);
 
   // No artist data (backend hiccup or none published yet): hide the rail
   // rather than render a header over an empty scroll strip.

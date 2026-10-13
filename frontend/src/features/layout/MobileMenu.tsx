@@ -7,6 +7,7 @@ import type { ArtistData } from '@yord/db-types';
 import { Overlay } from '@/features/ui/Overlay';
 import { IconButton } from '@/features/ui/IconButton';
 import { ThemeToggle } from '@/features/ui/ThemeToggle';
+import { orderArtistsWithPinnedFirst } from '@/features/artist/orderArtists';
 import { MAX_MENU_ARTISTS, MOBILE_MENU_ID, NAV_LINKS } from './navLinks';
 
 /** The `lg` breakpoint, where the header's own nav takes over. */
@@ -48,7 +49,7 @@ export function MobileMenu({ open, onClose, artists, onOpenSearch, onWarmSearch 
     return () => query.removeEventListener('change', onChange);
   }, [open, onClose]);
 
-  const featured = artists.slice(0, MAX_MENU_ARTISTS);
+  const featured = orderArtistsWithPinnedFirst(artists).slice(0, MAX_MENU_ARTISTS);
 
   return (
     <Overlay open={open} onClose={onClose} variant="right" label="Menu">

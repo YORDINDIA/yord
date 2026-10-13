@@ -8,6 +8,7 @@ import { CtaLink } from '@/features/ui/CtaLink';
 import { EmptyState } from '@/features/ui/EmptyState';
 import { Reveal } from '@/features/ui/Reveal';
 import { SectionHeading } from '@/features/ui/SectionHeading';
+import { orderArtistsWithPinnedFirst } from './orderArtists';
 import type { ArtistData } from '@yord/db-types';
 
 interface ArtistsPageClientProps {
@@ -15,6 +16,8 @@ interface ArtistsPageClientProps {
 }
 
 export function ArtistsPageClient({ artists }: ArtistsPageClientProps) {
+  const orderedArtists = orderArtistsWithPinnedFirst(artists);
+
   return (
     <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
@@ -41,7 +44,7 @@ export function ArtistsPageClient({ artists }: ArtistsPageClientProps) {
           </EmptyState>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {artists.map((artist, index) => (
+            {orderedArtists.map((artist, index) => (
               <Reveal key={artist.handle} delay={Math.min(index * 0.1, 0.4)}>
                 <Link
                   href={`/artist/${artist.handle}`}

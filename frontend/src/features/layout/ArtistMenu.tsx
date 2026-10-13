@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { ArtistData } from '@yord/db-types';
+import { orderArtistsWithPinnedFirst } from '@/features/artist/orderArtists';
 import { MAX_MENU_ARTISTS, navLinkClasses } from './navLinks';
 
 /** Rendered once, in the desktop header. */
@@ -30,6 +31,7 @@ export interface ArtistMenuProps {
  */
 export function ArtistMenu({ label, href, artists, onMedia }: ArtistMenuProps) {
   const [open, setOpen] = useState(false);
+  const featuredArtists = orderArtistsWithPinnedFirst(artists).slice(0, MAX_MENU_ARTISTS);
 
   return (
     <div
@@ -60,7 +62,7 @@ export function ArtistMenu({ label, href, artists, onMedia }: ArtistMenuProps) {
         }
       >
         <div className="glass min-w-[280px] py-4">
-          {artists.slice(0, MAX_MENU_ARTISTS).map((artist) => (
+          {featuredArtists.map((artist) => (
             <Link
               key={artist.handle}
               href={`/artist/${artist.handle}`}
