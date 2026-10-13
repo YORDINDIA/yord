@@ -3,8 +3,8 @@
 ## What is duplicated today
 
 - `frontend/src/lib/supabase/server.ts` — `createServerClient` (cookie-aware),
-  `createServiceClient` (service role, no cookies), `createStaticClient`
-  (anon, no cookies). Typed with `<Database>` from `@/types/database`.
+  `createServiceClient` (secret key, no cookies), `createStaticClient`
+  (publishable key, no cookies). Typed with `<Database>` from `@/types/database`.
 - `admin-dashboard/src/lib/supabase/server.ts` — near-identical
   `createServerClient` + `createServiceClient`, but untyped (no `<Database>`
   generic) and **no** `createStaticClient`.
@@ -17,8 +17,8 @@
 One typed package exporting three factories:
 
 - `createServerClient<Database>(cookies)` — cookie-aware SSR client
-- `createServiceClient<Database>()` — service-role client, no cookies
-- `createStaticClient<Database>()` — anon client for static generation
+- `createServiceClient<Database>()` — secret-key client, no cookies
+- `createStaticClient<Database>()` — publishable-key client for static generation
 
 `Database` stays in the consuming app (`frontend/src/types/database.ts`)
 and is passed as a generic, so this package takes no dependency on it.

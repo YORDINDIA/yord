@@ -43,6 +43,8 @@
 
   /* Status */
   --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
 
   /* On-media (always dark — sits on top of photos/video) */
   --color-scrim: var(--scrim);
@@ -76,15 +78,49 @@
   --font-heading: var(--font-cormorant);
   --font-body: var(--font-jakarta);
   --font-accent: var(--font-bebas);
+  --font-display-alt: var(--font-bevellier), var(--font-jakarta), system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PAGE GRID
+
+   The same box as the `Container` primitive, for elements whose markup is
+   built elsewhere (a `dangerouslySetInnerHTML` body, a third-party widget).
+   Keep the two in step: `max-width: var(--max-width)` is the 1440px page grid,
+   and the gutters are Tailwind's `px-6` (1.5rem) and `lg:px-12` (3rem) — the
+   `lg` breakpoint is 64rem, so the media query below matches `lg:` exactly.
+   ───────────────────────────────────────────────────────────────────────────── */
+@utility container-page {
+  width: 100%;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+
+  @variant lg {
+    padding-inline: 3rem;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HIDDEN SCROLLBAR
+
+   `scrollbar-hide` was used by the horizontal rails (artist showcase, product
+   rails, the catalog's artist pills) but was never defined in any stylesheet,
+   so those containers rendered a visible scrollbar the whole time. Defined here
+   rather than inlined per call site: the rails are the same pattern and there
+   were three copies of the intent and zero of the implementation.
+   ───────────────────────────────────────────────────────────────────────────── */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    BASE STYLES
    ───────────────────────────────────────────────────────────────────────────── */
-* {
-  box-sizing: border-box;
-}
-
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
@@ -133,12 +169,22 @@ body {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPOGRAPHY
+
+   This block MUST stay inside `@layer base`. Unlayered rules beat every
+   `@layer utilities` rule regardless of specificity, so an unlayered
+   `h1..h6 { font-family }` silently overrides `font-display` on any heading
+   that carries it — which is how ~108 headings across the app ended up
+   rendering Cormorant when they explicitly asked for Playfair. Inside
+   `@layer base` the element default still applies to an unclassed heading,
+   and a `font-*` utility wins when one is present, which is the intent.
    ───────────────────────────────────────────────────────────────────────────── */
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading), serif;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading), serif;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
 }
 
 .display-text {
@@ -167,18 +213,7 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--glass-border);
 }
 
-.glass-light {
-  background: var(--glass-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-}
-
 /* Accent Gradient */
-.gold-gradient {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-}
-
 .gold-text {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
   -webkit-background-clip: text;
@@ -224,35 +259,6 @@ h1, h2, h3, h4, h5, h6 {
               0 0 60px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-/* Magnetic Hover Effect Container */
-.magnetic {
-  transition: transform var(--transition-base);
-}
-
-/* Line Animation */
-.line-reveal {
-  position: relative;
-  overflow: hidden;
-}
-
-.line-reveal::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background: var(--accent);
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--transition-base);
-}
-
-.line-reveal:hover::after {
-  transform: scaleX(1);
-  transform-origin: left;
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
    COMPONENT BASE STYLES
    ───────────────────────────────────────────────────────────────────────────── */
@@ -272,139 +278,12 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-lg);
 }
 
-/* Buttons */
-.btn-primary {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-family: var(--font-accent), sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.15em;
-  padding: 16px 32px;
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-  box-shadow: var(--shadow-gold);
-}
-
-.btn-primary:active {
-  transform: scale(0.98);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-accent), sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.15em;
-  padding: 14px 30px;
-  border: 1px solid var(--text-primary);
-  cursor: pointer;
-  transition: all var(--transition-base);
-}
-
-.btn-secondary:hover {
-  background: var(--text-primary);
-  color: var(--surface-page);
-}
-
-/* Inputs */
-.input {
-  background: var(--surface-input);
-  border: 1px solid var(--border-strong);
-  color: var(--text-primary);
-  padding: 14px 16px;
-  font-size: 16px;
-  transition: all var(--transition-fast);
-  width: 100%;
-}
-
-.input:focus {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.input::placeholder {
-  color: var(--text-muted);
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
    ANIMATIONS
    ───────────────────────────────────────────────────────────────────────────── */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
-}
-
-@keyframes goldBreath {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 217, 102, 0.2),
-                0 0 40px rgba(255, 217, 102, 0.1);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 217, 102, 0.4),
-                0 0 60px rgba(255, 217, 102, 0.2);
-  }
-}
-
-@keyframes liquidMorph {
-  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-  25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-  50% { border-radius: 40% 60% 30% 70% / 40% 50% 60% 50%; }
-  75% { border-radius: 60% 30% 60% 40% / 70% 40% 50% 60%; }
-}
-
-@keyframes shimmerSweep {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
 }
 
 @keyframes textRevealUp {
@@ -418,10 +297,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-@keyframes borderRotate {
-  to { --border-angle: 360deg; }
-}
-
 @keyframes particleBurst {
   0% {
     opacity: 1;
@@ -431,91 +306,6 @@ h1, h2, h3, h4, h5, h6 {
     opacity: 0;
     transform: translate(var(--tx), var(--ty)) scale(0);
   }
-}
-
-/* Animation Classes */
-.animate-fade-in {
-  animation: fadeIn var(--transition-slow) forwards;
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp var(--transition-slow) forwards;
-}
-
-.animate-fade-in-down {
-  animation: fadeInDown var(--transition-slow) forwards;
-}
-
-.animate-scale-in {
-  animation: scaleIn var(--transition-slow) forwards;
-}
-
-.animate-pulse {
-  animation: pulse 2s infinite;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-.animate-gold-breath {
-  animation: goldBreath 3s ease-in-out infinite;
-}
-
-.animate-liquid-morph {
-  animation: liquidMorph 8s ease-in-out infinite;
-}
-
-.animate-shimmer-sweep {
-  background-size: 200% 100%;
-  animation: shimmerSweep 4s ease-in-out infinite;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   CUSTOM CURSOR
-   ───────────────────────────────────────────────────────────────────────────── */
-@media (pointer: fine) {
-  body.custom-cursor-active,
-  body.custom-cursor-active * {
-    cursor: none !important;
-  }
-}
-
-.cursor-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-  border-radius: 50%;
-  pointer-events: none;
-  /* `difference` is correct on the dark page but inverts a light one into an
-     unreadable blob, so the blend mode itself is a per-theme token. */
-  mix-blend-mode: var(--cursor-blend);
-}
-
-.cursor-ring {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--accent);
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0.6;
-  transition: transform 0.15s ease-out, opacity 0.15s ease-out, border-color 0.15s ease-out;
-}
-
-.cursor-ring[data-state="pointer"] {
-  transform: scale(1.5);
-  opacity: 0.8;
-  border-color: var(--accent-hover);
-}
-
-.cursor-ring[data-state="text"] {
-  transform: scaleX(0.6) scaleY(1.2);
-  opacity: 0.5;
-}
-
-.cursor-ring[data-state="hidden"] {
-  opacity: 0;
-  transform: scale(0.5);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -568,7 +358,10 @@ h1, h2, h3, h4, h5, h6 {
   left: 50%;
   width: 1px;
   height: 0;
-  background: linear-gradient(to bottom, var(--accent), transparent);
+  /* Only used by the two media heroes (home, artist), which are dark in both
+     themes: `--accent` is bronze in light mode and would disappear on the
+     scrim, so this takes the theme-invariant on-media gold. */
+  background: linear-gradient(to bottom, var(--accent-on-media), transparent);
   transition: height 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   transform: translateX(-50%);
 }
@@ -577,38 +370,20 @@ h1, h2, h3, h4, h5, h6 {
   height: 60px;
 }
 
-/* Stagger Delays */
-.delay-100 { animation-delay: 100ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-300 { animation-delay: 300ms; }
-.delay-400 { animation-delay: 400ms; }
-.delay-500 { animation-delay: 500ms; }
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   RESPONSIVE BREAKPOINTS
-   ───────────────────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  :root {
-    --header-height: 64px;
-    --container-padding: 16px;
-  }
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
    REDUCED MOTION — static luxury, no animation
+
+   `animate-pulse` and `animate-spin` are Tailwind's own utilities, so they live
+   in `@layer utilities`; these unlayered rules beat them without needing
+   `!important`. They cover every skeleton and every loader in the app, which
+   are the two animations a reduced-motion visitor sees most.
    ───────────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .noise-overlay {
-    display: none;
-  }
-
   .shimmer::after,
-  .animate-shimmer-sweep,
   .gold-text-animated,
   .hero-sparkle,
-  .animate-gold-breath,
-  .animate-liquid-morph,
-  .animate-float {
+  .animate-pulse,
+  .animate-spin {
     animation: none;
   }
 
@@ -630,6 +405,11 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 9999;
   opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  /* Tile the SVG at 128px instead of rasterising the turbulence filter at
+     viewport size — the filter is the expensive part, and a 128px tile is
+     rendered once and repeated. */
+  background-repeat: repeat;
+  background-size: 128px 128px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -655,47 +435,78 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--accent-on-media);
   border-radius: 50%;
   box-shadow: 0 0 6px var(--accent-on-media);
-  animation: sparkle 3s ease-in-out infinite;
+  /* Invisible at rest: the animation is the only thing that paints a sparkle,
+     so a viewport that does not run it (or a reduced-motion user) shows
+     nothing instead of six frozen dots. */
+  opacity: 0;
 }
 
-/* Enhanced gold text with subtle shimmer animation */
+/* Desktop only — the twinkle is decoration, and on a phone it costs paint
+   without being legible. */
+@media (min-width: 1024px) {
+  .hero-sparkle {
+    animation: sparkle 3s ease-in-out infinite;
+  }
+}
+
+/* Enhanced gold text with a static gradient. The `shimmerSweep` that used to
+   run here animated `background-position` on the LCP element, which repaints
+   the text every frame; the gradient itself is unchanged.
+   The stops are theme-invariant on purpose: the only user is the home hero H1,
+   which is dark in both themes. `--accent` is bronze in light mode, which would
+   paint "Meets Luxury" dark-on-dark; `--accent-on-media` is the same gold the
+   dark theme already used. The 25/75 stops reproduce the dark theme's
+   `--accent-hover` (#E6C35A) as a deeper gold. */
 .gold-text-animated {
   background: linear-gradient(
     90deg,
-    var(--accent) 0%,
-    var(--accent-hover) 25%,
-    var(--accent) 50%,
-    var(--accent-hover) 75%,
-    var(--accent) 100%
+    var(--accent-on-media) 0%,
+    color-mix(in srgb, var(--accent-on-media) 90%, black) 25%,
+    var(--accent-on-media) 50%,
+    color-mix(in srgb, var(--accent-on-media) 90%, black) 75%,
+    var(--accent-on-media) 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: shimmerSweep 6s ease-in-out infinite;
 }
 
-/* Stats bar premium animated border */
+/* Stats bar premium animated border. The sweep is a transform on a narrow bar
+   (composited) instead of a `background-position` animation on a full-size
+   layer (repaint). */
 .stats-premium-border {
   position: relative;
+  /* Clips the travelling glow to the panel, so the sweep cannot paint a
+     floating blob beside the stats bar. */
+  overflow: hidden;
 }
 
 .stats-premium-border::before {
   content: '';
   position: absolute;
-  inset: -1px;
+  top: -1px;
+  bottom: -1px;
+  left: 0;
+  width: 45%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--accent) 30%, transparent) 50%,
+    /* Both users of this class are media heroes (dark in both themes), so the
+       sweep takes the theme-invariant gold rather than the flipping accent. */
+    color-mix(in srgb, var(--accent-on-media) 30%, transparent) 50%,
     transparent 100%
   );
-  background-size: 200% 100%;
-  animation: shimmerSweep 4s ease-in-out infinite;
   border-radius: inherit;
   opacity: 0.5;
   z-index: -1;
   filter: blur(4px);
+  animation: statsSweep 4s ease-in-out infinite;
+}
+
+@keyframes statsSweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(260%); }
 }
 
 /* Logo hover glow effect */
@@ -707,16 +518,105 @@ h1, h2, h3, h4, h5, h6 {
   filter: drop-shadow(0 0 8px rgba(255, 217, 102, 0.4));
 }
 
-/* Premium gradient divider for stats */
+/* Premium gradient divider for stats. Both users are media heroes, so the rule
+   takes the theme-invariant gold (`--accent` is bronze in light mode and would
+   vanish against the scrim). */
 .gradient-divider {
   width: 1px;
   height: 48px;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    var(--accent) 30%,
-    var(--accent) 70%,
+    var(--accent-on-media) 30%,
+    var(--accent-on-media) 70%,
     transparent 100%
   );
   opacity: 0.3;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HERO ENTRANCE (home) — CSS only, starts at the first paint
+   Replaces the framer-motion entrance on the hero. `both` holds the "from"
+   state through the delay so nothing flashes in before it animates, and every
+   keyframe here is transform/opacity only, so the whole entrance composites.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes heroEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heroLineRise {
+  from { transform: translateY(0.35em); }
+  to { transform: translateY(0); }
+}
+
+@keyframes heroBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+.hero-enter {
+  animation: heroEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-enter-1 { animation-delay: 60ms; }
+.hero-enter-2 { animation-delay: 120ms; }
+.hero-enter-3 { animation-delay: 180ms; }
+.hero-enter-4 { animation-delay: 240ms; }
+.hero-enter-5 { animation-delay: 300ms; }
+
+/* The H1 is the LCP element: this reveal animates transform ONLY and the text
+   is at opacity 1 from the first paint. An element at opacity 0 is not an LCP
+   candidate, which is what made the headline wait for hydration. */
+.hero-line {
+  animation: heroLineRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-line-2 { animation-delay: 90ms; }
+
+.hero-bounce {
+  animation: heroBounce 1.5s ease-in-out infinite;
+}
+
+/* Orb drift is desktop-only: on a phone it is invisible motion that still
+   costs paint. */
+@media (min-width: 1024px) {
+  .hero-float {
+    animation: float 8s ease-in-out infinite;
+  }
+}
+
+/* Cursor-reactive gradient. `--hero-mx`/`--hero-my` are written by HeroSection
+   through a ref (no React re-render per mousemove) and default to the centre,
+   so the static hero still has a light source. The whole layer sits at 8%
+   opacity rather than baking the alpha into the gradient, so it needs no
+   `color-mix()` support and stays one colour. */
+.hero-cursor-glow {
+  opacity: 0.08;
+  background: radial-gradient(
+    800px circle at var(--hero-mx, 50%) var(--hero-my, 50%),
+    var(--accent-on-media) 0%,
+    transparent 50%
+  );
+}
+
+/* Reduced motion: every hero animation resolves to its finished state. This
+   block is declared after the rules above (and after the min-width gates), so
+   it wins on order rather than on specificity. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-enter,
+  .hero-line,
+  .hero-bounce,
+  .hero-float,
+  .hero-sparkle,
+  .stats-premium-border::before {
+    animation: none;
+  }
+}
+

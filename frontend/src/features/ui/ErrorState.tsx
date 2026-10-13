@@ -1,12 +1,31 @@
 'use client';
 
-import Link from 'next/link';
+import { useState } from 'react';
+import { Button } from './Button';
+import { CtaLink } from './CtaLink';
+
+export interface ErrorStateProps {
+  title?: string;
+  message?: string;
+  /** `reset()` in an `error.tsx` boundary, `router.refresh()` in a section. */
+  onRetry?: () => void | Promise<void>;
+  retryLabel?: string;
+  showHomeLink?: boolean;
+  /**
+   * Heading level for the title. The `error.tsx` boundaries replace the whole
+   * page, so `h1` is the default; an inline section inside a page that already
+   * has a heading passes `h2`.
+   */
+  as?: 'h1' | 'h2';
+}
 
 /**
- * Standard error state: branded message + retry + Back to home.
- * `onRetry` is `reset()` inside `error.tsx` boundaries and
- * `router.refresh()` inside degraded server sections — both are
- * `() => void`, so one component serves both.
+ * Standard error state: what failed, retry, Back to home.
+ *
+ * Both actions are the real primitives — `Button` and `CtaLink` — rather than
+ * hand-rolled button recipes, so a change to the button styles reaches this
+ * page too. It used to carry its own copy, which is how it ended up with the
+ * only buttons in the app that ignored the shared focus treatment.
  */
 export function ErrorState({
   title = 'Something went wrong',
@@ -14,39 +33,41 @@ export function ErrorState({
   onRetry,
   retryLabel = 'Try again',
   showHomeLink = true,
-}: {
-  title?: string;
-  message?: string;
-  onRetry?: () => void;
-  retryLabel?: string;
-  showHomeLink?: boolean;
-}) {
+  as: Heading = 'h1',
+}: ErrorStateProps) {
+  const [retrying, setRetrying] = useState(false);
+
+  // Awaited rather than fired and forgotten, so an async retry keeps the
+  // button disabled and `aria-busy` for as long as it actually runs. A sync
+  // `reset()` clears it on the next microtask, which is correct — the
+  // boundary re-renders immediately.
+  const handleRetry = async () => {
+    if (!onRetry || retrying) return;
+    setRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
     <div className="py-16 text-center">
-      <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
-        SOMETHING WENT WRONG
-      </p>
-      <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-3">{title}</p>
-      <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted max-w-md mx-auto mb-8">
-        {message}
-      </p>
+      {/* A real heading, not a <p>: inside `error.tsx` this is the whole page,
+          so without it the route has no heading for a screen reader to land on
+          or for the document outline to show. */}
+      <Heading className="font-display text-2xl text-text-primary mb-3">{title}</Heading>
+      <p className="font-body text-sm text-text-muted max-w-md mx-auto mb-8">{message}</p>
       <div className="flex items-center justify-center gap-4">
         {onRetry ? (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:bg-accent-hover transition-colors"
-          >
-            {retryLabel.toUpperCase()}
-          </button>
+          <Button onClick={() => void handleRetry()} isLoading={retrying}>
+            {retryLabel}
+          </Button>
         ) : null}
         {showHomeLink ? (
-          <Link
-            href="/"
-            className="px-8 py-3 border border-border-strong text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] hover:border-accent hover:text-accent transition-colors"
-          >
-            BACK TO HOME
-          </Link>
+          <CtaLink href="/" variant="secondary">
+            Back to home
+          </CtaLink>
         ) : null}
       </div>
     </div>

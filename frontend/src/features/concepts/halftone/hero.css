@@ -1,0 +1,118 @@
+/* Concept B, Halftone: hero. */
+
+/* Hero -------------------------------------------------------------------- */
+
+.ht-hero {
+  position: relative;
+  display: flex;
+  min-height: max(100svh, 640px);
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding-top: 80px;
+  padding-bottom: clamp(28px, 5vh, 56px);
+}
+
+.ht-hero__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Narrow screens: the type owns the lower half, so the photo gets the top. */
+@media (max-width: 1023px) {
+  .ht-hero__stage {
+    bottom: auto;
+    height: 56%;
+  }
+}
+
+.ht-hero__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title title'
+    'aside ring'
+    'stats stats'
+    'caps caps';
+  align-items: end;
+  gap: clamp(20px, 3.4vh, 36px) 20px;
+}
+
+.ht-hero__ring {
+  --ring: 112px;
+  grid-area: ring;
+}
+
+.ht-hero__title {
+  grid-area: title;
+  max-width: 11.5em;
+  font-size: clamp(3.4rem, 9.4vw, 9.5rem);
+  text-wrap: balance;
+}
+
+.ht-hero__aside {
+  display: flex;
+  grid-area: aside;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 340px;
+}
+
+.ht-hero__sub {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ht-soft);
+}
+
+.ht-hero__stats {
+  display: flex;
+  grid-area: stats;
+  gap: clamp(28px, 5vw, 72px);
+  margin: 0;
+}
+
+.ht-hero__stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+
+.ht-hero__stats dd {
+  margin: 0;
+  font-size: clamp(2.25rem, 4.4vw, 4rem);
+  line-height: 1;
+}
+
+.ht-hero__stats dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ht-soft);
+}
+
+.ht-hero__caps {
+  grid-area: caps;
+  color: var(--ht-soft);
+}
+
+@media (min-width: 1024px) {
+  .ht-hero__grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-areas:
+      'title title title title title title title title title aside aside aside'
+      'stats stats stats stats stats stats stats . . . ring ring'
+      'caps caps caps caps caps caps caps . . . ring ring';
+    column-gap: 24px;
+  }
+
+  .ht-hero__ring {
+    --ring: clamp(128px, 10vw, 144px);
+    justify-self: end;
+  }
+
+  .ht-hero__aside {
+    padding-bottom: 0.9vw;
+  }
+}

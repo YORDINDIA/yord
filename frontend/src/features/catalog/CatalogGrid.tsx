@@ -1,37 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Grid, LayoutGrid, SlidersHorizontal, ChevronDown, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { ProductCard } from '@/features/ui/ProductCard';
-import { cn } from '@yord/ui';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { ErrorState } from '@/features/ui/ErrorState';
+import { ArrowDiag } from '@/features/ui/Glyphs';
+import { Skeleton, PRODUCT_GRID_CLASS } from '@/features/ui/Skeleton';
 import { useProductsInfinite, type ProductsQuery } from '@/hooks/useProductsInfinite';
 import type { SortOption } from '@/lib/product';
 import type { ProductWithDetails } from '@yord/db-types';
-
-export type GridSize = 'small' | 'large';
-
-interface SortOptionConfig {
-  value: SortOption;
-  label: string;
-}
-
-const DEFAULT_SORT_OPTIONS: SortOptionConfig[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'price-asc', label: 'Price: Low to High' },
-  { value: 'price-desc', label: 'Price: High to Low' },
-  { value: 'title', label: 'Alphabetically' },
-];
-
-function getGridClasses(gridSize: GridSize): string {
-  return cn(
-    'grid gap-6 lg:gap-8',
-    gridSize === 'large'
-      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-      : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-  );
-}
+import { SortSelect } from './SortMenu';
 
 interface CatalogGridProps {
   initialProducts: ProductWithDetails[];
@@ -40,14 +20,8 @@ interface CatalogGridProps {
   initialPage?: number;
   /** Catalog query (mode + filters + sort + pageSize); sort changes navigate. */
   query: ProductsQuery;
-  /** Artist/collection pages show the sort dropdown; /products has its own toolbar. */
+  /** Pages without a filter panel show the grid's own sticky sort bar. */
   showSort?: boolean;
-  /** Artist/collection pages show the grid-size toggle. */
-  showGridToggle?: boolean;
-  /** Replaces the default `{count} products` label left of the controls. */
-  toolbarLeft?: React.ReactNode;
-  /** Overrides the toolbar row layout (artist rows differ from collection). */
-  toolbarClassName?: string;
   /**
    * Handle sort changes client-side (refetch page 1 via /api/products)
    * instead of navigating to `?sort=`. Used by statically prerendered routes
@@ -55,9 +29,15 @@ interface CatalogGridProps {
    * Defaults to the navigating behavior so SSR'd sort URLs keep working.
    */
   clientSort?: boolean;
-  accentColor?: string;
   emptyTitle?: string;
   emptyMessage?: string;
+  /** Rendered under the empty copy (e.g. a "Clear filters" link). */
+  emptyAction?: React.ReactNode;
+  /**
+   * Target of the "Back to page 1" link on the page-overflow state. Defaults
+   * to the current path; /products passes the filter-preserving URL.
+   */
+  pageOneHref?: string;
 }
 
 /**
@@ -71,7 +51,13 @@ interface CatalogGridProps {
  * The accumulated list is intentionally NOT written back to `?page=`: SSR
  * treats `page=N` as that page's slice, so a deepest-page URL would drop
  * previously appended products on refresh. Failure surfaces a retry button,
- * never a silent stall or a fake empty.
+ * never a silent stall or a fake empty. An SSR page past the end of the list
+ * shows the page-overflow state (message + link back to page 1) instead of the
+ * empty-collection copy, so it never contradicts the header's product count.
+ *
+ * The sort control is a native `<select>`: the previous trigger + `role="listbox"`
+ * panel promised arrow-key semantics it never implemented, and a select has
+ * them, plus the platform picker on touch.
  */
 export function CatalogGrid({
   initialProducts,
@@ -79,18 +65,14 @@ export function CatalogGrid({
   initialPage = 1,
   query,
   showSort = false,
-  showGridToggle = false,
-  toolbarLeft,
-  toolbarClassName = 'flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border-default',
   clientSort = false,
-  accentColor = 'var(--accent)',
   emptyTitle = 'No products found',
   emptyMessage = 'Check back soon for new arrivals.',
+  emptyAction,
+  pageOneHref,
 }: CatalogGridProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [gridSize, setGridSize] = useState<GridSize>('large');
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
   // Client-side sort (statically prerendered routes): the query key changes,
   // so React Query fetches page 1 in the new order. The seed below carries
   // no rows for the new order — the fetch fills them in.
@@ -102,7 +84,6 @@ export function CatalogGrid({
   const displaySort = clientSort ? activeSort : query.sort;
   const seedPage = sortChanged ? 1 : initialPage;
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const sortTriggerRef = useRef<HTMLButtonElement>(null);
 
   const {
     data,
@@ -112,7 +93,7 @@ export function CatalogGrid({
     isError,
     refetch,
   } = useProductsInfinite(activeQuery, sortChanged
-    ? { data: [], count: totalCount, page: 1, pageSize: query.pageSize }
+    ? undefined
     : {
       data: initialProducts,
       count: totalCount,
@@ -138,14 +119,6 @@ export function CatalogGrid({
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Close sort dropdown on outside click.
-  useEffect(() => {
-    if (!showSortDropdown) return;
-    const close = () => setShowSortDropdown(false);
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [showSortDropdown]);
-
   const handleSortChange = (sort: SortOption) => {
     if (clientSort) {
       // Fresh client fetch for the new order (no reload, no SSR round-trip).
@@ -156,189 +129,121 @@ export function CatalogGrid({
     }
   };
 
-  if (products.length === 0) {
+  // A failed page-1 read is an ERROR, not an empty catalog. This check has to
+  // come before the empty branch below: with `clientSort` the new sort's seed
+  // is `{ data: [] }`, so a failed refetch used to render the empty-collection
+  // copy ("No products found / Check back soon for new arrivals") with no way
+  // to retry — a lie about a collection that has products.
+  if (isError && products.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="py-24 text-center"
+      <ErrorState
+        as="h2"
+        title="Could not load products"
+        message="Check your connection and try again."
+        onRetry={async () => {
+          await refetch();
+        }}
+        retryLabel="Try again"
+        showHomeLink={false}
+      />
+    );
+  }
+
+  if (products.length === 0) {
+    // A client-side sort change deliberately seeds an empty page while the new
+    // order loads; showing the empty-collection copy for that moment is a lie
+    // about a collection that has products.
+    if (sortChanged && !isError) {
+      return <Skeleton variant="product-grid" count={Math.min(query.pageSize, 8)} />;
+    }
+
+    // "This page has nothing" is not "this collection is empty": a deep
+    // `?page=` past the end would otherwise show the empty-collection copy
+    // under a header that says the collection has hundreds of products.
+    const pagePastEnd = initialPage > 1 && totalCount > 0;
+    return (
+      <EmptyState
+        title={pagePastEnd ? 'Nothing on this page' : emptyTitle}
+        message={
+          pagePastEnd
+            ? `Page ${initialPage} is past the end of this list of ${totalCount} products.`
+            : emptyMessage
+        }
       >
-        <p className="font-[family-name:var(--font-playfair)] text-2xl text-text-muted mb-4">
-          {emptyTitle}
-        </p>
-        <p className="font-[family-name:var(--font-jakarta)] text-text-muted">
-          {emptyMessage}
-        </p>
-      </motion.div>
+        {pagePastEnd ? (
+          // `pathname` by default: page 1 of this route, dropping `?page=` (and
+          // any other query). `useSearchParams` is deliberately not used — it
+          // would opt the statically prerendered artist route into dynamic
+          // rendering. A caller that owns extra filters passes `pageOneHref`.
+          <CtaLink href={pageOneHref ?? pathname}>Back to page 1</CtaLink>
+        ) : (
+          emptyAction
+        )}
+      </EmptyState>
     );
   }
 
   return (
     <section>
-      {(showSort || showGridToggle) && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-50px' }}
-          transition={{ duration: 0.5 }}
-          className={toolbarClassName}
-        >
-          {toolbarLeft ?? (
-            <div className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-              {count} products
-            </div>
-          )}
-
-          <div className="flex items-center gap-4">
-            {showSort && (
-              <div
-                className="relative"
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setShowSortDropdown(false);
-                    // The focused option unmounts with the menu; return
-                    // focus to the trigger (same fix as SortMenu).
-                    sortTriggerRef.current?.focus();
-                  }
-                }}
-              >
-                <button
-                  ref={sortTriggerRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowSortDropdown((v) => !v);
-                  }}
-                  aria-haspopup="listbox"
-                  aria-expanded={showSortDropdown}
-                  className="flex items-center gap-2 px-4 py-2 bg-surface-card border border-border-default hover:border-text-muted transition-colors"
-                >
-                  <SlidersHorizontal size={16} className="text-text-muted" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-secondary">
-                    {DEFAULT_SORT_OPTIONS.find((o) => o.value === displaySort)?.label || 'Sort'}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={cn('text-text-muted transition-transform', showSortDropdown && 'rotate-180')}
-                  />
-                </button>
-
-                {showSortDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    role="listbox"
-                    aria-label="Sort products"
-                    className="absolute top-full right-0 mt-2 w-48 bg-surface-card border border-border-default z-50"
-                  >
-                    {DEFAULT_SORT_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        role="option"
-                        aria-selected={displaySort === option.value}
-                        onClick={() => {
-                          handleSortChange(option.value);
-                          setShowSortDropdown(false);
-                        }}
-                        className={cn(
-                          'w-full px-4 py-3 text-left font-[family-name:var(--font-jakarta)] text-sm transition-colors',
-                          displaySort === option.value
-                            ? 'text-text-on-brand'
-                            : 'text-text-secondary hover:bg-surface-raised'
-                        )}
-                        style={displaySort === option.value ? { backgroundColor: accentColor } : {}}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-            )}
-
-            {showGridToggle && (
-              <div className="hidden sm:flex items-center border border-border-default">
-                <button
-                  onClick={() => setGridSize('large')}
-                  aria-pressed={gridSize === 'large'}
-                  className={cn(
-                    'w-10 h-10 flex items-center justify-center transition-colors',
-                    gridSize === 'large'
-                      ? 'text-text-on-brand'
-                      : 'bg-surface-card text-text-muted hover:text-text-secondary'
-                  )}
-                  style={gridSize === 'large' ? { backgroundColor: accentColor } : {}}
-                  aria-label="Large grid"
-                >
-                  <Grid size={18} />
-                </button>
-                <button
-                  onClick={() => setGridSize('small')}
-                  aria-pressed={gridSize === 'small'}
-                  className={cn(
-                    'w-10 h-10 flex items-center justify-center transition-colors',
-                    gridSize === 'small'
-                      ? 'text-text-on-brand'
-                      : 'bg-surface-card text-text-muted hover:text-text-secondary'
-                  )}
-                  style={gridSize === 'small' ? { backgroundColor: accentColor } : {}}
-                  aria-label="Small grid"
-                >
-                  <LayoutGrid size={18} />
-                </button>
-              </div>
-            )}
-          </div>
-        </motion.div>
+      {showSort && (
+        // Sticky so the sort and count stay reachable while the grid scrolls.
+        // The negative margins let the bar's background cover the container's
+        // gutters.
+        <div className="sticky top-20 z-30 -mx-6 lg:-mx-12 mb-6 flex items-center justify-between gap-4 bg-surface-page px-6 lg:px-12 py-3">
+          <p className="font-body text-sm text-text-muted tabular-nums">
+            {count} {count === 1 ? 'product' : 'products'}
+          </p>
+          <SortSelect value={displaySort} onChange={handleSortChange} />
+        </div>
       )}
 
-      {/* /products keeps its exact grid (2-col mobile); toggle pages use the size-aware grid. */}
-      <div className={showGridToggle ? getGridClasses(gridSize) : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-12'}>
+      {/* No entrance animation on the cards: a fade from opacity 0 renders an
+          empty grid whenever hydration stalls. */}
+      <ul className={PRODUCT_GRID_CLASS}>
         {products.map((product, index) => (
-          <motion.div
-            key={product.id}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-50px' }}
-            transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
-          >
-            <ProductCard product={product} />
-          </motion.div>
+          <li key={product.id}>
+            {/* The first row is the LCP on a catalog page. */}
+            <ProductCard product={product} priority={index < 2} />
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {/* Pagination status: error retry, load more, or end of list */}
-      {isError ? (
-        <div className="py-8 text-center">
-          <p className="font-[family-name:var(--font-jakarta)] text-sm text-red-400 mb-4">
-            Couldn&apos;t load more products. Check your connection and try again.
-          </p>
-          <button
-            onClick={() => void refetch()}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-surface-card border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors"
-          >
-            RETRY
-          </button>
-        </div>
-      ) : hasNextPage ? (
-        <div ref={sentinelRef} className="py-8 flex flex-col items-center gap-4">
-          {isFetchingNextPage ? (
-            <Loader2 size={24} className="text-accent animate-spin" aria-label="Loading more products" />
-          ) : (
+      {/* Pagination status: error retry, load more, or end of list. Held at a
+          fixed height so the button under the cursor does not collapse when it
+          is replaced by the spinner mid-click. */}
+      <div className="pt-12 pb-4 min-h-[68px] flex flex-col items-center justify-center gap-4">
+        {isError ? (
+          <div className="text-center">
+            <p className="font-body text-sm text-danger mb-4">
+              Couldn&apos;t load more products. Check your connection and try again.
+            </p>
             <button
-              onClick={() => void fetchNextPage()}
-              className="px-8 py-3 bg-surface-card border border-border-default text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors"
+              type="button"
+              onClick={() => void refetch()}
+              className="bg-accent-tint px-5 py-3 font-body text-sm font-semibold text-text-primary transition-colors hover:bg-accent hover:text-text-on-accent"
             >
-              LOAD MORE
+              Try again
             </button>
-          )}
-        </div>
-      ) : (
-        products.length > 0 && (
-          <p className="py-8 text-center font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
+          </div>
+        ) : hasNextPage ? (
+          <div ref={sentinelRef}>
+            <button
+              type="button"
+              onClick={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              aria-busy={isFetchingNextPage}
+              className="pc-cta inline-flex min-w-56 items-center justify-between gap-6 bg-accent-tint px-5 py-3 font-body text-sm font-semibold text-text-primary transition-colors hover:bg-accent hover:text-text-on-accent disabled:cursor-wait disabled:opacity-70"
+            >
+              {isFetchingNextPage ? 'Loading' : `Load more (${count - products.length} left)`}
+              <ArrowDiag className="pc-cta__arrow rotate-90" />
+            </button>
+          </div>
+        ) : (
+          <p className="font-body text-sm text-text-muted">
             You&apos;ve seen all {count} products.
           </p>
-        )
-      )}
+        )}
+      </div>
     </section>
   );
 }

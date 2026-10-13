@@ -1,85 +1,54 @@
-'use client';
+import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import { Megaphone } from 'lucide-react';
+import AiMarketingStudio from '@/components/ai/AiMarketingStudio';
+import PageHeader from '@/components/ui/PageHeader';
 
-import { useState } from 'react';
-import { useToast } from '@/components/ui/ToastProvider';
-import { aiMarketingSchema } from '@/lib/validation';
-import { postJson } from '@/lib/utils/post-json';
+export const metadata: Metadata = { title: 'AI Marketing · YORD Admin' };
 
 /**
  * Marketing ops generator.
  *
- * The only change here is that the brief is checked with the same
- * `aiMarketingSchema` the route validates with, and failures raise a toast
- * instead of rendering a bare message card at the bottom of the page. The route
- * still re-validates, so this is fast feedback, not the boundary.
+ * This route used to be one `'use client'` file, which cannot export
+ * `metadata`. The split keeps the header and the document title on the server
+ * and hands the interactive half (brief, templates, generation) to
+ * `AiMarketingStudio`, behind a `Suspense` boundary whose fallback matches the
+ * two cards the studio renders.
  */
 export default function AiMarketingPage() {
-  const [brief, setBrief] = useState('');
-  const [output, setOutput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
-
-  async function generate() {
-    const parsed = aiMarketingSchema.safeParse({ brief });
-    if (!parsed.success) {
-      toast(parsed.error.issues[0]?.message ?? 'Enter a brief first.', 'error');
-      return;
-    }
-
-    setLoading(true);
-    const result = await postJson<{ output?: string }>(
-      '/api/ai/marketing',
-      parsed.data,
-      'Failed to generate.',
-    );
-    setLoading(false);
-    if (!result.ok) {
-      toast(result.message, 'error');
-      return;
-    }
-    setOutput(result.data.output ?? '');
-    toast('Suggestions generated.', 'success');
-  }
-
   return (
-    <div className="grid gap-4">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="section-title">Marketing Ops</div>
-            <div className="helper">Generate campaign ideas and SEO refreshers.</div>
+    <>
+      <PageHeader
+        icon={Megaphone}
+        title="AI marketing"
+        description="Turn a short brief into a campaign plan, SEO angles and copy you can paste."
+      />
+      <Suspense
+        fallback={
+          <div className="stack" aria-busy="true" aria-live="polite">
+            <div className="card" aria-hidden="true">
+              <div className="card-header">
+                <span className="skeleton skeleton-title" style={{ width: 120 }} />
+              </div>
+              <span className="skeleton" style={{ height: 96, borderRadius: 10 }} />
+              <div className="row" style={{ marginTop: 10 }}>
+                <span className="skeleton" style={{ height: 24, width: 110, borderRadius: 8 }} />
+                <span className="skeleton" style={{ height: 24, width: 90, borderRadius: 8 }} />
+                <span className="skeleton" style={{ height: 24, width: 120, borderRadius: 8 }} />
+              </div>
+            </div>
+            <div className="card" aria-hidden="true">
+              <div className="card-header">
+                <span className="skeleton skeleton-title" style={{ width: 140 }} />
+              </div>
+              <span className="skeleton" style={{ height: 160, borderRadius: 10 }} />
+            </div>
+            <span className="sr-only">Loading the AI marketing studio…</span>
           </div>
-        </div>
-        <div className="form-grid">
-          <div>
-            <label className="helper" htmlFor="marketing-brief">
-              Brief
-            </label>
-            <input
-              className="input"
-              id="marketing-brief"
-              value={brief}
-              onChange={(event) => setBrief(event.target.value)}
-              placeholder="e.g. Boost IPL collection sales"
-            />
-          </div>
-          <button
-            className="button primary"
-            type="button"
-            onClick={generate}
-            disabled={loading || !brief}
-            aria-busy={loading}
-          >
-            {loading ? 'Generating…' : 'Generate'}
-          </button>
-        </div>
-      </div>
-      {output && (
-        <div className="card">
-          <div className="section-title">Suggestions</div>
-          <pre style={{ whiteSpace: 'pre-wrap', marginTop: 12 }}>{output}</pre>
-        </div>
-      )}
-    </div>
+        }
+      >
+        <AiMarketingStudio />
+      </Suspense>
+    </>
   );
 }

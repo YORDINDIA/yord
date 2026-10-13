@@ -1,22 +1,62 @@
 import Link from 'next/link';
-import { MapPin, Calendar, ArrowLeft, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Music, Tag, Users } from 'lucide-react';
+import type { TransformedProductWithSource } from '@yord/db-types';
+import { formatPrice } from '@yord/ui';
 import type { Concert } from '@/lib/data/concerts';
-import { getCitySlugByName } from '@/lib/data/cities';
+import { CITIES, getCitySlugByName } from '@/lib/data/cities';
 import { JsonLd, eventSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
+import { ConcertHero } from './ConcertHero';
+import { ConcertMerchRail } from './ConcertMerchRail';
+import { ConcertRelated } from './ConcertRelated';
+import { formatConcertDateLong } from './concertDates';
 
 interface ConcertDetailProps {
   concert: Concert;
   slug: string;
   accentColor: string;
-  hasMerchLink: boolean;
+  artistBio?: string;
+  image?: string;
+  imageCredit?: string;
+  products: TransformedProductWithSource[];
   relatedConcerts: Concert[];
+  now: number;
 }
 
-/** Presentational body for `/concerts/[slug]`; data + metadata stay in the route. */
-export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relatedConcerts }: ConcertDetailProps) {
+/**
+ * Presentational body for `/concerts/[slug]`; data + metadata stay in the route.
+ * A composition of the hero, the fact grid, the merch rail and the two
+ * cross-link sections — each of which used to live inline in this one file.
+ */
+export function ConcertDetail({
+  concert,
+  slug,
+  accentColor,
+  artistBio,
+  image,
+  imageCredit,
+  products,
+  relatedConcerts,
+  now,
+}: ConcertDetailProps) {
+  const hasMerch = products.length > 0;
+
+  const details: { icon: typeof MapPin; label: string; value: string }[] = [
+    { icon: Calendar, label: 'DATE', value: formatConcertDateLong(concert.date) },
+    {
+      icon: MapPin,
+      label: 'VENUE',
+      value: concert.venue !== 'TBA' ? `${concert.venue}, ${concert.city}` : concert.city,
+    },
+  ];
+  if (concert.startTime) details.push({ icon: Clock, label: 'DOORS', value: concert.startTime });
+  if (concert.ticketPriceFrom)
+    details.push({ icon: Tag, label: 'TICKETS FROM', value: formatPrice(concert.ticketPriceFrom) });
+  if (concert.supportActs && concert.supportActs.length > 0)
+    details.push({ icon: Users, label: 'SUPPORT', value: concert.supportActs.join(', ') });
+
   return (
     <main className="min-h-screen bg-surface-page pt-20">
-      <JsonLd data={eventSchema(concert)} />
+      <JsonLd data={eventSchema(concert, image)} />
       <JsonLd
         data={breadcrumbSchema([
           { name: 'Home', url: '/' },
@@ -26,176 +66,98 @@ export function ConcertDetail({ concert, slug, accentColor, hasMerchLink, relate
       />
 
       {/* Back Navigation */}
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12 py-6">
+      <div className="container-page py-6">
         <Link
           href="/concerts"
           className="inline-flex items-center gap-2 text-text-muted hover:text-accent transition-colors"
         >
-          <ArrowLeft size={16} />
-          <span className="font-[family-name:var(--font-bebas)] tracking-wider text-sm">
-            ALL CONCERTS
-          </span>
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span className="font-accent tracking-wider text-sm">ALL CONCERTS</span>
         </Link>
       </div>
 
-      {/* Concert Hero */}
-      <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-12">
-        <div className="bg-surface-card border border-border-default p-8 md:p-12 lg:p-16">
-          <div className="flex items-center gap-3 mb-4">
-            <span
-              className={`px-3 py-1 text-xs font-[family-name:var(--font-bebas)] tracking-wider ${
-                concert.status === 'completed'
-                  ? 'bg-surface-raised text-text-muted'
-                  : concert.status === 'upcoming'
-                    ? 'bg-accent-tint-strong text-accent'
-                    : 'bg-emerald-900/30 text-emerald-400'
-              }`}
-            >
-              {concert.status.toUpperCase()}
-            </span>
-            <span className="text-sm text-text-muted font-[family-name:var(--font-jakarta)]">
-              {concert.genre}
-            </span>
-          </div>
+      <ConcertHero
+        concert={concert}
+        accentColor={accentColor}
+        image={image}
+        imageCredit={imageCredit}
+        hasMerch={hasMerch}
+        now={now}
+      />
 
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-3">
-            {concert.artist}
-          </h1>
-          <p
-            className="font-[family-name:var(--font-cormorant)] text-2xl md:text-3xl mb-6"
-            style={{ color: 'var(--accent)' }}
-          >
-            {concert.tourName}
-          </p>
-
-          <div className="flex flex-wrap gap-6 text-text-muted mb-8">
-            <div className="flex items-center gap-2">
-              <MapPin size={18} style={{ color: accentColor }} />
-              <span className="font-[family-name:var(--font-jakarta)]">
-                {concert.venue}, {concert.city}
-              </span>
+      {/* Show details */}
+      <section className="container-page pb-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {details.map((detail) => (
+            <div key={detail.label} className="bg-surface-card border border-border-default p-5">
+              <detail.icon size={18} aria-hidden="true" className="text-accent mb-3" />
+              <p className="font-accent text-xs tracking-[0.2em] text-text-muted mb-1">
+                {detail.label}
+              </p>
+              <p className="font-body text-sm text-text-secondary">{detail.value}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar size={18} style={{ color: accentColor }} />
-              <span className="font-[family-name:var(--font-jakarta)]">
-                {new Date(concert.date).toLocaleDateString('en-IN', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </span>
+          ))}
+        </div>
+
+        {concert.keySongs && concert.keySongs.length > 0 ? (
+          <div className="mt-4 bg-surface-card border border-border-default p-5">
+            <p className="font-accent text-xs tracking-[0.2em] text-text-muted mb-3 flex items-center gap-2">
+              <Music size={14} aria-hidden="true" className="text-accent" /> EXPECT TO HEAR
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {concert.keySongs.map((song) => (
+                <span
+                  key={song}
+                  className="px-3 py-1.5 bg-surface-raised border border-border-default text-sm text-text-secondary font-body"
+                >
+                  {song}
+                </span>
+              ))}
             </div>
           </div>
-
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-lg leading-relaxed max-w-3xl">
-            {concert.description}
-          </p>
-
-          {/* CTA */}
-          <div className="mt-8 flex flex-wrap gap-4">
-            {hasMerchLink && (
-              <Link
-                href={`/artist/${concert.artistHandle}`}
-                className="inline-flex items-center gap-2 px-8 py-3 text-text-on-brand font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors"
-                style={{ backgroundColor: accentColor }}
-              >
-                <ShoppingBag size={16} />
-                SHOP {concert.artist.toUpperCase()} MERCH
-              </Link>
-            )}
-            <Link
-              href="/products"
-              className="inline-flex items-center gap-2 px-8 py-3 border border-border-strong text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
-            >
-              BROWSE ALL PRODUCTS
-            </Link>
-          </div>
-        </div>
+        ) : null}
       </section>
 
-      {/* Concert Merch Guide */}
-      <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-12">
-        <div className="bg-surface-card/50 border border-border-default p-8 md:p-12">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
-            {concert.artist} Concert Merchandise Guide
-          </h2>
-          <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
-            <p>
-              Looking for {concert.artist} merchandise for the {concert.tourName}? YORD India offers exclusive, premium fan-made designs that let you commemorate your concert experience. Our {concert.artist} collection features t-shirts, hoodies, and accessories inspired by the artist&apos;s iconic aesthetic.
+      {/* About the artist */}
+      {artistBio ? (
+        <section className="container-page pb-12">
+          <div className="bg-surface-card/50 border border-border-default p-8 md:p-12">
+            <h2 className="font-display text-2xl text-text-primary mb-4">
+              About {concert.artist}
+            </h2>
+            <p className="font-body text-text-muted text-sm leading-relaxed max-w-3xl">
+              {artistBio}
             </p>
-            <p>
-              Whether you{' '}
-              {concert.status === 'completed'
-                ? `attended the show at ${concert.venue} in ${concert.city}`
-                : `are planning to attend the show at ${concert.venue} in ${concert.city}`}
-              , wearing concert merchandise is the best way to show your love for {concert.artist}. Our designs are printed on premium-quality fabric, ensuring comfort and durability.
-            </p>
-            <p>
-              Shop the complete {concert.artist} collection at YORD India with free shipping on orders above ₹1,999 and pan-India delivery. All products come with easy returns and exchanges.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Related Concerts */}
-      {relatedConcerts.length > 0 && (
-        <section className="max-w-[1440px] mx-auto px-6 lg:px-12 pb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
-            More {concert.artist} Concerts in India
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {relatedConcerts.map((rc) => (
-              <Link
-                key={rc.slug}
-                href={`/concerts/${rc.slug}`}
-                className="group block bg-surface-card border border-border-default p-6 hover:border-accent/40 transition-all"
-              >
-                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
-                  {rc.tourName}
-                </h3>
-                <div className="flex items-center gap-3 mt-2 text-sm text-text-muted">
-                  <span className="flex items-center gap-1">
-                    <MapPin size={12} /> {rc.city}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar size={12} />{' '}
-                    {new Date(rc.date).toLocaleDateString('en-IN', {
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              </Link>
-            ))}
           </div>
         </section>
-      )}
+      ) : null}
+
+      <ConcertMerchRail concert={concert} products={products} />
+
+      <ConcertRelated artist={concert.artist} concerts={relatedConcerts} />
 
       {/* Browse by City */}
       <section className="bg-surface-card border-t border-border-default py-12">
-        <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-          <h2 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-muted mb-4">
+        <div className="container-page">
+          <h2 className="font-accent text-sm tracking-[0.2em] text-text-muted mb-4">
             CONCERTS IN OTHER CITIES
           </h2>
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/concerts/city/${getCitySlugByName(concert.city)}`}
-              className="px-4 py-2 bg-accent-tint-strong border border-accent/40 text-accent text-sm font-[family-name:var(--font-jakarta)]"
+              className="px-4 py-2 bg-accent-tint border border-accent/40 text-accent text-sm font-body"
             >
               {concert.city}
             </Link>
-            {['Mumbai', 'Delhi', 'Bengaluru', 'Pune', 'Ahmedabad', 'Goa']
-              .filter((c) => c !== concert.city)
-              .map((city) => (
-                <Link
-                  key={city}
-                  href={`/concerts/city/${getCitySlugByName(city)}`}
-                  className="px-4 py-2 bg-surface-raised border border-border-default text-text-muted text-sm font-[family-name:var(--font-jakarta)] hover:border-accent hover:text-accent transition-colors"
-                >
-                  {city}
-                </Link>
-              ))}
+            {CITIES.filter((city) => city.name !== concert.city).map((city) => (
+              <Link
+                key={city.slug}
+                href={`/concerts/city/${city.slug}`}
+                className="px-4 py-2 bg-surface-raised border border-border-default text-text-muted text-sm font-body hover:border-accent hover:text-accent transition-colors"
+              >
+                {city.name}
+              </Link>
+            ))}
           </div>
         </div>
       </section>

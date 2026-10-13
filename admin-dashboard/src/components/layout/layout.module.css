@@ -1,0 +1,206 @@
+/*
+ * Shell-local styles.
+ *
+ * `globals.css` owns the design system; this file holds only the handful of
+ * rules the shell needs and the global sheet does not (and must not) carry:
+ * the collapsed rail's hidden labels, the menu trigger's positioning context,
+ * and the command palette's panel geometry.
+ *
+ * Where a rule overrides a global class on the same element, the class is
+ * doubled (`.x.x`) or the element is styled without the global class at all:
+ * equal-specificity rules are decided by stylesheet order, and a chunk boundary
+ * is not a safe thing to depend on.
+ */
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+/*
+ * Labels stay in the DOM in both rail states — hiding them in CSS (instead of
+ * rendering them conditionally) means the server HTML and the hydrated tree are
+ * structurally identical, so a stored "collapsed" choice cannot trip a
+ * hydration mismatch.
+ *
+ * Desktop only: at ≤980px the rail becomes a 250px overlay where the collapsed
+ * class is neutralised (`globals.css` re-expands it), so the labels must stay
+ * visible there.
+ */
+@media (min-width: 981px) {
+  .collapsed :global(.nav-label),
+  .collapsed :global(.nav-section-label),
+  .collapsed :global(.brand-text),
+  /* The 44px rail cannot hold an icon and a count: the count moves into the
+     link's tooltip instead (see Sidebar's `title`). */
+  .collapsed :global(.nav-badge) {
+    display: none;
+  }
+
+  .collapsed .sidebarHint {
+    display: none;
+  }
+
+  /* The hint is gone, so the collapse button is the footer's only child: centre
+     it rather than leaving it against the left edge of the rail. */
+  .collapsed .sidebarFooter {
+    justify-content: center;
+  }
+}
+
+/* ── Topbar ───────────────────────────────────────────────────────────────── */
+
+/* `.menu` is absolutely positioned, so each trigger needs its own anchor. */
+.menuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.avatarButton {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  /* The bar wraps to two rows on phones; a 200px min-width would push the
+     theme toggle and the avatar off-screen. */
+  .searchTrigger.searchTrigger {
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .searchTriggerLabel {
+    display: none;
+  }
+}
+
+/* ── Command palette ──────────────────────────────────────────────────────── */
+
+/* Rides on `.card` for the surface, border and shadow only. */
+.palette.palette {
+  width: 100%;
+  max-width: 560px;
+  align-self: start;
+  margin-top: 8vh;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: palette-in 180ms ease-out;
+}
+
+/* The panel drops the last few millimetres as it lands: enough
+   motion to read as a transition, not enough to feel decorative. */
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette.palette { animation: none; }
+}
+
+.paletteSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+/* Deliberately not the global `.input`: this field is borderless inside the
+   dialog's own frame, and the global class's border, background and focus ring
+   would have to be undone one property at a time. */
+.paletteInput {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 12px;
+  outline: none;
+}
+
+.paletteInput::placeholder {
+  color: var(--text-subtle);
+}
+
+.paletteInput:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.paletteList {
+  max-height: min(58vh, 420px);
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.paletteGroupLabel {
+  padding: 6px 8px 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-subtle);
+}
+
+/* Full row styling, no `.menu-item`: the palette rows are taller and need an
+   unambiguous active state of their own. */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.itemActive.itemActive {
+  background: var(--surface-active);
+  color: var(--text-strong);
+}
+
+.itemMeta {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+
+.paletteEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 12px;
+}
+
+.paletteFooter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--divider);
+  color: var(--text-subtle);
+  font-size: 10.5px;
+}
+
+.paletteFooter kbd {
+  margin: 0 1px;
+}

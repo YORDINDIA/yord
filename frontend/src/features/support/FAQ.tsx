@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useId, useState } from 'react';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { cn } from '@yord/ui';
+import { Container } from '@/features/ui/Container';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { EmptyState } from '@/features/ui/EmptyState';
+import { SectionHeading } from '@/features/ui/SectionHeading';
 
 export interface FAQItem {
   question: string;
@@ -17,42 +20,55 @@ export interface FAQCategory {
 
 function FAQAccordion({ category }: { category: FAQCategory }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const panelId = useId();
 
   return (
     <div className="bg-surface-card border border-border-default">
       <div className="p-6 border-b border-border-default">
-        <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary">
-          {category.title}
-        </h2>
+        <h2 className="font-accent text-xl tracking-wider text-text-secondary">{category.title}</h2>
       </div>
       <div className="divide-y divide-border-default">
-        {category.items.map((item, index) => (
-          <div key={index}>
-            <button
-              onClick={() => setOpenIndex(openIndex === index ? null : index)}
-              className="w-full flex items-center justify-between p-6 text-left hover:bg-surface-raised/50 transition-colors"
-            >
-              <span className="font-[family-name:var(--font-jakarta)] text-text-secondary pr-4">
-                {item.question}
-              </span>
-              {openIndex === index ? (
-                <ChevronUp className="w-5 h-5 text-accent flex-shrink-0" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-text-muted flex-shrink-0" />
-              )}
-            </button>
-            <div
-              className={cn(
-                'overflow-hidden transition-all duration-300',
-                openIndex === index ? 'max-h-96' : 'max-h-0'
-              )}
-            >
-              <p className="px-6 pb-6 font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
-                {item.answer}
-              </p>
+        {category.items.map((item, index) => {
+          const isOpen = openIndex === index;
+          const id = `${panelId}-${index}`;
+          return (
+            <div key={item.question}>
+              {/* Heading + button, not a bare button: this is how a screen
+                  reader jumps between questions. */}
+              <h3>
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  aria-controls={id}
+                  onClick={() => setOpenIndex(isOpen ? null : index)}
+                  className="w-full flex items-center justify-between p-6 text-left hover:bg-surface-raised/50 transition-colors motion-reduce:transition-none"
+                >
+                  <span className="font-body text-text-secondary pr-4">{item.question}</span>
+                  {isOpen ? (
+                    <ChevronUp aria-hidden="true" className="w-5 h-5 text-accent flex-shrink-0" />
+                  ) : (
+                    <ChevronDown aria-hidden="true" className="w-5 h-5 text-text-muted flex-shrink-0" />
+                  )}
+                </button>
+              </h3>
+              <div
+                id={id}
+                // `inert` when closed, so a collapsed answer is out of the
+                // accessibility tree and cannot be tabbed into — `hidden` would
+                // do the same but would kill the height transition.
+                inert={!isOpen}
+                className={cn(
+                  'overflow-hidden transition-all duration-300 motion-reduce:transition-none',
+                  isOpen ? 'max-h-96' : 'max-h-0'
+                )}
+              >
+                <p className="px-6 pb-6 font-body text-sm text-text-muted leading-relaxed">
+                  {item.answer}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -62,48 +78,51 @@ export function FAQPageClient({ faqData }: { faqData: FAQCategory[] }) {
   return (
     <div className="min-h-screen bg-surface-page">
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 lg:px-12">
-        <div className="max-w-[1440px] mx-auto text-center">
+      <section className="pt-32 pb-20">
+        <Container>
           <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <HelpCircle className="w-8 h-8 text-accent" />
+            <HelpCircle aria-hidden="true" className="w-8 h-8 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
-            Frequently Asked Questions
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
-            Find answers to common questions about orders, shipping, returns, and more.
-            Can&apos;t find what you&apos;re looking for? Contact our support team.
-          </p>
-        </div>
+          <SectionHeading
+            as="h1"
+            align="center"
+            title="Frequently Asked Questions"
+            description="Find answers to common questions about orders, shipping, returns, and more. Can't find what you're looking for? Contact our support team."
+          />
+        </Container>
       </section>
 
       {/* FAQ Content */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto space-y-8">
-          {faqData.map((category) => (
-            <FAQAccordion key={category.title} category={category} />
-          ))}
-        </div>
+      <section className="pb-24">
+        <Container size="narrow">
+          {faqData.length === 0 ? (
+            <EmptyState
+              title="No questions published yet"
+              message="Our FAQ is being updated. Contact support and we will answer directly."
+            >
+              <CtaLink href="/contact">Contact us</CtaLink>
+            </EmptyState>
+          ) : (
+            <div className="space-y-8">
+              {faqData.map((category) => (
+                <FAQAccordion key={category.title} category={category} />
+              ))}
+            </div>
+          )}
+        </Container>
       </section>
 
       {/* Contact CTA */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto">
+      <section className="pb-24">
+        <Container size="narrow">
           <div className="bg-surface-card border border-border-default p-12 text-center">
-            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-4">
-              Still have questions?
-            </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
+            <h2 className="font-display text-2xl text-text-primary mb-4">Still have questions?</h2>
+            <p className="font-body text-text-muted mb-6">
               Our support team is here to help you with any questions or concerns.
             </p>
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-            >
-              CONTACT US
-            </Link>
+            <CtaLink href="/contact">Contact us</CtaLink>
           </div>
-        </div>
+        </Container>
       </section>
     </div>
   );

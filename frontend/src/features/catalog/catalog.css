@@ -1,0 +1,15 @@
+/* The page behind the open filter sheet does not scroll. */
+html:has(.catalog-sheet[open]) { overflow: hidden; }
+
+/* The sheet rises from the bottom edge. Transform only; content is visible
+   from the first frame. */
+.catalog-sheet[open] { animation: catalog-sheet-in 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes catalog-sheet-in {
+  from { transform: translateY(24px); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-sheet[open] { animation: none; }
+}

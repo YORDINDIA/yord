@@ -1,52 +1,48 @@
 import { getUpcomingConcertsByArtist } from '@/lib/data/concerts';
 import { getTopProductsByArtistHandle } from '@/lib/supabase/queries';
 import { ARTISTS } from '@yord/db-types';
-import type { TransformedProductWithSource } from '@yord/db-types';
-import { getFirstByPosition, getProductBadge } from '@/lib/product';
-import { UpcomingConcertsSectionClient, type ConcertArtistData } from './UpcomingConcertsSectionClient';
+import { SectionRetry } from '@/features/ui/SectionRetry';
+import { toTransformedProducts } from './productTransform';
+import {
+  UpcomingConcertsSectionView,
+  type ConcertArtistData,
+} from './UpcomingConcertsSectionView';
+
+/**
+ * Per-artist outcome. Distinguishing `failed` from `empty` is what lets the
+ * section tell a broken backend (retry) from a catalog with nothing upcoming
+ * (hide) — a failed read must never look like an empty result.
+ */
+type ArtistResult =
+  | { status: 'ok'; artist: ConcertArtistData }
+  | { status: 'failed' }
+  | { status: 'empty' };
 
 export async function UpcomingConcertsSection() {
   // Capture timestamp early - safe in server component
   // eslint-disable-next-line react-hooks/purity
-  const initialTimestamp = Date.now();
+  const currentTimestamp = Date.now();
   const upcomingByArtist = getUpcomingConcertsByArtist();
 
   if (upcomingByArtist.length === 0) return null;
 
-  const concertArtists = (
-    await Promise.all(
-      upcomingByArtist.map(async ({ artistHandle, tourName, nextShow, allUpcoming }) => {
-        const artistData = ARTISTS[artistHandle];
-        if (!artistData) return null;
+  const results = await Promise.all(
+    upcomingByArtist.map(async ({ artistHandle, tourName, nextShow, allUpcoming }): Promise<ArtistResult> => {
+      const artistData = ARTISTS[artistHandle];
+      if (!artistData) return { status: 'empty' };
 
-        // One failing artist must not blank the whole section: skip it.
-        let products;
-        try {
-          products = await getTopProductsByArtistHandle(artistHandle, 4, true);
-        } catch {
-          return null;
-        }
-        if (products.length === 0) return null;
+      // One failing artist must not blank the whole section: skip it.
+      let products;
+      try {
+        products = await getTopProductsByArtistHandle(artistHandle, 4, true);
+      } catch {
+        return { status: 'failed' };
+      }
+      if (products.length === 0) return { status: 'empty' };
 
-        const transformedProducts: TransformedProductWithSource[] = products.map((p) => {
-          const variant = getFirstByPosition(p.product_variants);
-          const image = getFirstByPosition(p.product_images);
-
-          return {
-            id: p.id.toString(),
-            handle: p.handle ?? '',
-            title: p.title,
-            artist: p.vendor || artistData.name,
-            price: variant?.price || 0,
-            compareAtPrice: variant?.compare_at_price || null,
-            image: image?.supabase_url || image?.src || null,
-            badge: getProductBadge(p, variant),
-            accentColor: artistData.accentColor || 'var(--accent)',
-            originalProduct: p,
-          };
-        });
-
-        return {
+      return {
+        status: 'ok',
+        artist: {
           artistHandle,
           artistName: artistData.name,
           artistImage: artistData.heroImage,
@@ -57,19 +53,28 @@ export async function UpcomingConcertsSection() {
           nextShowCity: nextShow.city,
           nextShowVenue: nextShow.venue,
           totalUpcomingShows: allUpcoming.length,
-          products: transformedProducts,
-        } satisfies ConcertArtistData;
-      })
-    )
-  ).filter(Boolean) as ConcertArtistData[];
+          products: toTransformedProducts(products, {
+            accentColor: artistData.accentColor || 'var(--accent)',
+            fallbackArtist: artistData.name,
+          }),
+        },
+      };
+    })
+  );
 
-  if (concertArtists.length === 0) return null;
+  const concertArtists = results.flatMap((result) =>
+    result.status === 'ok' ? [result.artist] : [],
+  );
 
-  // Pass initial server timestamp to ensure consistent hydration
+  if (concertArtists.length === 0) {
+    const failedReads = results.filter((result) => result.status === 'failed').length;
+    return failedReads > 0 ? <SectionRetry title="Could not load upcoming concerts" /> : null;
+  }
+
   return (
-    <UpcomingConcertsSectionClient
+    <UpcomingConcertsSectionView
       concertArtists={concertArtists}
-      initialTimestamp={initialTimestamp}
+      currentTimestamp={currentTimestamp}
     />
   );
 }

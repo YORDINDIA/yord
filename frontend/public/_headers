@@ -1,0 +1,31 @@
+# Workers Static Assets serves this app's static files directly; the Next
+# server never runs in front of them, so next.config `headers()` does not
+# apply here. Without this rule Cloudflare serves immutable build output as
+# `max-age=0, must-revalidate` and every browser revalidates every JS/CSS
+# file on every page load.
+# https://opennext.js.org/cloudflare/caching#static-assets-caching
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Artist portraits and concert artwork are content-addressed by filename: a
+# changed image ships under a new name, so the year-long TTL is safe and the
+# browser stops revalidating ~91 files on every navigation.
+/artists/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/concert-art/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ── Security headers ─────────────────────────────────────────────────────────
+# Same set as `netlify.toml` and `next.config.ts` `headers()`; keep the three in
+# step. This file covers static assets — the HTML document is rendered by the
+# worker, so it takes the next.config copy (verify with
+# `curl -sI https://yordindia.com/ | grep -i content-security`).
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self)
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://media.yordindia.com https://*.r2.dev https://cdn.shopify.com https://www.google-analytics.com https://www.googletagmanager.com https://checkout.razorpay.com https://cdn.razorpay.com https://rojruflnuhclvkhipjxs.supabase.co; font-src 'self' data:; connect-src 'self' https://rojruflnuhclvkhipjxs.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.analytics.google.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests

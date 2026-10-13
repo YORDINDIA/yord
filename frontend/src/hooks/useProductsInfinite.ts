@@ -11,6 +11,9 @@ export interface ProductsQuery {
   handle?: string;
   artist?: string;
   type?: string;
+  size?: string;
+  price?: string;
+  stock?: boolean;
   sort: SortOption;
   pageSize: number;
 }
@@ -32,6 +35,9 @@ async function fetchProductsPage(query: ProductsQuery, page: number): Promise<Pr
   if (query.handle) params.set('handle', query.handle);
   if (query.artist) params.set('artist', query.artist);
   if (query.type) params.set('type', query.type);
+  if (query.size) params.set('size', query.size);
+  if (query.price) params.set('price', query.price);
+  if (query.stock) params.set('stock', '1');
 
   const res = await fetch(`/api/products?${params.toString()}`);
   if (!res.ok) throw new Error(`Catalog request failed (${res.status})`);
@@ -45,7 +51,7 @@ async function fetchProductsPage(query: ProductsQuery, page: number): Promise<Pr
  */
 export function useProductsInfinite(
   query: ProductsQuery,
-  initial: ProductsPageData,
+  initial: ProductsPageData | undefined,
   initialPage = 1,
 ) {
   return useInfiniteQuery({
@@ -56,11 +62,11 @@ export function useProductsInfinite(
       // A ?page=N deep-link seeds page N, so the rows before it count toward
       // `count` even though they were never fetched; without the offset the
       // comparison below never fills and the sentinel fetches past the end.
-      const skipped = (initialPage - 1) * initial.pageSize;
+      const skipped = (initialPage - 1) * (initial?.pageSize ?? query.pageSize);
       const loaded = skipped + allPages.flatMap((p) => p.data).length;
       return loaded < lastPage.count ? lastPage.page + 1 : undefined;
     },
-    initialData: { pages: [initial], pageParams: [initialPage] },
+    ...(initial ? { initialData: { pages: [initial], pageParams: [initialPage] } } : {}),
     staleTime: 60_000,
   });
 }

@@ -3,14 +3,14 @@
 ## High-Level Components
 - Admin UI: Next.js App Router (recommended within existing `frontend/`), deployed to Netlify.
 - Supabase: Postgres (data), Auth (users/roles), Storage (images), Edge Functions (AI jobs).
-- OpenAI: text + image generation via server-side functions only.
+- Agnes AI: text + image generation via server-side functions only.
 - Optional Netlify Functions: For secrets-heavy tasks (AI and payment refunds) if not using Supabase Edge Functions.
 
 ## Data Flow (Core CRUD)
 1. Admin user authenticates via Supabase Auth.
-2. UI uses Supabase JS client with anon key.
+2. UI uses Supabase JS client with the publishable key.
 3. RLS policies enforce access by role and table.
-4. Admin actions write directly to Supabase tables and Storage.
+4. Admin actions write directly to Supabase tables and Cloudflare R2 (object storage).
 
 ## Data Flow (AI Workflows)
 1. Admin triggers AI action from UI.
@@ -27,7 +27,7 @@
 
 ## Hosting and Deployment
 - Netlify free plan hosts the Next.js app with Supabase public keys.
-- Secrets (AI keys, service role) live in Supabase Edge Functions or Netlify Functions env vars.
+- Secrets (AI keys, Supabase secret key) live in Supabase Edge Functions or Netlify Functions env vars.
 - No serverful backend is required for CRUD if RLS is properly configured.
 
 ## Observability

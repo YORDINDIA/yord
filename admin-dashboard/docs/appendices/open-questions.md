@@ -11,7 +11,7 @@ All questions below have current decisions; revisit if scope changes.
 - Do refunds need to trigger external payment gateways? Yes, admin can trigger refunds.
 
 ## AI
-- Which AI provider(s) will be used for text and image generation? OpenAI.
+- Which AI provider(s) will be used for text and image generation? Agnes AI (decided 2026-10).
 - What approval thresholds or review roles are required? Admin can approve or reject generated content.
 
 ## Roles

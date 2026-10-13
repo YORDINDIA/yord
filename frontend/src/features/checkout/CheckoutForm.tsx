@@ -1,190 +1,121 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { AddressForm, AddressData } from './AddressForm';
-import { PaymentSection, PaymentMethod } from './PaymentSection';
-import { cn } from '@yord/ui';
+import { useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn, formatPrice } from '@yord/ui';
+import { Button } from '@/features/ui/Button';
+import { FormBanner } from '@/features/ui/FormBanner';
+import { Reveal } from '@/features/ui/Reveal';
+import { AddressForm } from './AddressForm';
+import { PaymentSection } from './PaymentSection';
+import { CheckoutStepper } from './CheckoutStepper';
+import {
+  CHECKOUT_STEPS,
+  useCheckoutSteps,
+  type CheckoutStepId,
+} from './useCheckoutSteps';
+import type { CheckoutData } from './types';
+
+export type { CheckoutData } from './types';
 
 interface CheckoutFormProps {
   onPlaceOrder: (data: CheckoutData) => Promise<void>;
   isProcessing: boolean;
+  /** Order total, shown on PLACE ORDER so the final click states the amount. */
+  total: number;
 }
 
-export interface CheckoutData {
-  shipping: AddressData;
-  billing: AddressData;
-  sameAsShipping: boolean;
-  paymentMethod: PaymentMethod;
-}
+const STEP_HEADING_ID = 'checkout-step-heading';
 
-const STEPS = [
-  { id: 1, name: 'Shipping', description: 'Delivery address' },
-  { id: 2, name: 'Billing', description: 'Billing details' },
-  { id: 3, name: 'Payment', description: 'Payment method' },
-];
+/**
+ * Shipping → billing → payment, one step at a time.
+ *
+ * Rendering and navigation only: the step state, the field rules and the
+ * "which fields does this step actually show" question live in
+ * `useCheckoutSteps`. Two behaviours are load-bearing here — focus moves to
+ * the new step's first control on advance (otherwise a keyboard user is left
+ * on a button while the panel they just opened is somewhere below), and the
+ * CONTINUE/PLACE ORDER row is sticky at the bottom of the viewport on phones,
+ * where the form is taller than the screen.
+ */
+export function CheckoutForm({ onPlaceOrder, isProcessing, total }: CheckoutFormProps) {
+  const {
+    currentStep,
+    step,
+    shipping,
+    billing,
+    sameAsShipping,
+    paymentMethod,
+    errors,
+    errorCount,
+    setShipping,
+    setBilling,
+    setPaymentMethod,
+    toggleSameAsShipping,
+    goNext,
+    goBack,
+    goToStep,
+    data,
+  } = useCheckoutSteps();
 
-const emptyAddress: AddressData = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phone: '',
-  address1: '',
-  address2: '',
-  city: '',
-  state: '',
-  pincode: '',
-  country: 'India',
-};
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Set only when the shopper advances, so the first render and a BACK do not
+  // steal focus from wherever the shopper is.
+  const moveFocus = useRef(false);
 
-export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [shippingAddress, setShippingAddress] = useState<AddressData>(emptyAddress);
-  const [billingAddress, setBillingAddress] = useState<AddressData>(emptyAddress);
-  const [sameAsShipping, setSameAsShipping] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('razorpay');
-  const [errors, setErrors] = useState<Partial<Record<keyof AddressData, string>>>({});
-
-  const validateAddress = (address: AddressData): boolean => {
-    const newErrors: Partial<Record<keyof AddressData, string>> = {};
-
-    if (!address.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!address.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!address.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email)) {
-      newErrors.email = 'Invalid email address';
-    }
-    if (!address.phone.trim()) {
-      newErrors.phone = 'Phone is required';
-    } else if (!/^(\+91)?[6-9]\d{9}$/.test(address.phone.replace(/\s/g, ''))) {
-      newErrors.phone = 'Invalid phone number';
-    }
-    if (!address.address1.trim()) newErrors.address1 = 'Address is required';
-    if (!address.city.trim()) newErrors.city = 'City is required';
-    if (!address.state) newErrors.state = 'State is required';
-    if (!address.pincode.trim()) {
-      newErrors.pincode = 'PIN code is required';
-    } else if (!/^\d{6}$/.test(address.pincode)) {
-      newErrors.pincode = 'Invalid PIN code';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    // A field first (the point of moving focus), a control second: step 3
+    // leads with its EDIT button, which is not where the shopper is going.
+    const panel = panelRef.current;
+    const target =
+      panel?.querySelector<HTMLElement>('input, select, textarea') ??
+      panel?.querySelector<HTMLElement>('button, a[href]');
+    target?.focus();
+  }, [currentStep]);
 
   const handleNext = () => {
-    if (currentStep === 1) {
-      if (validateAddress(shippingAddress)) {
-        if (sameAsShipping) {
-          setBillingAddress(shippingAddress);
-        }
-        setCurrentStep(2);
-        setErrors({});
-      }
-    } else if (currentStep === 2) {
-      const addressToValidate = sameAsShipping ? shippingAddress : billingAddress;
-      if (validateAddress(addressToValidate)) {
-        setCurrentStep(3);
-        setErrors({});
-      }
-    }
+    if (goNext()) moveFocus.current = true;
   };
 
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-      setErrors({});
-    }
-  };
-
-  const handlePlaceOrder = async () => {
-    const data: CheckoutData = {
-      shipping: shippingAddress,
-      billing: sameAsShipping ? shippingAddress : billingAddress,
-      sameAsShipping,
-      paymentMethod,
-    };
-    await onPlaceOrder(data);
+  const handleEditShipping = () => {
+    goToStep(1);
+    moveFocus.current = true;
   };
 
   return (
     <div className="space-y-8">
-      {/* Step Progress */}
-      <div className="relative">
-        <div className="flex items-center justify-between">
-          {STEPS.map((step, index) => {
-            const isCompleted = currentStep > step.id;
-            const isCurrent = currentStep === step.id;
+      <CheckoutStepper
+        steps={CHECKOUT_STEPS}
+        current={currentStep}
+        onStepClick={(id) => goToStep(id as CheckoutStepId)}
+      />
 
-            return (
-              <div
-                key={step.id}
-                className={cn(
-                  'flex flex-col items-center relative z-10',
-                  index < STEPS.length - 1 ? 'flex-1' : ''
-                )}
-              >
-                {/* Step Circle */}
-                <div className={cn(
-                  'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors',
-                  isCompleted
-                    ? 'bg-accent border-accent text-text-on-accent'
-                    : isCurrent
-                    ? 'border-accent text-accent bg-transparent'
-                    : 'border-border-strong text-text-muted bg-transparent'
-                )}>
-                  {isCompleted ? (
-                    <Check size={20} />
-                  ) : (
-                    <span className="font-[family-name:var(--font-bebas)] text-lg">{step.id}</span>
-                  )}
-                </div>
+      {/* Validation summary. Field-level errors are announced by `Field`; this
+          is the one place that says *how many* are waiting and that CONTINUE
+          did something. */}
+      {errorCount > 0 && (
+        <FormBanner tone="danger">
+          {errorCount === 1
+            ? 'Please fix the highlighted field below before continuing.'
+            : `Please fix the ${errorCount} highlighted fields below before continuing.`}
+        </FormBanner>
+      )}
 
-                {/* Step Label */}
-                <div className="mt-2 text-center">
-                  <p className={cn(
-                    'font-[family-name:var(--font-jakarta)] text-sm font-medium',
-                    isCurrent || isCompleted ? 'text-text-secondary' : 'text-text-muted'
-                  )}>
-                    {step.name}
-                  </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted hidden sm:block">
-                    {step.description}
-                  </p>
-                </div>
-
-                {/* Connector Line */}
-                {index < STEPS.length - 1 && (
-                  <div className="absolute top-5 left-[calc(50%+1.25rem)] w-[calc(100%-2.5rem)] h-0.5 -translate-y-1/2">
-                    <div className={cn(
-                      'h-full transition-colors',
-                      isCompleted ? 'bg-accent' : 'bg-surface-inset'
-                    )} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Step Content */}
-      <AnimatePresence mode="wait">
-        <motion.div
+      <h2 id={STEP_HEADING_ID} className="sr-only">
+        {step.name}: {step.description}
+      </h2>
+      <div ref={panelRef} role="group" aria-labelledby={STEP_HEADING_ID}>
+        <Reveal
           key={currentStep}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.3 }}
           className="bg-surface-card border border-border-default p-6 md:p-8"
         >
           {currentStep === 1 && (
             <AddressForm
               type="shipping"
-              data={shippingAddress}
-              onChange={setShippingAddress}
+              data={shipping}
+              onChange={setShipping}
               errors={errors}
             />
           )}
@@ -196,15 +127,10 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
                 <input
                   type="checkbox"
                   checked={sameAsShipping}
-                  onChange={(e) => {
-                    setSameAsShipping(e.target.checked);
-                    if (e.target.checked) {
-                      setBillingAddress(shippingAddress);
-                    }
-                  }}
-                  className="w-5 h-5 rounded border-border-strong bg-surface-raised text-accent focus:ring-accent focus:ring-offset-surface-card"
+                  onChange={(e) => toggleSameAsShipping(e.target.checked)}
+                  className="w-5 h-5 rounded accent-accent"
                 />
-                <span className="font-[family-name:var(--font-jakarta)] text-text-secondary">
+                <span className="font-body text-text-secondary">
                   Same as shipping address
                 </span>
               </label>
@@ -212,80 +138,109 @@ export function CheckoutForm({ onPlaceOrder, isProcessing }: CheckoutFormProps) 
               {!sameAsShipping && (
                 <AddressForm
                   type="billing"
-                  data={billingAddress}
-                  onChange={setBillingAddress}
+                  data={billing}
+                  onChange={setBilling}
                   errors={errors}
                 />
               )}
 
               {sameAsShipping && (
                 <div className="p-4 bg-surface-raised border border-border-default">
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                    {shippingAddress.firstName} {shippingAddress.lastName}
-                  </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                    {shippingAddress.address1}
-                    {shippingAddress.address2 && `, ${shippingAddress.address2}`}
-                  </p>
-                  <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                    {shippingAddress.city}, {shippingAddress.state} {shippingAddress.pincode}
-                  </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-body text-sm text-text-secondary">
+                        {shipping.firstName} {shipping.lastName}
+                      </p>
+                      <p className="font-body text-sm text-text-muted">
+                        {shipping.address1}
+                        {shipping.address2 && `, ${shipping.address2}`}
+                      </p>
+                      <p className="font-body text-sm text-text-muted">
+                        {shipping.city}, {shipping.state} {shipping.pincode}
+                      </p>
+                      <p className="font-body text-sm text-text-muted">
+                        {shipping.phone}
+                      </p>
+                    </div>
+                    {/* Without this the only way back to the address was BACK,
+                        one step at a time. */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEditShipping}
+                    >
+                      EDIT
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
           {currentStep === 3 && (
-            <PaymentSection
-              selectedMethod={paymentMethod}
-              onMethodChange={setPaymentMethod}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4 border border-border-default bg-surface-raised p-4">
+                <div className="space-y-1">
+                  <p className="font-body text-xs uppercase tracking-wider text-text-muted">
+                    Delivering to
+                  </p>
+                  <p className="font-body text-sm text-text-secondary">
+                    {shipping.firstName} {shipping.lastName} · {shipping.city}{' '}
+                    {shipping.pincode}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleEditShipping}
+                >
+                  EDIT
+                </Button>
+              </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between gap-4">
+              <PaymentSection
+                selectedMethod={paymentMethod}
+                onMethodChange={setPaymentMethod}
+              />
+            </div>
+          )}
+        </Reveal>
+      </div>
+
+      {/* Navigation. Sticky on phones (the form is taller than the viewport
+          there) and a plain row from `lg` up. */}
+      <div
+        className={cn(
+          'flex items-center justify-between gap-4',
+          'sticky bottom-0 z-20 -mx-6 border-t border-border-default bg-surface-page/95 px-6 py-4 backdrop-blur',
+          'lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none'
+        )}
+      >
         {currentStep > 1 ? (
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-2 px-6 py-3 border border-border-strong text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-text-muted hover:text-text-secondary transition-colors"
-          >
-            <ChevronLeft size={18} />
+          <Button type="button" variant="secondary" onClick={goBack}>
+            <ChevronLeft size={18} aria-hidden="true" />
             BACK
-          </button>
+          </Button>
         ) : (
           <div />
         )}
 
         {currentStep < 3 ? (
-          <button
-            onClick={handleNext}
-            className="flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-          >
+          <Button type="button" variant="primary" onClick={handleNext}>
             CONTINUE
-            <ChevronRight size={18} />
-          </button>
+            <ChevronRight size={18} aria-hidden="true" />
+          </Button>
         ) : (
-          <button
-            onClick={handlePlaceOrder}
-            disabled={isProcessing}
-            className={cn(
-              'flex items-center gap-2 px-8 py-3 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] transition-colors',
-              isProcessing
-                ? 'bg-surface-inset text-text-muted cursor-not-allowed'
-                : 'bg-accent text-text-on-accent hover:bg-accent-hover'
-            )}
+          <Button
+            type="button"
+            variant="gold"
+            isLoading={isProcessing}
+            onClick={() => onPlaceOrder(data)}
           >
-            {isProcessing ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                PROCESSING...
-              </>
-            ) : (
-              'PLACE ORDER'
-            )}
-          </button>
+            PLACE ORDER · {formatPrice(total)}
+          </Button>
         )}
       </div>
     </div>

@@ -13,12 +13,12 @@ import { isRateLimited, clientIp, rateLimitResponse } from '@/lib/rate-limit';
 
 function getClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!url || !serviceKey || !keyId || !keySecret) return null;
+  if (!url || !secretKey || !keyId || !keySecret) return null;
   return {
-    supabase: createClient(url, serviceKey),
+    supabase: createClient(url, secretKey),
     razorpay: new Razorpay({ key_id: keyId, key_secret: keySecret }),
   };
 }

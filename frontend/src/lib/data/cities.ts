@@ -29,7 +29,7 @@ export const CITIES: City[] = [
     state: 'Karnataka',
     description:
       "Bengaluru, India's Silicon Valley, has a vibrant live music scene. The city hosts international tours, indie festivals, and EDM events at venues like NICE Grounds, Palace Grounds, and Phoenix Marketcity.",
-    venues: ['NICE Grounds', 'Palace Grounds', 'Phoenix Marketcity', 'Jayamahal Palace', 'Brigade Innovation Gardens', 'Embassy International Riding School'],
+    venues: ['NICE Grounds', 'Palace Grounds', 'Phoenix Marketcity', 'Jayamahal Palace', 'Brigade Innovation Gardens', 'Embassy International Riding School', 'District Arena @ Terraform'],
   },
   {
     slug: 'hyderabad',
@@ -101,7 +101,7 @@ export const CITIES: City[] = [
     state: 'Uttar Pradesh',
     description:
       "Lucknow's growing concert scene is attracting more Indian and international artists. The city's cultural heritage makes it a unique concert destination.",
-    venues: ['Awadh Shilpgram', 'Indira Gandhi Pratishthan', 'KD Singh Babu Stadium'],
+    venues: ['Awadh Shilpgram', 'Indira Gandhi Pratishthan', 'KD Singh Babu Stadium', '19th National Jamboree Ground'],
   },
   {
     slug: 'guwahati',
@@ -117,7 +117,7 @@ export const CITIES: City[] = [
     state: 'Madhya Pradesh',
     description:
       "Indore is emerging as a concert destination in Central India, hosting music festivals and Bollywood concerts. The city's young population drives demand for live music events.",
-    venues: ['Brilliant Convention Centre', 'Labh Ganga Garden', 'Daly College Grounds'],
+    venues: ['Brilliant Convention Centre', 'Labh Ganga Garden', 'Daly College Grounds', 'C21 Estate'],
   },
   {
     slug: 'shillong',

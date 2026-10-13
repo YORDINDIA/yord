@@ -3,6 +3,10 @@ import { Metadata } from 'next';
 import { getArtistByHandle, getArtistsWithMetadata, getProductsByCollectionHandle } from '@/lib/supabase/queries';
 import { ArtistHero } from '@/features/artist/ArtistHero';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
+import { Container } from '@/features/ui/Container';
+import Link from 'next/link';
+import { buildFilterUrl } from '@/features/catalog/catalogUrl';
+import { ArrowDiag } from '@/features/ui/Glyphs';
 import { JsonLd, musicGroupSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface ArtistPageProps {
@@ -28,13 +32,13 @@ export async function generateMetadata({ params }: ArtistPageProps): Promise<Met
 
   if (!artist) {
     return {
-      title: 'Artist Not Found | YORD India',
+      title: 'Artist Not Found',
     };
   }
 
   return {
-    title: `${artist.name} Concert Merchandise India | YORD India`,
-    description: `Shop exclusive ${artist.name} concert merchandise in India. ${artist.tagline}. Premium quality fan-made designs. Free shipping above ₹1,999.`,
+    title: `${artist.name} Concert Merchandise India`,
+    description: `Shop exclusive ${artist.name} concert merchandise in India. ${artist.tagline}. Premium quality fan-made designs. Free shipping on every order.`,
     openGraph: {
       title: `${artist.name} Concert Merchandise | YORD India`,
       description: `Shop exclusive ${artist.name} concert merchandise. ${artist.tagline}.`,
@@ -50,7 +54,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
   // into dynamic rendering and every request reruns the Supabase reads,
   // bypassing `revalidate = 3600`. The page prerenders with the default
   // order (newest, page 1); sort changes refetch client-side via
-  // `CatalogGrid clientSort`, and deep ?page= links still seed the grid.
+  // `CatalogGrid clientSort`. Artist URLs do not currently read `?page=`.
   const pageSize = 16;
 
   // Static (cookie-free) client so `revalidate = 3600` actually applies.
@@ -71,7 +75,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
   const count = result?.count ?? 0;
 
   return (
-    <main>
+    <div>
       <JsonLd data={musicGroupSchema(artist)} />
       <JsonLd
         data={breadcrumbSchema([
@@ -83,43 +87,40 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       {/* Immersive Hero with Artist Branding */}
       <ArtistHero artist={artist} />
 
-      {/* Products Grid */}
-      <section
-        className="py-24 bg-surface-page"
-        style={{
-          '--artist-accent': artist.accentColor,
-          '--artist-secondary': artist.secondaryColor,
-        } as React.CSSProperties}
-      >
-        <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+      {/* Products Grid. `id="products"` is the hero's "Shop the collection"
+          scroll target — without it the CTA silently did nothing. */}
+      <section id="products" className="py-24 bg-surface-page scroll-mt-20">
+        <Container>
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+            <h2 className="font-display-alt text-[clamp(2rem,4.4vw,3.5rem)] font-extrabold leading-[0.95] text-text-primary">
+              Shop {artist.name}
+              <span className="ml-3 align-top font-body text-[0.32em] font-semibold text-text-muted tabular-nums">
+                {count}
+              </span>
+            </h2>
+            {/* The full filter panel lives on /products; this page prerenders
+                and does not read searchParams. */}
+            <Link
+              href={buildFilterUrl({ artist: handle }, {})}
+              className="pc-cta inline-flex items-center gap-2 font-body text-sm font-semibold text-text-primary hover:text-accent"
+            >
+              Filter by size and price
+              <ArrowDiag className="pc-cta__arrow" />
+            </Link>
+          </div>
           <CatalogGrid
             initialProducts={products}
             totalCount={count}
             initialPage={1}
             query={{ mode: 'artist', handle, sort: 'newest', pageSize }}
             showSort
-            showGridToggle
             clientSort
-            toolbarClassName="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12"
-            accentColor={artist.accentColor}
-            toolbarLeft={
-              <div>
-                <p
-                  className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] mb-3"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  {artist.name.toUpperCase()} COLLECTION
-                </p>
-                <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
-                  Shop the Collection
-                </h2>
-              </div>
-            }
             emptyTitle="No products found"
             emptyMessage={`Check back soon for new ${artist.name} merchandise.`}
+            pageOneHref={`/artist/${handle}`}
           />
-        </div>
+        </Container>
       </section>
-    </main>
+    </div>
   );
 }

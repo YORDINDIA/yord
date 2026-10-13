@@ -6,6 +6,10 @@ import SearchInput from './SearchInput';
 /**
  * Filter form shared by every list page. Submits as a GET so a filtered list is
  * a shareable URL, and resets `page` (a page-3 filter result has no page 3).
+ *
+ * Density: one `.toolbar` row of `.input` / `.select` controls (both are 30px
+ * in globals.css and size themselves inside a toolbar), with the submit button
+ * pushed to the far edge by `.spacer` so the row reads filters-then-apply.
  */
 export default function FilterBar({
   children,
@@ -44,6 +48,7 @@ export default function FilterBar({
   return (
     <form className="toolbar filter-bar" onSubmit={onSubmit} role="search">
       {children}
+      <span className="spacer" />
       <button className="button" type="submit">
         {submitLabel}
       </button>

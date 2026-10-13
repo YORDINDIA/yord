@@ -1,0 +1,52 @@
+/*
+  Tooltip bubble — local to the primitives, so globals.css stays clean.
+
+  The bubble is an ::after pseudo-element: it adds no layout, never captures
+  pointer events, and is invisible to assistive tech, which is what makes the
+  whole tooltip decorative. The wrapped control keeps its own accessible name.
+
+  `.tt` stays on the element as a stable hook; these rules are keyed on the
+  module class so nothing depends on a global cascade rule.
+*/
+
+.tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 80;
+  width: max-content;
+  max-width: 232px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-pop);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+}
+
+.tip[data-side="bottom"]::after {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
+.tip:hover::after,
+.tip:focus-within::after {
+  opacity: 1;
+  visibility: visible;
+}

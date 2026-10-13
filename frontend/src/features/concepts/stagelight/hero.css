@@ -1,0 +1,216 @@
+/* Chapter 01. Layers, back to front: plate, grain, shade, rig, content. */
+
+/* ---------- 01 hero ---------- */
+
+.sl-hero {
+  --sl-hero-feather: clamp(96px, 16svh, 190px);
+  position: relative;
+  isolation: isolate;
+  height: 100svh;
+  min-height: 640px;
+  overflow: hidden;
+}
+
+.sl-hero__frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.4) 5%, #000 13%, #000 56%, rgb(0 0 0 / 0.972) 60%, rgb(0 0 0 / 0.896) 64%, rgb(0 0 0 / 0.784) 68%, rgb(0 0 0 / 0.648) 72%, rgb(0 0 0 / 0.5) 76%, rgb(0 0 0 / 0.352) 80%, rgb(0 0 0 / 0.216) 85%, rgb(0 0 0 / 0.104) 90%, rgb(0 0 0 / 0.028) 95%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.4) 5%, #000 13%, #000 56%, rgb(0 0 0 / 0.972) 60%, rgb(0 0 0 / 0.896) 64%, rgb(0 0 0 / 0.784) 68%, rgb(0 0 0 / 0.648) 72%, rgb(0 0 0 / 0.5) 76%, rgb(0 0 0 / 0.352) 80%, rgb(0 0 0 / 0.216) 85%, rgb(0 0 0 / 0.104) 90%, rgb(0 0 0 / 0.028) 95%, transparent 100%);
+}
+
+.sl-hero__plate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -18%;
+  bottom: 0;
+}
+
+.sl-hero__plate picture {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.sl-hero__img {
+  object-fit: cover;
+  object-position: 50% 70%;
+}
+
+@media (min-width: 768px) {
+  .sl-hero__img { object-position: 72% 55%; }
+}
+
+.sl-hero::before { z-index: 1; }
+
+/* Keeps the headline readable over the crowd; the same colour as the page floor. */
+.sl-hero__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--scrim) 82%, transparent) 0%,
+    color-mix(in srgb, var(--scrim) 72%, transparent) 20%,
+    color-mix(in srgb, var(--scrim) 55%, transparent) 35%,
+    color-mix(in srgb, var(--scrim) 33%, transparent) 50%,
+    color-mix(in srgb, var(--scrim) 15%, transparent) 62%,
+    color-mix(in srgb, var(--scrim) 4%, transparent) 75%,
+    transparent 85%
+  );
+}
+
+.sl-hero__rig {
+  position: absolute;
+  z-index: 3;
+  top: 72px;
+  right: 0;
+  width: 80vw;
+  height: 36svh;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .sl-hero__shade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 30%,
+      color-mix(in srgb, var(--scrim) 22%, transparent) 38%,
+      color-mix(in srgb, var(--scrim) 45%, transparent) 46%,
+      color-mix(in srgb, var(--scrim) 62%, transparent) 54%,
+      color-mix(in srgb, var(--scrim) 72%, transparent) 64%,
+      color-mix(in srgb, var(--scrim) 78%, transparent) 76%,
+      color-mix(in srgb, var(--scrim) 78%, transparent) 100%
+    );
+  }
+}
+
+.sl-hero__rigsvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 767px) {
+  .sl-fixture-0 { display: none; }
+}
+
+@media (min-width: 768px) {
+  .sl-hero__rig {
+    top: 84px;
+    width: min(66vw, 1000px);
+    height: min(62%, 40vw);
+  }
+}
+
+.sl-hero__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 96px var(--sl-pad-r) calc(var(--sl-hero-feather) + 8px) var(--sl-pad-l);
+}
+
+.sl-hero__gutter .sl-numeral {
+  position: static;
+  margin-bottom: 14px;
+}
+
+.sl-hero__gutter .sl-numeral__fig { font-size: 2.2rem; }
+
+.sl-hero__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.sl-hero__title {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(3rem, 17vw, 6rem);
+  line-height: 0.94;
+  letter-spacing: -0.012em;
+  white-space: nowrap;
+}
+
+.sl-hero__row {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.sl-hero__sub {
+  max-width: 34ch;
+  margin: 0;
+  font-size: clamp(0.95rem, 1.3vw, 1.08rem);
+  line-height: 1.6;
+}
+
+.sl-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-top: 24px;
+}
+
+.sl-hero__stats {
+  display: flex;
+  gap: clamp(24px, 3.2vw, 56px);
+  margin: 0;
+}
+
+.sl-stat {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.sl-stat__fig {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3.6vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.sl-stat__label {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  .sl-hero__title { font-size: clamp(4rem, 13vw, 8rem); }
+}
+
+@media (min-width: 1024px) {
+  .sl-hero__grid {
+    display: grid;
+    grid-template-columns: var(--sl-gutter) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .sl-hero__gutter .sl-numeral { margin-bottom: 6px; }
+  .sl-hero__gutter .sl-numeral__fig { font-size: var(--sl-num); }
+
+  .sl-hero__title { font-size: clamp(4rem, min(11.4vw, 18svh), 12rem); }
+
+  .sl-hero__row {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-hero__plate,
+  .sl-hero__rig { transform: none !important; }
+}

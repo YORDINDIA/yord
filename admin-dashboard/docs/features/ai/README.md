@@ -6,7 +6,7 @@
 - Never overwrite production data without explicit approval.
 
 ## Provider
-- OpenAI for text and image generation (server-side only).
+- Agnes AI for text and image generation (server-side only).
 
 ## Proposed AI Tables
 - `ai_jobs` (id, type, status, input_ref, created_by, created_at)

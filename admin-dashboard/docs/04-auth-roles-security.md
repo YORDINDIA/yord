@@ -19,7 +19,7 @@
 - Default deny for all admin-relevant tables.
 - Phase 1: single Admin role with full access.
 - Future: role-based policies on `products`, `orders`, `articles`, etc.
-- Avoid exposing service role key in the client.
+- Avoid exposing the Supabase secret key in the client.
 
 ## Secrets and AI
 - AI providers must be called via Supabase Edge Functions or Netlify Functions.

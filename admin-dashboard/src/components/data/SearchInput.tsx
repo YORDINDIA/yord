@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Search } from 'lucide-react';
 
 /**
  * Debounced search box that writes `q` into the URL, so the server component
@@ -106,6 +107,9 @@ export default function SearchInput({
 
   return (
     <form onSubmit={onSubmit} role="search" className="search-input">
+      {/* Must stay a direct child: `.search-input > svg` positions it inside
+          the input's 28px left padding. */}
+      <Search size={15} aria-hidden />
       <input
         className="input"
         name={name}
@@ -116,7 +120,7 @@ export default function SearchInput({
         aria-label={placeholder}
       />
       {delayMs === 0 && (
-        <button className="button" type="submit">
+        <button className="button small" type="submit">
           Search
         </button>
       )}

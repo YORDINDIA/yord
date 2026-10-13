@@ -1,0 +1,337 @@
+/* Concept A "Poster". Everything is scoped under .poster or a poster- prefix.
+   Colour comes from two variables on the page root: --poster-accent and
+   --poster-accent-ink (the readable ink for text sitting on the accent).
+   They are registered as <color> so a swatch click blends instead of snapping. */
+
+@property --poster-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7c5e1e;
+}
+@property --poster-accent-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #fbfbfa;
+}
+@property --poster-n {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.poster {
+  --poster-accent: var(--accent);
+  --poster-accent-ink: var(--text-on-accent);
+  --poster-gutter: clamp(1rem, 3.4vw, 3rem);
+  /* Grain is a background layer, so it always sits behind the content. */
+  --poster-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .34 -.1'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
+  background: var(--surface-page);
+  color: var(--text-primary);
+  transition:
+    --poster-accent 0.55s ease,
+    --poster-accent-ink 0.55s ease;
+}
+
+.poster-display {
+  font-family: var(--font-tanker), "Arial Narrow", sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.poster-pad {
+  padding-inline: var(--poster-gutter);
+}
+
+/* ── Intro curtain ───────────────────────────────────────────────────────── */
+/* Hidden by default: if animations never run, the page is simply visible. */
+
+.poster-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--poster-gutter);
+  background: var(--scrim);
+  color: var(--accent-on-media);
+  visibility: hidden;
+  pointer-events: none;
+  animation: poster-curtain 1.65s cubic-bezier(0.7, 0, 0.2, 1) both;
+}
+@keyframes poster-curtain {
+  0%,
+  72% {
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  100% {
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-101%);
+  }
+}
+.poster-count {
+  display: flex;
+  margin: 0;
+  font-size: clamp(8rem, 32vw, 28rem);
+  line-height: 0.8;
+  animation: poster-count 1.15s cubic-bezier(0.65, 0, 0.25, 1) both;
+}
+@keyframes poster-count {
+  from {
+    --poster-n: 0;
+  }
+  to {
+    --poster-n: 100;
+  }
+}
+.poster-count i {
+  display: block;
+  width: 0.5em;
+  text-align: center;
+}
+.poster-count i::before {
+  content: counter(d);
+}
+.poster-count i:nth-child(1) {
+  counter-reset: d round(down, calc(var(--poster-n) / 100), 1);
+}
+.poster-count i:nth-child(2) {
+  counter-reset: d round(down, calc(mod(var(--poster-n), 100) / 10), 1);
+}
+.poster-count i:nth-child(3) {
+  counter-reset: d mod(var(--poster-n), 10);
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.poster-hero {
+  min-height: max(100svh, 640px);
+}
+.poster-wordmark-wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 80px;
+  container-type: inline-size;
+}
+/* "YORD" is 1.755em of ink wide in Tanker (1.801em advance, 0.015em left
+   bearing), so this size puts the ink exactly inside equal side gutters. */
+.poster-wordmark {
+  --g: clamp(16px, 2.4cqw, 36px);
+  position: relative;
+  z-index: 2;
+  margin: 0 0 0 calc(var(--g) - 0.015em);
+  font-size: calc((100cqw - 2 * var(--g)) / 1.755);
+  line-height: 0.78;
+  white-space: nowrap;
+  user-select: none;
+  /* The glyph box is far taller than the line box and would swallow clicks meant for the row below. */
+  pointer-events: none;
+}
+
+.poster-stack {
+  position: absolute;
+  inset: 80px 0 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.poster-card {
+  --sx: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(8.5rem, 33cqw, 30rem);
+  aspect-ratio: 4 / 5;
+  translate: -50% -50%;
+  transform: translate(calc(var(--x) * var(--sx)), var(--y)) rotate(var(--r)) scale(var(--s));
+  z-index: var(--z);
+  background: var(--scrim);
+  transition:
+    transform 1.05s cubic-bezier(0.34, 1.4, 0.5, 1),
+    z-index 1.05s linear;
+}
+.poster-card img {
+  filter: brightness(0.78);
+  transition: filter 0.8s ease;
+}
+.poster-card[data-slot="0"] img {
+  filter: brightness(0.92);
+}
+.poster-card[data-slot="0"] {
+  --x: 0cqw; --y: 0%; --r: -3deg; --s: 1; --z: 5;
+}
+.poster-card[data-slot="1"] {
+  --x: -18cqw; --y: 5%; --r: 4deg; --s: 0.95; --z: 4;
+}
+.poster-card[data-slot="2"] {
+  --x: 18cqw; --y: -6%; --r: -6deg; --s: 0.93; --z: 3;
+}
+.poster-card[data-slot="3"] {
+  --x: -34cqw; --y: -4%; --r: -8deg; --s: 0.88; --z: 2;
+}
+.poster-card[data-slot="4"] {
+  --x: 34cqw; --y: 6%; --r: 7deg; --s: 0.88; --z: 1;
+}
+@media (max-width: 640px) {
+  .poster-card {
+    --sx: 0.72;
+    width: clamp(9.5rem, 42cqw, 30rem);
+  }
+}
+
+.poster-micro {
+  display: grid;
+  gap: 1.5rem 2.5rem;
+  padding-block: 1.25rem 1.75rem;
+  align-items: end;
+}
+@media (min-width: 1024px) {
+  .poster-micro {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.poster-tagline {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-size: clamp(1.4rem, 2vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.poster-sub {
+  max-width: 30rem;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.poster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.75rem;
+}
+.poster-cta {
+  display: inline-flex;
+  align-items: center;
+  height: 3.5rem;
+  padding-inline: 1.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: background-color 0.15s;
+}
+.poster-textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.28em;
+}
+.poster-textlink-arrow {
+  flex: none;
+  transition: translate 0.18s ease;
+}
+a:hover > .poster-textlink-arrow,
+button:hover > .poster-textlink-arrow {
+  translate: 0.18em -0.18em;
+}
+
+.poster-stats {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: space-between;
+  gap: 0 2.5rem;
+  margin: 0;
+  padding-block: 1.25rem 0;
+  list-style: none;
+}
+.poster-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+@media (min-width: 1024px) {
+  .poster-stats {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+    justify-content: normal;
+  }
+  .poster-stats li {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .poster-stat-num {
+    min-width: var(--mw, 1.8em);
+  }
+}
+.poster-stat-num {
+  display: inline-block;
+  font-size: clamp(2.1rem, 3.4vw, 3.2rem);
+  line-height: 1;
+}
+.poster-stat-label {
+  font-size: 0.8125rem;
+}
+
+/* ── Swatches ────────────────────────────────────────────────────────────── */
+
+.poster-swatches {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+.poster-swatches[data-variant="hero"] {
+  color: var(--text-on-media);
+}
+.poster-swatches-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+[data-variant="hero"] .poster-swatches-label {
+  color: var(--text-on-media-muted);
+}
+.poster-swatches-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 4px;
+}
+.poster-swatch {
+  width: 1.75rem;
+  height: 2.25rem;
+  border: 0;
+  background: var(--sw);
+  cursor: pointer;
+  outline-offset: 3px;
+  transition: outline-color 0.15s;
+}
+.poster-swatch:hover {
+  outline: 2px solid color-mix(in srgb, currentColor 50%, transparent);
+}
+.poster-swatch[aria-pressed="true"] {
+  outline: 2px solid currentColor;
+}
+.poster-swatch:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
+}
+.poster-swatches-name {
+  margin: 0;
+  font-family: var(--font-tanker), "Arial Narrow", sans-serif;
+  font-size: 1.5rem;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+[data-variant="hero"] .poster-swatches-name {
+  color: var(--accent-on-media);
+}

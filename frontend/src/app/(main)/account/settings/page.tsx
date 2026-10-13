@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, Check, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { Field, TextInput } from '@/features/ui/Field';
+import { Button } from '@/features/ui/Button';
+import { AccountPageHeader } from '../_components/AccountPageHeader';
+import { AuthNotice } from '@/features/auth/AuthShell';
+import { PasswordField } from '@/features/auth/PasswordField';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -34,6 +38,8 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,21 +68,18 @@ export default function SettingsPage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsChangingPassword(true);
     setPasswordError(null);
     setPasswordSuccess(false);
 
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match');
-      setIsChangingPassword(false);
-      return;
-    }
+    // Per-field messages, so the correction lands on the input that needs it.
+    const lengthError =
+      newPassword.length < 8 ? 'Password must be at least 8 characters' : null;
+    const matchError = newPassword !== confirmPassword ? 'Passwords do not match' : null;
+    setNewPasswordError(lengthError);
+    setConfirmPasswordError(matchError);
+    if (lengthError || matchError) return;
 
-    if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
-      setIsChangingPassword(false);
-      return;
-    }
+    setIsChangingPassword(true);
 
     try {
       const { error } = await supabase.auth.updateUser({
@@ -97,151 +100,100 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary">
-        Account Settings
-      </h2>
+      <AccountPageHeader title="Account Settings" />
 
       {/* Profile Section */}
       <div className="bg-surface-card border border-border-default p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-6">
+        <h3 className="font-accent text-lg tracking-wider text-text-secondary mb-6">
           PROFILE INFORMATION
         </h3>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-red-400">{error}</p>
-          </div>
-        )}
-
-        {saveSuccess && (
-          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-400" />
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-green-400">Profile updated successfully</p>
-          </div>
-        )}
+        {error ? <AuthNotice>{error}</AuthNotice> : null}
+        {saveSuccess ? <AuthNotice tone="success">Profile updated successfully</AuthNotice> : null}
 
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
-                First Name
-              </label>
-              <input
-                type="text"
+            <Field label="First Name" name="settings-first-name">
+              <TextInput
+                autoComplete="given-name"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
-            </div>
-            <div>
-              <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
-                Last Name
-              </label>
-              <input
-                type="text"
+            </Field>
+            <Field label="Last Name" name="settings-last-name">
+              <TextInput
+                autoComplete="family-name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm focus:border-accent transition-colors"
               />
-            </div>
+            </Field>
           </div>
 
-          <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
-              Email Address
-            </label>
-            <input
+          <Field label="Email Address" name="settings-email" hint="Email cannot be changed">
+            <TextInput
               type="email"
+              inputMode="email"
+              autoComplete="email"
               value={user?.email || ''}
               disabled
-              className="w-full px-4 py-3 bg-surface-raised/50 border border-border-default text-text-muted font-[family-name:var(--font-jakarta)] text-sm cursor-not-allowed"
+              className="cursor-not-allowed opacity-70"
             />
-            <p className="mt-1 font-[family-name:var(--font-jakarta)] text-xs text-text-muted">
-              Email cannot be changed
-            </p>
-          </div>
+          </Field>
 
           <div className="pt-4">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-6 py-2 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  SAVING...
-                </>
-              ) : (
-                'SAVE CHANGES'
-              )}
-            </button>
+            <Button type="submit" isLoading={isSaving}>
+              {isSaving ? 'SAVING...' : 'SAVE CHANGES'}
+            </Button>
           </div>
         </form>
       </div>
 
       {/* Password Section */}
       <div className="bg-surface-card border border-border-default p-6">
-        <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-6">
+        <h3 className="font-accent text-lg tracking-wider text-text-secondary mb-6">
           CHANGE PASSWORD
         </h3>
 
-        {passwordError && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-red-400">{passwordError}</p>
-          </div>
-        )}
-
-        {passwordSuccess && (
-          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-400" />
-            <p className="font-[family-name:var(--font-jakarta)] text-sm text-green-400">Password changed successfully</p>
-          </div>
-        )}
+        {passwordError ? <AuthNotice>{passwordError}</AuthNotice> : null}
+        {passwordSuccess ? (
+          <AuthNotice tone="success">Password changed successfully</AuthNotice>
+        ) : null}
 
         <form onSubmit={handleChangePassword} className="space-y-4">
-          <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
-              New Password
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
-              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block font-[family-name:var(--font-jakarta)] text-xs uppercase tracking-wider text-text-muted mb-2">
-              Confirm New Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              className="w-full px-4 py-3 bg-surface-raised border border-border-strong text-text-secondary font-[family-name:var(--font-jakarta)] text-sm placeholder:text-text-muted focus:border-accent transition-colors"
-            />
-          </div>
+          <PasswordField
+            label="New Password"
+            name="settings-new-password"
+            value={newPassword}
+            onChange={(value) => {
+              setNewPassword(value);
+              if (newPasswordError) setNewPasswordError(null);
+            }}
+            autoComplete="new-password"
+            placeholder="Enter new password"
+            error={newPasswordError ?? undefined}
+          />
+          <PasswordField
+            label="Confirm New Password"
+            name="settings-confirm-password"
+            value={confirmPassword}
+            onChange={(value) => {
+              setConfirmPassword(value);
+              if (confirmPasswordError) setConfirmPasswordError(null);
+            }}
+            autoComplete="new-password"
+            placeholder="Confirm new password"
+            error={confirmPasswordError ?? undefined}
+          />
 
           <div className="pt-4">
-            <button
+            <Button
               type="submit"
-              disabled={isChangingPassword || !newPassword || !confirmPassword}
-              className="px-6 py-2 border border-text-muted text-text-secondary font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent transition-colors disabled:opacity-50 flex items-center gap-2"
+              variant="secondary"
+              disabled={!newPassword || !confirmPassword}
+              isLoading={isChangingPassword}
             >
-              {isChangingPassword ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  CHANGING...
-                </>
-              ) : (
-                'CHANGE PASSWORD'
-              )}
-            </button>
+              {isChangingPassword ? 'CHANGING...' : 'CHANGE PASSWORD'}
+            </Button>
           </div>
         </form>
       </div>

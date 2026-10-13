@@ -106,7 +106,7 @@ CREATE TABLE product_images (
     alt VARCHAR(512),
     width INTEGER,
     height INTEGER,
-    supabase_url TEXT,
+    storage_url TEXT,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
 );
@@ -598,7 +598,7 @@ CREATE TABLE transactions (
     amount DECIMAL(12,2),
     currency VARCHAR(10),
     gateway VARCHAR(100),
-    authorization VARCHAR(255),
+    "authorization" VARCHAR(255),
     authorization_expires_at TIMESTAMPTZ,
     message VARCHAR(500),
     error_code VARCHAR(100),

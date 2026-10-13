@@ -2,8 +2,8 @@ import { getArtistsWithMetadata } from '@/lib/supabase/queries';
 import { ArtistsPageClient } from '@/features/artist/ArtistsPageClient';
 
 export const metadata = {
-  title: 'Artists — Concert Merchandise for 50+ Artists',
-  description: 'Browse concert merchandise for 50+ artists performing in India. Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, AP Dhillon, Linkin Park & more.',
+  title: 'Artists — Concert Merchandise for 65+ Artists',
+  description: 'Browse concert merchandise for 65+ artists performing in India. Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, AP Dhillon, Linkin Park & more.',
   alternates: { canonical: '/artists' },
 };
 

@@ -27,7 +27,8 @@ const NAMED_ENTITIES: Record<string, string> = {
   Tab: '\t',
   excl: '!',
   quest: '?',
- lpar: '(',  rpar: ')',
+  lpar: '(',
+  rpar: ')',
   period: '.',
   midast: '*',
   lowbar: '_',
@@ -156,19 +157,21 @@ const NAMED_ENTITIES: Record<string, string> = {
   sect: '§',
   para: '¶',
   middot: '·',
- uml: '¨',
+  uml: '¨',
   ordf: 'ª',
   ordm: 'º',
   deg: '°',
   plusmn: '±',
   micro: 'µ',
- ETH: 'Ð',
+  ETH: 'Ð',
   eth: 'ð',
 };
 
 function decodeEntitiesOnce(html: string): string {
   return html
-    .replace(/&#x([0-9a-fA-F]+);?/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    // `&#X6a;` is as valid to the browser as `&#x6a;` (the HTML spec accepts
+    // both cases), so a lowercase-only `x` left `&#X6a;avascript:` clickable.
+    .replace(/&#[xX]([0-9a-fA-F]+);?/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
     .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
     .replace(/&([a-zA-Z][a-zA-Z0-9]+);?/g, (m, name: string) => {
       // Case-sensitive first (spec behavior), then case-insensitive so
@@ -185,14 +188,40 @@ function decodeEntitiesOnce(html: string): string {
 }
 
 function decodeEntities(html: string): string {
+  // Loop to a fixpoint instead of a fixed pass count. A fixed cap is a bypass:
+  // five nested `&amp;` layers around `&colon;` need six passes, so the old
+  // five-pass loop left `href="javascript&colon;alert(1)"` standing — no
+  // literal colon for the scheme check to see, but the browser decodes it
+  // before navigating. The loop always terminates: every entity expands to
+  // fewer characters than its source, so any pass that changes the string
+  // strictly shrinks it.
   let out = html;
-  for (let i = 0; i < 5; i += 1) {
+  for (;;) {
     const next = decodeEntitiesOnce(out);
     if (next === out) return out;
     out = next;
   }
-  return out;
 }
+
+/**
+ * Script-capable / embed-capable elements, dropped with their content.
+ *
+ * `svg` and `math` are on the list because they are foreign-content containers
+ * that carry their own event attributes (`<svg/onload=…>` fires on insertion,
+ * with no user interaction) and enable the mXSS `<math><mtext><style>`
+ * re-parse trick. One list, three compiled patterns, so they cannot drift:
+ * paired element with its content, leftover open/self-closing tag, and a stray
+ * closing tag whose open tag is not in this string.
+ */
+const STRIPPED_ELEMENTS =
+  'script|style|iframe|object|embed|link|meta|base|form|noscript|template|svg|math';
+const STRIPPED_WITH_CONTENT = new RegExp(
+  `<\\s*(${STRIPPED_ELEMENTS})[^>]*>[\\s\\S]*?<\\s*/\\s*\\1\\s*>`,
+  'gi',
+);
+const STRIPPED_TAGS = new RegExp(`<\\s*(${STRIPPED_ELEMENTS})[^>]*>`, 'gi');
+const STRIPPED_END_TAGS = new RegExp(`<\\s*/\\s*(${STRIPPED_ELEMENTS})\\s*>`, 'gi');
+
 /**
  * Sanitize admin-authored HTML before it is stored.
  *
@@ -201,37 +230,54 @@ function decodeEntities(html: string): string {
  * they must not carry script/style/embedded content, event-handler attributes,
  * or `javascript:`-family URLs.
  *
+ * Twin of the storefront's `frontend/src/lib/sanitize.ts`: same decoder, same
+ * three strippers, deliberately duplicated because the admin cannot import from
+ * the storefront. Keep them in step — the storefront previously missed the
+ * fixpoint entity decode added here, which is exactly how
+ * `href="javascript&colon;alert(1)"` stayed live on the storefront.
+ *
  * Dependency-free on purpose: isomorphic-dompurify pulls jsdom+undici, which
  * breaks vitest on Node 20 (undici needs `worker_threads.markAsUncloneable`,
  * added in Node 22). Same approach as the storefront's sanitizeHtml.
  */
 export function sanitizeHtml(html: string | null | undefined): string {
   if (!html) return '';
-  // Decode numeric/element entities first so encoded payloads cannot slip past.
-  let out = decodeEntities(String(html));
-  // Drop dangerous elements with their content, then any leftover open tags.
-  out = out.replace(
-    /<\s*(script|style|iframe|object|embed|link|meta|base|form|noscript|template)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
-    '',
-  );
-  out = out.replace(
-    /<\s*(script|style|iframe|object|embed|link|meta|base|form|noscript|template)[^>]*\/?\s*>/gi,
-    '',
-  );
-  // Strip event-handler attributes (onclick=, onerror=, ...), quoted or not.
-  out = out.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Neutralize javascript:/data:/vbscript: and friends in URL attributes.
-  out = out.replace(
-    /\s(href|src|xlink:href|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
-    (m, attr: string, val: string) => {
-      const raw = String(val)
-        .replace(/^['"]|['"]$/g, '')
-        .replace(/[\s\u0000-\u001F]+/g, '')
-        .toLowerCase();
-      if (/^(javascript|data|vbscript|file|blob):/.test(raw)) return ` ${attr}="#"`;
-      return m;
-    },
-  );
+  // Every pass runs again until the output stops changing. One pass is a
+  // bypass: removing an inner tag rejoins the text around it, so
+  // `<ifr<script>ame srcdoc=…>` becomes a live `<iframe>` after a single
+  // sweep. Each pass that changes the string shrinks it, so the loop ends.
+  let out = String(html);
+  let prev: string;
+  do {
+    prev = out;
+    out = decodeEntities(out);
+    // Drop dangerous elements with their content, then any leftover open or
+    // closing tags.
+    out = out.replace(STRIPPED_WITH_CONTENT, '');
+    out = out.replace(STRIPPED_TAGS, '');
+    out = out.replace(STRIPPED_END_TAGS, '');
+    // Strip event-handler attributes (onclick=, onerror=, ...), quoted or not.
+    // An attribute can follow whitespace, a `/` (`<svg/onload=…>`), a quote (the
+    // previous attribute's closing quote) or the start of the input — requiring
+    // `\s+` here is how `<svg/onload=…>` got through. The prefix character is
+    // captured and put back so the match cannot eat the quote that opens or
+    // closes a neighbouring attribute.
+    out = out.replace(/(^|[\s/"'])(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '$1');
+    // Neutralize javascript:/data:/vbscript: and friends in URL attributes. Same
+    // prefix rule as the event handlers: `<a/href="javascript:…">` is a real
+    // attribute to the browser, and a bare `\s` missed it.
+    out = out.replace(
+      /(^|[\s/"'])(href|src|xlink:href|action|formaction)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
+      (m, prefix: string, attr: string, val: string) => {
+        const raw = String(val)
+          .replace(/^['"]|['"]$/g, '')
+          .replace(/[\s\u0000-\u001F]+/g, '')
+          .toLowerCase();
+        if (/^(javascript|data|vbscript|file|blob):/.test(raw)) return `${prefix}${attr}="#"`;
+        return m;
+      },
+    );
+  } while (out !== prev);
   return out;
 }
 

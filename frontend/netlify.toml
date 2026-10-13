@@ -16,11 +16,9 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Cache images for 1 month
-[[headers]]
-  for = "/_next/image*"
-  [headers.values]
-    Cache-Control = "public, max-age=2592000, stale-while-revalidate=86400"
+# Note: there is deliberately no `/_next/image*` rule. The custom loader
+# (`src/lib/media-loader.ts`) serves every image straight from Cloudflare R2, so
+# that optimizer path is never requested and its caching belongs to R2.
 
 # Cache font files for 1 year
 [[headers]]
@@ -32,3 +30,22 @@
   for = "*.woff"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# ── Security headers ─────────────────────────────────────────────────────────
+# Netlify already sends HSTS + X-Content-Type-Options platform-wide; the rest
+# are ours. The CSP ships report-only first: the storefront's HTML is ISR-cached
+# and carries inline bootstrap scripts, so a nonce-based policy would force
+# per-request rendering. Report-only lets us collect violations (Razorpay,
+# PostHog, GA) before enforcing. Mirror any change here in `next.config.ts`
+# `headers()` (Cloudflare Workers) and `public/_headers` (static assets).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # `same-origin` would sever window.opener for Razorpay's popup bank/UPI flows.
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(self)"
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://media.yordindia.com https://*.r2.dev https://cdn.shopify.com https://www.google-analytics.com https://www.googletagmanager.com https://checkout.razorpay.com https://cdn.razorpay.com https://rojruflnuhclvkhipjxs.supabase.co; font-src 'self' data:; connect-src 'self' https://rojruflnuhclvkhipjxs.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://api.razorpay.com https://lumberjack.razorpay.com https://www.google-analytics.com https://*.analytics.google.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"

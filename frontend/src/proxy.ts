@@ -1,12 +1,33 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { conceptsEnabled } from '@/features/concepts/gate';
 
 export async function proxy(request: NextRequest) {
-  // Supabase unconfigured (no URL/anon key): there is no session to refresh and
-  // no user to redirect on, so skip auth entirely instead of constructing a
-  // client that would throw. Reads degrade via lib/result.ts as they do in RSC.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // Design concepts are dev-only unless NEXT_PUBLIC_SHOW_CONCEPTS=1. A layout
+  // notFound() would stream a 200 under (main)/loading.tsx, so answer a real
+  // 404 here by rewriting to a path that does not exist.
+  if (!conceptsEnabled && request.nextUrl.pathname.startsWith('/concepts')) {
+    return NextResponse.rewrite(new URL('/concepts-disabled', request.url));
+  }
+
+  // Protected routes - redirect to login if not authenticated
+  const protectedPaths = ['/account'];
+  const isProtectedPath = protectedPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+  const loginRedirect = () => {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
+    return NextResponse.redirect(loginUrl);
+  };
+
+  // Supabase unconfigured (no URL/publishable key): there is no session to
+  // refresh, so skip the client instead of constructing one that would throw.
+  // Public reads degrade via lib/result.ts as they do in RSC; protected paths
+  // fail closed, since no user can be proven.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     console.warn('[proxy] Supabase env not set — skipping session refresh.');
+    if (isProtectedPath) return loginRedirect();
     return NextResponse.next({ request });
   }
 
@@ -16,7 +37,7 @@ export async function proxy(request: NextRequest) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
@@ -42,17 +63,7 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ['/account'];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-
-  if (isProtectedPath && !user) {
-    const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  if (isProtectedPath && !user) return loginRedirect();
 
   // Redirect authenticated users away from auth pages
   const authPaths = ['/auth/login', '/auth/register'];

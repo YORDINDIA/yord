@@ -13,15 +13,15 @@ const PLACEHOLDER_KEY = 'build-without-backend';
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) {
     console.warn(
-      '[supabase] createClient: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY ' +
+      '[supabase] createClient: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ' +
         'not set — using a placeholder endpoint.',
     );
     return createBrowserClient<Database>(PLACEHOLDER_URL, PLACEHOLDER_KEY);
   }
-  return createBrowserClient<Database>(url, anonKey);
+  return createBrowserClient<Database>(url, publishableKey);
 }
 
 // Singleton instance for client-side usage

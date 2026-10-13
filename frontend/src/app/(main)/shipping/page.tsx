@@ -1,229 +1,128 @@
-import Link from 'next/link';
-import { Truck, Package, Clock, MapPin, Shield, RefreshCw } from 'lucide-react';
+import { Clock, Package, Shield, Truck } from 'lucide-react';
+import { PolicyPage, type PolicySection } from '../_policy/PolicyPage';
 
 export const metadata = {
-  title: 'Shipping Information | YORD India',
-  description: 'Learn about our shipping policies, delivery times, and shipping rates for orders across India.',
+  title: 'Shipping Information',
+  description:
+    'Delivery times and how shipping works across India — free on every order, with fast shipping above ₹1,999.',
+  alternates: { canonical: '/shipping' },
 };
+
+const HIGHLIGHTS = [
+  {
+    icon: Package,
+    title: 'FREE SHIPPING',
+    description: (
+      <>
+        Free on every order
+        <br />
+        <span className="text-accent">Fast free above ₹1,999</span>
+      </>
+    ),
+  },
+  {
+    icon: Clock,
+    title: 'FAST DELIVERY',
+    description: '3-7 business days across India',
+  },
+  {
+    icon: Shield,
+    title: 'SECURE PACKAGING',
+    description: 'Premium packaging for every order',
+  },
+];
+
+const SECTIONS: PolicySection[] = [
+  {
+    heading: 'Delivery Times',
+    blocks: [
+      {
+        kind: 'rows',
+        items: [
+          { label: 'Metro Cities (Mumbai, Delhi, Bangalore, etc.)', value: '3-5 BUSINESS DAYS' },
+          { label: 'Tier 2 Cities', value: '5-7 BUSINESS DAYS' },
+          { label: 'Other Locations', value: '7-10 BUSINESS DAYS' },
+          { label: 'Remote Areas', value: '10-14 BUSINESS DAYS' },
+        ],
+      },
+      {
+        kind: 'p',
+        text: '* Delivery times are estimates and may vary during peak seasons or due to unforeseen circumstances.',
+      },
+    ],
+  },
+  {
+    heading: 'Shipping Charges',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Shipping is free on every order. What the order value decides is speed, not price:',
+      },
+      {
+        kind: 'rows',
+        items: [
+          { label: 'Orders above ₹1,999', value: 'FREE Fast Shipping', tone: 'success' },
+          { label: 'Orders ₹1,999 and below', value: 'FREE Standard Shipping', tone: 'success' },
+        ],
+      },
+    ],
+  },
+  {
+    heading: 'Order Processing',
+    blocks: [
+      {
+        kind: 'p',
+        text: 'Orders placed before 2 PM IST on business days are typically processed and dispatched the same day. Orders placed after 2 PM or on weekends/holidays will be processed on the next business day.',
+      },
+      {
+        kind: 'p',
+        text: 'Once your order is shipped, you will receive an email with tracking information. You can also track your order by logging into your account.',
+      },
+    ],
+  },
+  {
+    heading: 'Our Delivery Partners',
+    blocks: [
+      {
+        kind: 'p',
+        text: "We partner with India's most reliable courier services to ensure your merchandise reaches you safely and on time:",
+      },
+      {
+        kind: 'list',
+        items: ['Delhivery', 'BlueDart', 'DTDC', 'India Post'],
+      },
+    ],
+  },
+  {
+    heading: 'Important Notes',
+    blocks: [
+      {
+        kind: 'list',
+        items: [
+          'Please ensure your shipping address and phone number are correct to avoid delivery delays.',
+          'Someone should be available at the delivery address to receive the package.',
+          'In case of failed delivery attempts, the package will be returned to our warehouse.',
+          'We currently do not offer Cash on Delivery (COD) option.',
+          'For any shipping-related queries, contact us at support@yordindia.com',
+        ],
+      },
+    ],
+  },
+];
 
 export default function ShippingPage() {
   return (
-    <div className="min-h-screen bg-surface-page">
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 lg:px-12">
-        <div className="max-w-[1440px] mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <Truck className="w-8 h-8 text-accent" />
-          </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
-            Shipping Information
-          </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-2xl mx-auto">
-            We deliver your favorite artist merchandise across India with care and speed.
-            Here&apos;s everything you need to know about our shipping process.
-          </p>
-        </div>
-      </section>
-
-      {/* Shipping Highlights */}
-      <section className="px-6 lg:px-12 pb-16">
-        <div className="max-w-[1440px] mx-auto">
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-surface-card border border-border-default p-8 text-center">
-              <Package className="w-10 h-10 text-accent mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
-                FREE SHIPPING
-              </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                Standard free above ₹999<br />
-                <span className="text-accent">Fast free above ₹1,999</span>
-              </p>
-            </div>
-            <div className="bg-surface-card border border-border-default p-8 text-center">
-              <Clock className="w-10 h-10 text-accent mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
-                FAST DELIVERY
-              </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                3-7 business days across India
-              </p>
-            </div>
-            <div className="bg-surface-card border border-border-default p-8 text-center">
-              <Shield className="w-10 h-10 text-accent mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
-                SECURE PACKAGING
-              </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                Premium packaging for every order
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Detailed Info */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto space-y-8">
-          {/* Delivery Times */}
-          <div className="bg-surface-card border border-border-default p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
-              DELIVERY TIMES
-            </h2>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Metro Cities (Mumbai, Delhi, Bangalore, etc.)
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-accent tracking-wider">
-                  3-5 BUSINESS DAYS
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Tier 2 Cities
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-accent tracking-wider">
-                  5-7 BUSINESS DAYS
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Other Locations
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-accent tracking-wider">
-                  7-10 BUSINESS DAYS
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-3">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Remote Areas
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-accent tracking-wider">
-                  10-14 BUSINESS DAYS
-                </span>
-              </div>
-            </div>
-            <p className="mt-6 font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-              * Delivery times are estimates and may vary during peak seasons or due to unforeseen circumstances.
-            </p>
-          </div>
-
-          {/* Shipping Rates */}
-          <div className="bg-surface-card border border-border-default p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
-              SHIPPING RATES
-            </h2>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Orders above ₹1,999
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-success tracking-wider">
-                  FREE Fast Shipping
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Orders ₹999 - ₹1,999
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-success tracking-wider">
-                  FREE Standard
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-border-default">
-                <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                  Orders below ₹999
-                </span>
-                <span className="font-[family-name:var(--font-bebas)] text-text-secondary tracking-wider">
-                  ₹49 Standard / ₹99 Fast
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Order Processing */}
-          <div className="bg-surface-card border border-border-default p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
-              ORDER PROCESSING
-            </h2>
-            <div className="space-y-4 font-[family-name:var(--font-jakarta)] text-text-muted text-sm leading-relaxed">
-              <p>
-                Orders placed before 2 PM IST on business days are typically processed and dispatched
-                the same day. Orders placed after 2 PM or on weekends/holidays will be processed on
-                the next business day.
-              </p>
-              <p>
-                Once your order is shipped, you will receive an email with tracking information.
-                You can also track your order by logging into your account.
-              </p>
-            </div>
-          </div>
-
-          {/* Delivery Partners */}
-          <div className="bg-surface-card border border-border-default p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
-              OUR DELIVERY PARTNERS
-            </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted text-sm leading-relaxed mb-4">
-              We partner with India&apos;s most reliable courier services to ensure your merchandise
-              reaches you safely and on time:
-            </p>
-            <ul className="grid grid-cols-2 gap-4">
-              {['Delhivery', 'BlueDart', 'DTDC', 'India Post'].map((partner) => (
-                <li key={partner} className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-accent" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-text-muted">
-                    {partner}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Important Notes */}
-          <div className="bg-surface-card border border-border-default p-8">
-            <h2 className="font-[family-name:var(--font-bebas)] text-xl tracking-wider text-text-secondary mb-6">
-              IMPORTANT NOTES
-            </h2>
-            <ul className="space-y-3">
-              {[
-                'Please ensure your shipping address and phone number are correct to avoid delivery delays.',
-                'Someone should be available at the delivery address to receive the package.',
-                'In case of failed delivery attempts, the package will be returned to our warehouse.',
-                'We currently do not offer Cash on Delivery (COD) option.',
-                'For any shipping-related queries, contact us at support@yordindia.com',
-              ].map((note, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <RefreshCw className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-                  <span className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                    {note}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* Contact CTA */}
-      <section className="px-6 lg:px-12 pb-24">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-surface-card border border-border-default p-12 text-center">
-            <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-4">
-              Have shipping questions?
-            </h2>
-            <p className="font-[family-name:var(--font-jakarta)] text-text-muted mb-6">
-              Our support team is happy to help with any shipping-related inquiries.
-            </p>
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-            >
-              CONTACT SUPPORT
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+    <PolicyPage
+      icon={Truck}
+      title="Shipping Information"
+      description="We deliver your favorite artist merchandise across India with care and speed. Here's everything you need to know about our shipping process."
+      highlights={HIGHLIGHTS}
+      sections={SECTIONS}
+      cta={{
+        title: 'Have shipping questions?',
+        description: 'Our support team is happy to help with any shipping-related inquiries.',
+        actions: [{ label: 'CONTACT SUPPORT', href: '/contact' }],
+      }}
+    />
   );
 }

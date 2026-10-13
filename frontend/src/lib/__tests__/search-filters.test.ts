@@ -8,6 +8,28 @@ describe('sanitizeOrPattern', () => {
     expect(sanitizeOrPattern('a"b\\c%d_e')).toBe('a\\"b\\\\c\\%d\\_e');
     expect(sanitizeOrPattern('x'.repeat(200)).length).toBe(100);
   });
+
+  it('caps the raw input before escaping, so no escape pair is ever split', () => {
+    // Regression: the cap used to run AFTER escaping, so a 100-char input
+    // ending in a backslash kept only one of its two escaped backslashes. That
+    // lone backslash then escaped the `%` appended by buildSearchOrFilter, so
+    // the trailing wildcard was lost and the query matched nothing.
+    const trailingBackslash = 'a'.repeat(99) + '\\';
+    const escaped = 'a'.repeat(99) + '\\\\';
+    expect(sanitizeOrPattern(trailingBackslash)).toBe(escaped);
+    expect(buildSearchOrFilter(trailingBackslash)).toBe(
+      `title.ilike."%${escaped}%",vendor.ilike."%${escaped}%",tags.ilike."%${escaped}%"`
+    );
+    // The appended wildcard survives: the value ends `\\%"`, not `\%"`.
+    expect(buildSearchOrFilter(trailingBackslash).endsWith('\\\\%"')).toBe(true);
+
+    // 99 chars + two backslashes is 101 raw chars: the cap drops one whole
+    // backslash, and the escaped output still ends with a complete pair.
+    expect(sanitizeOrPattern('b'.repeat(99) + '\\\\')).toBe('b'.repeat(99) + '\\\\');
+    // A backslash past the raw cap disappears entirely rather than leaving a
+    // dangling escape at the cut.
+    expect(sanitizeOrPattern('c'.repeat(150) + '\\')).toBe('c'.repeat(100));
+  });
 });
 
 describe('buildSearchOrFilter', () => {

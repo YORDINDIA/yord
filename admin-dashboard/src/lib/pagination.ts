@@ -35,14 +35,37 @@ export function pageRange(
 /**
  * Build a search term safe to interpolate into a PostgREST `.or()` filter.
  *
- * `%`, `(`, `)`, `,` and `"` are the characters PostgREST uses as filter
- * syntax. Stripping them keeps a hostile query string from changing the shape
- * of the filter, then clamp the length so a 10k-character query cannot become
- * a slow query.
+ * Shared by every admin list search — products, orders, customers, blogs,
+ * media, discounts, settings, inventory, collections and the global search —
+ * so what it does to each character is the contract for all of them.
+ *
+ * Three groups:
+ *
+ *  - `(`, `)`, `,`, `"` are PostgREST filter syntax and `*` is PostgREST's
+ *    alias for `%`. Stripped, because the callers interpolate the term
+ *    unquoted into `.or("col.ilike.%term%")` and a hostile query string must
+ *    not be able to reshape the filter or act as a wildcard.
+ *  - `%` and `_` are PostgreSQL LIKE wildcards. They are escaped with a
+ *    backslash (LIKE's escape character) instead of deleted, so a literal
+ *    search for `t_shirt` still matches a stored `t_shirt` — deleting them
+ *    turned `t_shirt` into `tshirt`, which can never match its own title.
+ *    PostgREST passes the pattern through to PostgreSQL as a parameter, so
+ *    the backslash escapes survive the trip.
+ *  - `\` is the LIKE escape character itself, so it is doubled first; doing
+ *    it first is what keeps a typed backslash literal instead of an escape.
+ *
+ * The length is clamped before escaping so a 10k-character query cannot
+ * become a slow query; escaping at most doubles the clamped length.
  */
 export function sanitizeSearch(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.replace(/[%(),"]/g, '').trim().slice(0, MAX_SEARCH_LENGTH);
+  const stripped = value
+    .replace(/[(),"*]/g, '')
+    .trim()
+    .slice(0, MAX_SEARCH_LENGTH);
+  // Escape order matters: the escape character itself first, then the
+  // wildcards it protects.
+  return stripped.replace(/\\/g, '\\\\').replace(/[%_]/g, (char) => `\\${char}`);
 }
 
 /**

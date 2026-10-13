@@ -5,7 +5,7 @@ Luxury concert-fashion e-commerce monorepo (Coldplay, Taylor Swift, Diljit Dosan
 ## Layout
 
 - `frontend/` — customer storefront (Next.js 16 App Router, React 19, TypeScript). See `frontend/README.md`.
-- `admin-dashboard/` — admin panel (Next.js 16, direct Supabase CRUD, OpenAI + Razorpay refunds). See `admin-dashboard/README.md`. Full spec in `admin-dashboard/docs/`.
+- `admin-dashboard/` — admin panel (Next.js 16, direct Supabase CRUD, Agnes AI + Razorpay refunds). See `admin-dashboard/README.md`. Full spec in `admin-dashboard/docs/`.
 - `scripts/` — Python Shopify → Supabase migration and audit tooling. See `scripts/README.md`.
 - `AGENTS.md` — agent working guide (commands, architecture, env vars).
 
@@ -54,6 +54,7 @@ pip install -r ../requirements.txt # migration deps (first time only)
 
 ## Docs
 
+- `docs/deploy.md` — deploying both apps (Cloudflare R2 + Supabase + Netlify, migration order, verification)
 - `AGENTS.md` — commands, architecture, env reference
 - `frontend/CLAUDE.md` — storefront architecture and design system
 - `scripts/README.md` — migration order and script reference

@@ -5,9 +5,9 @@ import { logDbError } from '@/lib/logger';
 
 function getClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) return null;
-  return { supabase: createClient(url, serviceKey) };
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !secretKey) return null;
+  return { supabase: createClient(url, secretKey) };
 }
 
 export async function POST(request: NextRequest) {

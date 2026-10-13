@@ -1,14 +1,22 @@
 'use client';
 
-import { useRef } from 'react';
+import { Fragment, useRef } from 'react';
 import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ChevronDown, ArrowLeft, Disc3 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Disc3 } from 'lucide-react';
+import { Reveal } from '@/features/ui/Reveal';
 import type { ArtistData } from '@yord/db-types';
 
 interface ArtistHeroProps {
   artist: ArtistData;
 }
+
+/** Decorative counters. Rendered from one list rather than three copies. */
+const STATS = [
+  { value: '50+', label: 'PRODUCTS' },
+  { value: '10K+', label: 'FANS' },
+  { value: '5★', label: 'RATING' },
+];
 
 export function ArtistHero({ artist }: ArtistHeroProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -25,7 +33,9 @@ export function ArtistHero({ artist }: ArtistHeroProps) {
   // Artist brand colours are used for decorative fills, orbs and the CTA
   // surface. They are deliberately NOT used for readable text: a brand yellow
   // reaches only ~1.6:1 on the light page. Readable copy uses --accent.
-  const accent = artist.accentColor || 'var(--accent)';
+  // The fallback is the theme-invariant on-media gold, not `--accent`: this
+  // surface is dark in both themes, and `--accent` is bronze in light mode.
+  const accent = artist.accentColor || 'var(--accent-on-media)';
   const secondary = artist.secondaryColor || '#1C1C1C';
 
   return (
@@ -69,21 +79,17 @@ export function ArtistHero({ artist }: ArtistHeroProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-scrim/40 via-scrim/30 to-surface-page" />
       </motion.div>
 
-      {/* Back Link */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="absolute top-24 left-6 lg:left-12 z-30"
-      >
+      {/* Back Link — to /artists, matching the page's breadcrumb hierarchy
+          (Home > Artists > this artist) rather than dropping to the homepage. */}
+      <Reveal delay={0.1} y={-10} className="absolute top-24 left-6 lg:left-12 z-30">
         <Link
-          href="/"
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-on-media-muted hover:text-accent-on-media transition-colors group"
+          href="/artists"
+          className="inline-flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-on-media-muted hover:text-accent-on-media transition-colors group"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          BACK TO HOME
+          ALL ARTISTS
         </Link>
-      </motion.div>
+      </Reveal>
 
       {/* Content - Grid Layout to prevent overlap */}
       <motion.div
@@ -93,133 +99,107 @@ export function ArtistHero({ artist }: ArtistHeroProps) {
         {/* Zone 1: Main Content - vertically centered */}
         <div className="flex flex-col items-center justify-center text-center px-6 pt-24">
           {/* Artist Icon */}
-          <motion.div
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, type: 'spring' }}
-            className="mb-8"
-          >
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center border-2"
-              style={{
-                borderColor: accent,
-                background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 13%, transparent), color-mix(in srgb, ${secondary} 13%, transparent))`,
-              }}
-            >
-              <Disc3 size={32} style={{ color: accent }} />
-            </div>
-          </motion.div>
-
-          {/* Artist Name */}
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="font-[family-name:var(--font-playfair)] text-6xl sm:text-7xl md:text-8xl lg:text-9xl text-text-on-media mb-4"
-          >
-            {artist.name}
-          </motion.h1>
-
-          {/* Tagline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-            className="font-[family-name:var(--font-bebas)] text-lg tracking-[0.3em] mb-8"
-            style={{ color: 'var(--accent-on-media)' }}
-          >
-            {(artist.tagline || 'Fan Collection').toUpperCase()}
-          </motion.p>
-
-          {/* Accent Line */}
-          <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="w-24 h-0.5 mb-8"
-            style={{ backgroundColor: accent }}
-          />
-
-          {/* Bio */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.9 }}
-            className="font-[family-name:var(--font-cormorant)] text-xl md:text-2xl text-text-on-media-muted max-w-3xl mb-12"
-          >
-            {artist.bio || `Shop exclusive ${artist.name} merchandise.`}
-          </motion.p>
-
-          {/* CTA Button */}
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 1.1 }}
-            className="group relative overflow-hidden px-10 py-4 font-[family-name:var(--font-bebas)] text-sm tracking-[0.2em] text-text-on-brand transition-all duration-300"
-            style={{ backgroundColor: accent }}
-            onClick={() => {
-              document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center border-2 mb-8"
+            style={{
+              borderColor: accent,
+              background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 13%, transparent), color-mix(in srgb, ${secondary} 13%, transparent))`,
             }}
           >
-            <span className="relative z-10">SHOP THE COLLECTION</span>
-            <div
-              className="absolute inset-0 -translate-x-full group-hover:translate-x-0 transition-transform duration-300"
-              style={{ backgroundColor: 'var(--brand-veil)' }}
-            />
-          </motion.button>
+            <Disc3 size={32} style={{ color: accent }} />
+          </div>
+
+          {/* Artist Name */}
+          <Reveal delay={0.1} className="max-w-full">
+            {/* `break-words`: the display face changed from Cormorant to
+                Playfair, which is wider, and a long artist name at 9xl would
+                otherwise run past the viewport. */}
+            <h1 className="font-display text-6xl sm:text-7xl md:text-8xl lg:text-9xl text-text-on-media mb-4 break-words">
+              {artist.name}
+            </h1>
+          </Reveal>
+
+          {/* Tagline */}
+          <Reveal delay={0.15}>
+            <p
+              className="font-accent text-lg tracking-[0.3em] mb-8"
+              style={{ color: 'var(--accent-on-media)' }}
+            >
+              {(artist.tagline || 'Fan Collection').toUpperCase()}
+            </p>
+          </Reveal>
+
+          {/* Accent Line */}
+          <div className="w-24 h-0.5 mb-8" style={{ backgroundColor: accent }} />
+
+          {/* Bio */}
+          <Reveal delay={0.2} className="max-w-3xl">
+            <p className="font-heading text-xl md:text-2xl text-text-on-media-muted mb-12">
+              {artist.bio || `Shop exclusive ${artist.name} merchandise.`}
+            </p>
+          </Reveal>
+
+          {/* CTA Button — a brand-filled surface, which the shared Button
+              variants cannot express (they own their own background), so it
+              keeps its own recipe and the dark brand ink. */}
+          <Reveal delay={0.25}>
+            <button
+              type="button"
+              className="group relative overflow-hidden px-10 py-4 font-accent text-sm tracking-[0.2em] text-text-on-brand transition-colors duration-300"
+              style={{ backgroundColor: accent }}
+              onClick={() => {
+                document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <span className="relative z-10">SHOP THE COLLECTION</span>
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 -translate-x-full group-hover:translate-x-0 transition-transform duration-300"
+                style={{ backgroundColor: 'var(--brand-veil)' }}
+              />
+            </button>
+          </Reveal>
         </div>
 
         {/* Zone 2: Stats Bar with Premium Styling */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.3 }}
-          className="flex justify-center py-6 px-6"
-        >
+        <Reveal delay={0.3} className="flex justify-center py-6 px-6">
           <div className="relative max-w-md w-full stats-premium-border">
             <div className="glass py-5 px-8 flex items-center justify-center gap-8">
-              <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl group-hover:scale-105 transition-transform" style={{ color: 'var(--accent-on-media)' }}>
-                  50+
-                </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">PRODUCTS</p>
-              </div>
-              <div className="gradient-divider" />
-              <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl group-hover:scale-105 transition-transform" style={{ color: 'var(--accent-on-media)' }}>
-                  10K+
-                </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">FANS</p>
-              </div>
-              <div className="gradient-divider" />
-              <div className="text-center group cursor-default">
-                <p className="font-[family-name:var(--font-playfair)] text-2xl group-hover:scale-105 transition-transform" style={{ color: 'var(--accent-on-media)' }}>
-                  5★
-                </p>
-                <p className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">RATING</p>
-              </div>
+              {STATS.map((stat, index) => (
+                <Fragment key={stat.label}>
+                  {index > 0 && <div className="gradient-divider" />}
+                  <div className="text-center group cursor-default">
+                    <p
+                      className="font-display text-2xl group-hover:scale-105 transition-transform"
+                      style={{ color: 'var(--accent-on-media)' }}
+                    >
+                      {stat.value}
+                    </p>
+                    <p className="font-accent text-[10px] tracking-[0.2em] text-text-on-media-muted mt-1">
+                      {stat.label}
+                    </p>
+                  </div>
+                </Fragment>
+              ))}
             </div>
           </div>
-        </motion.div>
+        </Reveal>
 
-        {/* Zone 3: Scroll Indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-          className="flex justify-center pb-8"
-        >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="flex flex-col items-center gap-2 text-text-on-media-muted scroll-indicator-line cursor-pointer group"
-          >
-            <span className="font-[family-name:var(--font-bebas)] text-[10px] tracking-[0.2em] group-hover:text-accent-on-media transition-colors">
+        {/* Zone 3: Scroll Indicator — decorative; the hero CTA above is the
+            control, so this is not a second button with the same action. */}
+        <div className="flex justify-center pb-8">
+          <div className="flex flex-col items-center gap-2 text-text-on-media-muted scroll-indicator-line group">
+            <span className="font-accent text-[10px] tracking-[0.2em] group-hover:text-accent-on-media transition-colors">
               SCROLL TO SHOP
             </span>
-            <ChevronDown size={20} className="group-hover:text-accent-on-media transition-colors" />
-          </motion.div>
-        </motion.div>
+            {/* CSS bounce rather than a JS loop, so `motion-reduce` can stop it
+                without a media-query branch that disagrees with the server. */}
+            <ChevronDown
+              size={20}
+              className="animate-bounce motion-reduce:animate-none group-hover:text-accent-on-media transition-colors"
+            />
+          </div>
+        </div>
       </motion.div>
     </section>
   );

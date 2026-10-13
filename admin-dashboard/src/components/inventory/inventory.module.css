@@ -1,0 +1,170 @@
+/* Inventory page density.
+ *
+ * globals.css owns the table (30px header, 34px rows), the buttons, and the
+ * tone utilities. What cannot live there — because this page is the only
+ * consumer — is the compact per-row quantity stepper, the tone-coded stock
+ * cell, and the product-group divider.
+ *
+ * Token names only (no raw hex), so both themes resolve through globals.css.
+ */
+
+/* ── Per-row stepper ──────────────────────────────────────────────────────── */
+
+/* 28px on desktop (buttons 24px, input 24px) inside the 34px dense row; the
+   mobile block at the bottom grows the whole control to 34px, matching the
+   `.input`/`.button` growth in globals.css. */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+
+.step,
+.save {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.step:hover:not(:disabled),
+.save:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-active);
+  color: var(--text-strong);
+}
+
+.step:disabled,
+.save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save {
+  border-color: transparent;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* A clean row keeps the slot. `visibility` (not `display`) is what holds the
+   row at a constant height, and a hidden element is not focusable, so the
+   keyboard order is unchanged until there is something to save. */
+.save[data-dirty="false"] {
+  visibility: hidden;
+}
+
+.qty {
+  width: 48px;
+  height: 24px;
+  padding: 0 2px;
+  text-align: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-inset);
+  color: var(--text-strong);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* The native spinner is 15px of a 48px field and pushes the digits off-centre. */
+.qty::-webkit-inner-spin-button,
+.qty::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qty:hover {
+  border-color: var(--border-strong);
+}
+
+.step:focus-visible,
+.save:focus-visible,
+.qty:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
+}
+
+/* Failed save: a glyph in the row (the message itself arrives as a toast and
+   as the screen-reader text below it) so a 34px row never grows a text line. */
+.errorGlyph {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--tone-rose);
+}
+
+/* ── Stock cell ───────────────────────────────────────────────────────────── */
+
+.stockCell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+/* Fixed width: the meter is the one element that cannot size itself. */
+.stockBar {
+  display: block;
+  width: 84px;
+}
+
+.variant {
+  display: inline-block;
+  max-width: 150px;
+  vertical-align: middle;
+}
+
+/* Long titles/SKUs are what silently turn a dense table into a horizontal
+   scroller: the cells cap their width and ellipsize instead of measuring the
+   longest row in the catalog. */
+.product {
+  max-width: 220px;
+}
+
+.sku {
+  display: inline-block;
+  max-width: 130px;
+  vertical-align: middle;
+}
+
+/* ── Product grouping ─────────────────────────────────────────────────────── */
+
+/* Weaker than a border (which would double up against the row above) but
+   visible: the first row of each product run gets a stronger top hairline, so
+   grouped variants read as one block. Inset shadow, so no row moves. */
+.groupStart td {
+  box-shadow: inset 0 1px 0 var(--border-strong);
+}
+
+/* Touch targets follow globals.css at this breakpoint (`button` and `.input`
+   are 34px below 768px), so the control stays 34px tall here while the row
+   itself grows to the mobile 40px minimum plus padding. */
+@media (max-width: 767px) {
+  .stepper {
+    height: 34px;
+    gap: 3px;
+  }
+
+  .step,
+  .save {
+    width: 34px;
+    height: 34px;
+  }
+
+  .qty {
+    width: 60px;
+    height: 34px;
+    font-size: 13px;
+  }
+}

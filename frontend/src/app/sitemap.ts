@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { createStaticClient } from '@/lib/supabase/server';
 import { isSupabaseUnconfigured } from '@/lib/result';
+import { logDbError } from '@/lib/logger';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES } from '@/lib/data/cities';
 
@@ -50,11 +51,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticPages, ...concertPages, ...cityPages];
   }
 
+  // The four reads below degrade to an empty section rather than failing the
+  // build (a catalog hiccup must not block a deploy), so a failure has to be
+  // LOUD here: the error is otherwise invisible, and the file ships hundreds of
+  // URLs short. Observed for real — a stale `.next/cache/fetch-cache` replayed
+  // empty product/collection responses and the built sitemap silently lost all
+  // 463 product and 34 collection URLs while keeping the 219 article ones.
+  const readFailure = (route: string, error: unknown) => {
+    if (error) logDbError(`sitemap:${route}`, error);
+  };
+
   // Product pages
-  const { data: products } = await supabase
+  const { data: products, error: productsError } = await supabase
     .from('products')
     .select('handle, updated_at')
-    .eq('status', 'active') as { data: { handle: string | null; updated_at: string }[] | null };
+    .eq('status', 'active') as {
+      data: { handle: string | null; updated_at: string }[] | null;
+      error: unknown;
+    };
+  readFailure('products', productsError);
 
   const productPages: MetadataRoute.Sitemap = (products || [])
     .filter((p) => p.handle)
@@ -66,10 +81,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
   // Collection pages
-  const { data: collections } = await supabase
+  const { data: collections, error: collectionsError } = await supabase
     .from('collections')
     .select('handle, updated_at')
-    .eq('published', true) as { data: { handle: string | null; updated_at: string }[] | null };
+    .eq('published', true) as {
+      data: { handle: string | null; updated_at: string }[] | null;
+      error: unknown;
+    };
+  readFailure('collections', collectionsError);
 
   const collectionPages: MetadataRoute.Sitemap = (collections || [])
     .filter((c) => c.handle)
@@ -81,10 +100,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
   // Artist pages (from collections that are artist collections)
-  const { data: artistCollections } = await supabase
+  const { data: artistCollections, error: artistCollectionsError } = await supabase
     .from('collections')
     .select('handle, updated_at')
-    .eq('published', true) as { data: { handle: string | null; updated_at: string }[] | null };
+    .eq('published', true) as {
+      data: { handle: string | null; updated_at: string }[] | null;
+      error: unknown;
+    };
+  readFailure('artist-collections', artistCollectionsError);
 
   const { ARTIST_COLLECTION_HANDLES } = await import('@yord/db-types');
   const artistHandleSet = new Set<string>(ARTIST_COLLECTION_HANDLES as unknown as string[]);
@@ -99,10 +122,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
   // Blog article pages
-  const { data: articles } = await supabase
+  const { data: articles, error: articlesError } = await supabase
     .from('articles')
     .select('handle, updated_at')
-    .eq('published', true) as { data: { handle: string | null; updated_at: string }[] | null };
+    .eq('published', true) as {
+      data: { handle: string | null; updated_at: string }[] | null;
+      error: unknown;
+    };
+  readFailure('articles', articlesError);
 
   const articlePages: MetadataRoute.Sitemap = (articles || [])
     .filter((a) => a.handle)

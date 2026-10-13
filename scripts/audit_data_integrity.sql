@@ -24,11 +24,11 @@ SELECT 'customer_addresses' as table_name,
        COUNT(*) FILTER (WHERE phone IS NULL OR phone = '') as missing_phone
 FROM customer_addresses;
 
--- 3. PRODUCT IMAGES - SUPABASE URL STATUS
+-- 3. PRODUCT IMAGES - STORAGE URL STATUS
 SELECT 'product_images' as table_name,
        COUNT(*) as total_records,
-       COUNT(*) FILTER (WHERE supabase_url IS NOT NULL AND supabase_url != '') as has_supabase_url,
-       COUNT(*) FILTER (WHERE supabase_url IS NULL OR supabase_url = '') as missing_supabase_url,
+       COUNT(*) FILTER (WHERE storage_url IS NOT NULL AND storage_url != '') as has_storage_url,
+       COUNT(*) FILTER (WHERE storage_url IS NULL OR storage_url = '') as missing_storage_url,
        COUNT(*) FILTER (WHERE src IS NULL OR src = '') as missing_src
 FROM product_images;
 

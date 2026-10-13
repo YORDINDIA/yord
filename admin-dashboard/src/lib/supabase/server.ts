@@ -11,15 +11,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type ServerClient = SupabaseClient<Database>;
 
 /**
- * Session-scoped client (anon key + SSR cookies). The caller's own session and
- * RLS apply, which is what middleware.ts and (admin)/layout.tsx rely on to
- * read their own `admin_users` row.
+ * Session-scoped client (publishable key + SSR cookies). The caller's own
+ * session and RLS apply, which is what middleware.ts and (admin)/layout.tsx
+ * rely on to read their own `admin_users` row.
  */
 export async function createServerClient(): Promise<ServerClient> {
   return createPkgServerClient<Database>();
 }
 
-// Service role client for admin operations (server-side only)
+// Secret-key client for admin operations (server-side only)
 export function createServiceClient(): ServerClient {
   return createPkgServiceClient<Database>();
 }

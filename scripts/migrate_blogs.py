@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from time import sleep
 from tqdm import tqdm
-from utils.config import resolve_supabase_url
+from utils.config import resolve_supabase_secret_key, resolve_supabase_url
 
 # Load environment variables
 load_dotenv()
@@ -42,7 +42,7 @@ SHOPIFY_BASE_URL = f"https://{STORE_NAME}.myshopify.com/admin/api/{API_VERSION}"
 # Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
 # see root .env.example)
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
 
 # Request configuration
 SHOPIFY_HEADERS = {
@@ -50,9 +50,10 @@ SHOPIFY_HEADERS = {
     'Content-Type': 'application/json'
 }
 
+# New-format keys (sb_secret_...) go on `apikey` only: they are not JWTs, so a
+# matching `Authorization: Bearer` header would be rejected downstream.
 SUPABASE_HEADERS = {
-    'apikey': SUPABASE_SERVICE_ROLE_KEY,
-    'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+    'apikey': SUPABASE_SECRET_KEY,
     'Content-Type': 'application/json',
     'Prefer': 'return=minimal'
 }
@@ -264,8 +265,8 @@ def run_blog_migration():
     if not SUPABASE_URL:
         logger.error("Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL environment variable (see root .env.example)")
         sys.exit(1)
-    if not SUPABASE_SERVICE_ROLE_KEY:
-        logger.error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable")
+    if not SUPABASE_SECRET_KEY:
+        logger.error("Missing SUPABASE_SECRET_KEY environment variable")
         sys.exit(1)
 
     logger.info(f"Store: {STORE_NAME}")

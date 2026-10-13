@@ -1,0 +1,296 @@
+/* Concept B, Halftone: foundation. A two-tone world: ink = the page surface, tone = the
+   accent. Every other colour here is a mix of those two, so the page follows
+   the site theme on its own. Stage panels (hero, story) stay dark in both
+   themes with the never-flipping on-media pair. */
+
+@property --r {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: -1px;
+}
+
+.ht {
+  --ht-c-ink: var(--surface-page);
+  --ht-c-wash: color-mix(in srgb, var(--accent) 8%, var(--surface-page));
+  --ht-c-stage: var(--scrim);
+  --ht-ink: var(--ht-c-ink);
+  --ht-tone: var(--accent);
+  --ht-soft-mix: 100%;
+  --ht-display: var(--font-boska), 'Iowan Old Style', Georgia, serif;
+  --ht-wide: var(--font-panchang), system-ui, sans-serif;
+  --ht-body: var(--font-jakarta), system-ui, sans-serif;
+  --ht-ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  background: var(--ht-ink);
+  color: var(--ht-tone);
+  font-family: var(--ht-body);
+  overflow-x: clip;
+}
+
+[data-theme='dark'] .ht {
+  --ht-soft-mix: 74%;
+}
+
+.ht-wash {
+  --ht-ink: var(--ht-c-wash);
+  background: var(--ht-ink);
+  color: var(--ht-tone);
+}
+
+.ht-stage {
+  --ht-ink: var(--ht-c-stage);
+  --ht-tone: var(--accent-on-media);
+  --ht-soft-mix: 74%;
+  background: var(--ht-ink);
+  color: var(--ht-tone);
+}
+
+/* Soft = readable secondary text; faint = decoration only, never text. */
+.ht,
+.ht-wash,
+.ht-stage {
+  --ht-soft: color-mix(in srgb, var(--ht-tone) var(--ht-soft-mix), var(--ht-ink));
+  --ht-faint: color-mix(in srgb, var(--ht-tone) 22%, var(--ht-ink));
+  --ht-deep: color-mix(in srgb, var(--ht-tone) 82%, #000);
+}
+
+/* Type -------------------------------------------------------------------- */
+
+.ht-display {
+  font-family: var(--ht-display);
+  font-weight: 300;
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  font-synthesis: none;
+}
+
+.ht-display em {
+  font-style: italic;
+}
+
+.ht-wide {
+  font-family: var(--ht-wide);
+  font-weight: 500;
+  font-size: 0.6875rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.ht-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4.2vw, 64px);
+}
+
+.ht-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  padding-block: 0.6em;
+  font: 600 0.9375rem/1 var(--ht-body);
+  color: var(--ht-tone);
+  transition: color 0.25s;
+}
+
+.ht-link:hover {
+  color: var(--ht-deep);
+}
+
+.ht-link:focus-visible {
+  outline: 2px solid var(--ht-tone);
+  outline-offset: 4px;
+}
+
+.ht-link__arrow {
+  font-size: 1.1em;
+  transition: transform 0.3s var(--ht-ease);
+}
+
+.ht-link:hover .ht-link__arrow {
+  transform: translate(3px, -3px);
+}
+
+/* Entrances: transform only, content is readable without them. ------------ */
+
+.ht-w {
+  display: inline-block;
+}
+
+[data-armed] .ht-w {
+  transform: translateY(min(0.42em, 36px));
+}
+
+[data-in] .ht-w {
+  animation: ht-word 0.95s var(--ht-ease) both;
+  animation-delay: calc(var(--i) * var(--step, 55ms));
+}
+
+@keyframes ht-word {
+  from {
+    transform: translateY(min(0.42em, 36px));
+  }
+  to {
+    transform: none;
+  }
+}
+
+.ht-w--em {
+  font-style: italic;
+}
+
+.ht-rise {
+  transition: transform 1s var(--ht-ease) var(--d, 0ms);
+}
+
+.ht-rise[data-armed] {
+  transform: translateY(40px);
+}
+
+.ht-rise[data-in] {
+  transform: none;
+}
+
+/* Dither image: canvas below, true photo above behind a radial lens mask. -- */
+
+.ht-dither {
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--ht-ink);
+  transition: --r 0.55s var(--ht-ease);
+}
+
+.ht-dither[data-resolved],
+a:focus-visible .ht-dither {
+  --r: 1800px;
+}
+
+.ht-dither[data-resolved] {
+  transition-duration: 1.2s;
+}
+
+.ht-dither__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.ht-dither__photo {
+  object-fit: cover;
+  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 var(--r), transparent calc(var(--r) + 1px));
+  mask-image: radial-gradient(circle at var(--mx) var(--my), #000 var(--r), transparent calc(var(--r) + 1px));
+}
+
+/* Tear: a full-width stippled handoff between two sections. ---------------- */
+
+.ht-tear {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: linear-gradient(var(--tear-a), var(--tear-b));
+}
+
+.ht-tear__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* Ring CTA ---------------------------------------------------------------- */
+
+.ht-ring {
+  --ring: 144px;
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--ring);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ht-tone) 60%, var(--ht-ink));
+  border-radius: 50%;
+  background: var(--ht-ink);
+  color: var(--ht-tone);
+  cursor: pointer;
+  transition:
+    background-color 0.35s,
+    color 0.35s,
+    border-color 0.35s;
+}
+
+.ht-ring:hover,
+.ht-ring:focus-visible {
+  border-color: var(--ht-tone);
+  background: var(--ht-tone);
+  color: var(--ht-ink);
+}
+
+.ht-ring:focus-visible {
+  outline: 2px solid var(--ht-tone);
+  outline-offset: 5px;
+}
+
+.ht-ring:disabled {
+  cursor: progress;
+}
+
+.ht-ring__text {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: ht-spin 38s linear infinite;
+}
+
+.ht-ring__text text {
+  fill: currentColor;
+  font-family: var(--ht-wide);
+  font-weight: 500;
+  font-size: 9.5px;
+}
+
+.ht-ring__core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--ring) * 0.21);
+  line-height: 1;
+}
+
+.ht-ring__arrow {
+  display: block;
+}
+
+@keyframes ht-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-armed] .ht-w,
+  [data-in] .ht-w {
+    transform: none;
+    animation: none;
+  }
+
+  .ht-rise,
+  .ht-rise[data-armed] {
+    transform: none;
+    transition: none;
+  }
+
+  .ht-ring__text {
+    animation: none;
+  }
+
+  .ht-dither {
+    transition: none;
+  }
+}

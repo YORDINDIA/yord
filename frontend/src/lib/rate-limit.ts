@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Best-effort in-memory rate limit for low-volume public forms.
 // (Resets on redeploy; use Redis/Upstash if abuse persists.)
@@ -30,10 +30,32 @@ export function isRateLimited(key: string, maxHits: number, windowMs: number): b
   return false;
 }
 
-export function clientIp(request: NextRequest): string {
+/**
+ * Client IP for rate-limit keys. `x-nf-client-connection-ip` is Netlify's
+ * authoritative peer address and cannot be set by the client, so it wins.
+ * `x-forwarded-for` is client-spoofable and is only a fallback for other
+ * hosts/local dev — and then its LAST entry is used, because a proxy appends
+ * the address it saw; the first entry is whatever the client sent.
+ *
+ * `cf-connecting-ip` would be authoritative on Cloudflare Workers, but it is
+ * client-supplied on the Netlify fallback path, so it is deliberately not
+ * trusted while both hosts are live; XFF-last (which Cloudflare appends) is
+ * the Workers-safe fallback. `x-real-ip` is not read: no host here sets it,
+ * so any value in it came from the client.
+ *
+ * Takes anything with a `.headers.get()` — a `NextRequest`, or `{ headers }`
+ * wrapping `await headers()` from next/headers (server actions).
+ */
+export function clientIp(request: { headers: { get(name: string): string | null } }): string {
+  const forwardedFor = request.headers
+    .get('x-forwarded-for')
+    ?.split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .pop();
   return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
+    request.headers.get('x-nf-client-connection-ip')?.trim() ||
+    forwardedFor ||
     'unknown'
   );
 }

@@ -3,11 +3,18 @@ import { createStaticClient } from '@/lib/supabase/server';
 import { buildSearchOrFilter } from '@/lib/search';
 import { PRODUCT_SELECT } from '@/lib/data/productsByIds';
 import { logDbError } from '@/lib/logger';
+import { isRateLimited, clientIp } from '@/lib/rate-limit';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+const RATE_LIMIT = 60;
+const RATE_WINDOW_MS = 60_000;
 
 export async function GET(request: NextRequest) {
+  if (isRateLimited(`search:${clientIp(request)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const rawQuery = searchParams.get('q') || '';
   const query = rawQuery.trim().slice(0, 100);
@@ -23,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Public catalog reads use the anon client (RLS applies); no service key needed.
-    // buildSearchOrFilter sanitizes user input (escaped quotes/wildcards, 100-char cap).
+    // buildSearchOrFilter escapes quotes/wildcards so the filter cannot break.
     const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('products')
@@ -35,12 +42,15 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       logDbError('search', error);
-      return NextResponse.json({ products: [] });
+      // A failed read is not "no matches": 502 keeps the search page's error
+      // state reachable (it treats any non-ok response as an error), so a
+      // Supabase outage cannot render "No products found".
+      return NextResponse.json({ error: 'Search unavailable' }, { status: 502 });
     }
 
     return NextResponse.json({ products: data || [] });
   } catch (error) {
     logDbError('search', error);
-    return NextResponse.json({ products: [] });
+    return NextResponse.json({ error: 'Search unavailable' }, { status: 502 });
   }
 }

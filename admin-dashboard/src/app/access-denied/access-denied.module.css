@@ -1,0 +1,65 @@
+/*
+ * Access-denied screen styles.
+ *
+ * This page renders outside the shell (no sidebar, no topbar): it serves a
+ * signed-in account that cannot read admin data, so it is one centred card.
+ * Layout only — the tile, chip and button vocabulary comes from globals.css,
+ * and every colour is a semantic token, which is what keeps it legible in both
+ * themes.
+ */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--surface-page);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 440px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.copy {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}

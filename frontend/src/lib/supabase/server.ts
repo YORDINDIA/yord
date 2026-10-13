@@ -22,7 +22,7 @@ import { cookies } from 'next/headers';
  * then fail through the normal `DatabaseError`/degrade paths — and
  * `queryOrThrow` short-circuits before any request is attempted — so
  * prerendered pages build with empty data instead of failing the build. The
- * service-role factory stays strict: a missing `SUPABASE_SERVICE_ROLE_KEY`
+ * secret-key factory stays strict: a missing `SUPABASE_SECRET_KEY`
  * in an API route must 500 loudly, never silently degrade.
  */
 
@@ -31,21 +31,30 @@ const PLACEHOLDER_KEY = 'build-without-backend';
 
 let warnedMissingEnv = false;
 
-function warnMissingEnv(factory: string): void {
-  if (!warnedMissingEnv) {
-    warnedMissingEnv = true;
-    console.warn(
-      `[supabase] ${factory}: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY ` +
-        'not set — using a placeholder endpoint. Reads will degrade to empty.',
-    );
-  }
+/**
+ * The fallback is reached for two different reasons — the env really is unset
+ * (a backend-less build), or the factory threw for another reason (the most
+ * common: `cookies()` outside a request scope while Next collects page data at
+ * build time). Reporting both as "env not set" sent readers after a phantom
+ * misconfiguration: the build logs four of these on a machine where the env is
+ * present and correct. Carry the cause.
+ */
+function warnFallback(factory: string, cause: unknown): void {
+  if (warnedMissingEnv) return;
+  warnedMissingEnv = true;
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  console.warn(
+    `[supabase] ${factory}: falling back to a placeholder endpoint (${reason}). ` +
+      'If NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are unset this is ' +
+      'expected and reads degrade to empty; otherwise the factory failed for the reason above.',
+  );
 }
 
 export async function createServerClient() {
   try {
     return await createPkgServerClient<Database>();
-  } catch {
-    warnMissingEnv('createServerClient');
+  } catch (error) {
+    warnFallback('createServerClient', error);
     const cookieStore = await cookies();
     return createServerSupabase<Database>(PLACEHOLDER_URL, PLACEHOLDER_KEY, {
       getAll: () => cookieStore.getAll(),
@@ -62,17 +71,17 @@ export async function createServerClient() {
   }
 }
 
-// Service role client for admin operations (server-side only)
+// Service-key client for admin operations (server-side only)
 export function createServiceClient() {
   return createPkgServiceClient<Database>();
 }
 
-// Anonymous client for static generation (no cookies required)
+// Publishable-key client for static generation (no cookies required)
 export function createStaticClient() {
   try {
     return createPkgStaticClient<Database>();
-  } catch {
-    warnMissingEnv('createStaticClient');
+  } catch (error) {
+    warnFallback('createStaticClient', error);
     return createStaticSupabase<Database>(PLACEHOLDER_URL, PLACEHOLDER_KEY);
   }
 }

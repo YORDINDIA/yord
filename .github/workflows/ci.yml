@@ -14,8 +14,8 @@ concurrency:
 # No secrets are required or referenced by any step.
 env:
   NEXT_PUBLIC_SUPABASE_URL: http://localhost
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key-for-ci
-  SUPABASE_SERVICE_ROLE_KEY: test-service-key-for-ci
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test-publishable-key-for-ci
+  SUPABASE_SECRET_KEY: test-secret-key-for-ci
   RAZORPAY_KEY_ID: test-key-id
   RAZORPAY_KEY_SECRET: test-key-secret
   NEXT_PUBLIC_RAZORPAY_KEY_ID: test-key-id
@@ -23,9 +23,16 @@ env:
   NEXT_PUBLIC_APP_NAME: YORD India
   NEXT_PUBLIC_POSTHOG_KEY: test-posthog-key
   NEXT_PUBLIC_POSTHOG_HOST: http://localhost
-  OPENAI_API_KEY: test-openai-key
-  OPENAI_TEXT_MODEL: test-model
-  OPENAI_IMAGE_MODEL: test-image-model
+  AGNES_AI_API_KEY: test-agnes-key
+  AGNES_TEXT_MODEL: test-model
+  AGNES_IMAGE_MODEL: test-image-model
+  # Read lazily by the media action and the AI image route; mocks keep any
+  # import-time read safe and let the admin build prerender.
+  R2_ACCOUNT_ID: test-account
+  R2_ACCESS_KEY_ID: test-key-id
+  R2_SECRET_ACCESS_KEY: test-secret-key
+  R2_BUCKET: yord-media-test
+  R2_PUBLIC_BASE_URL: https://pub-test.r2.dev
 
 jobs:
   web:

@@ -82,8 +82,8 @@ export async function saveAiDraftAction(
 /**
  * Apply an AI image to a product image row.
  *
- * `ai/listing/page.tsx` wrote `product_images.supabase_url` directly from the
- * browser with the anon key, bypassing the audit trail entirely. That write is
+ * `ai/listing/page.tsx` wrote `product_images.storage_url` directly from the
+ * browser with the publishable key, bypassing the audit trail entirely. That write is
  * now this action, behind `requireAdmin()`.
  */
 export async function applyAiImageAction(
@@ -101,7 +101,7 @@ export async function applyAiImageAction(
 
     const { data: before, error: readError } = await context.service
       .from('product_images')
-      .select('id, product_id, supabase_url')
+      .select('id, product_id, storage_url')
       .eq('id', imageId)
       .maybeSingle();
     if (readError) return actionError('Could not load that image.');
@@ -109,7 +109,7 @@ export async function applyAiImageAction(
 
     const { error } = await context.service
       .from('product_images')
-      .update({ supabase_url: url, updated_at: new Date().toISOString() })
+      .update({ storage_url: url, updated_at: new Date().toISOString() })
       .eq('id', imageId);
     if (error) {
       console.error('[ai] image apply failed', imageId, error);
@@ -121,7 +121,7 @@ export async function applyAiImageAction(
       entity: 'product_images',
       entityId: imageId,
       before,
-      after: { supabase_url: url },
+      after: { storage_url: url },
     });
 
     revalidatePath(`/products/${before.product_id}`);

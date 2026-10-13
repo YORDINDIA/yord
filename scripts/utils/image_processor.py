@@ -21,6 +21,8 @@ from urllib.parse import urlparse, unquote
 import requests
 from PIL import Image
 
+from .r2_helpers import MAX_VARIANT_WIDTH, delete_image, upload_image
+
 logger = logging.getLogger(__name__)
 
 # Optimization settings
@@ -86,6 +88,11 @@ class ImageProcessor:
         """
         Convert image to WebP format with optional compression.
 
+        Images wider than ``MAX_VARIANT_WIDTH`` are downscaled first, so the
+        uploaded variant is one file that serves every breakpoint (see
+        ``utils/r2_helpers.py``). Because the result is already WebP at or
+        below that width, the upload path stores it unchanged.
+
         Args:
             image_data: Raw image bytes
             quality: Initial quality setting (60-95)
@@ -99,6 +106,14 @@ class ImageProcessor:
         # Ensure RGBA mode for transparency support
         if image.mode not in ('RGBA', 'RGB'):
             image = image.convert('RGBA')
+
+        # One variant per image: cap the width before any quality search.
+        if image.width > MAX_VARIANT_WIDTH:
+            scale = MAX_VARIANT_WIDTH / float(image.width)
+            image = image.resize(
+                (MAX_VARIANT_WIDTH, max(1, round(image.height * scale))),
+                Image.Resampling.LANCZOS,
+            )
 
         original_size = len(image_data)
 
@@ -254,12 +269,8 @@ class BackupManager:
         )
 
 
-class StorageUploader:
-    """Handles Supabase storage operations."""
-
-    def __init__(self, supabase_client, bucket: str = 'products'):
-        self.supabase = supabase_client
-        self.bucket = bucket
+class R2Uploader:
+    """Handles Cloudflare R2 storage operations for the migration scripts."""
 
     def upload_image(
         self,
@@ -269,58 +280,24 @@ class StorageUploader:
         max_retries: int = RETRY_ATTEMPTS
     ) -> Tuple[Optional[str], Optional[str]]:
         """
-        Upload image to Supabase Storage with retry logic.
+        Upload media to R2 with retry logic.
 
         Args:
-            path: Storage path (e.g., 'articles/123.webp')
-            data: Image bytes
-            content_type: MIME type
+            path: object key (e.g., 'articles/123'); for images the extension
+                is rewritten to match the stored WebP variant, for raw files
+                (PDFs) it is kept.
+            data: file bytes
+            content_type: MIME type; decides the stored format
             max_retries: Number of retry attempts
 
         Returns:
             Tuple of (public_url, error_message)
         """
-        last_error = None
+        return upload_image(path, data, content_type, max_retries=max_retries)
 
-        for attempt in range(max_retries):
-            try:
-                self.supabase.storage.from_(self.bucket).upload(
-                    path,
-                    data,
-                    file_options={
-                        'content-type': content_type,
-                        'upsert': 'true'
-                    }
-                )
-                public_url = self.supabase.storage.from_(self.bucket).get_public_url(path)
-                return public_url, None
-
-            except Exception as e:
-                last_error = str(e)
-                if attempt < max_retries - 1:
-                    wait_time = RETRY_DELAY * (2 ** attempt)
-                    logger.warning(f"Upload failed (attempt {attempt + 1}): {e}. Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-
-        return None, last_error
-
-    def delete_image(self, path: str) -> bool:
-        """Delete image from storage."""
-        try:
-            self.supabase.storage.from_(self.bucket).remove([path])
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete {path}: {e}")
-            return False
-
-    def image_exists(self, path: str) -> bool:
-        """Check if image exists in storage."""
-        try:
-            # Try to get metadata
-            self.supabase.storage.from_(self.bucket).download(path)
-            return True
-        except Exception:
-            return False
+    def delete_image(self, key: str) -> bool:
+        """Delete an object from R2."""
+        return delete_image(key)
 
 
 def get_url_hash(url: str) -> str:

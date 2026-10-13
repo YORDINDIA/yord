@@ -2,9 +2,11 @@ import { createServerClient, createStaticClient } from './server';
 import type { ProductWithDetails, Collection, ArtistData, Article, ArticleWithBlog } from '@yord/db-types';
 import { ARTISTS, ARTIST_COLLECTION_HANDLES } from '@yord/db-types';
 import { stripHtml } from '@yord/ui';
-import type { SortOption } from '@/lib/product';
-import { escapeLike } from '@/lib/search';
-import { fetchProductsByIds, PRODUCT_SELECT } from '@/lib/data/productsByIds';
+import { catalogOrder, resolveSort, type SortOption } from '@/lib/product';
+import { firstDisplayableImageUrl } from '@/lib/media';
+import { applyCatalogFilters, catalogSelect, isSizeLabel, sortSizes, type CatalogFilterValues } from '@/lib/catalogFilters';
+import { fetchProductsByIds, isRangePastEnd, PRODUCT_SELECT } from '@/lib/data/productsByIds';
+import { fetchAutoCollectionPage, isAutoCollection } from '@/lib/data/autoCollections';
 import { isSupabaseUnconfigured, queryOrThrow, throwDbError } from '@/lib/result';
 import { DatabaseError, postgrestCodeOf } from '@/lib/errors';
 import { logDbError } from '@/lib/logger';
@@ -207,12 +209,46 @@ export async function getProductTypes(): Promise<string[]> {
   return types.sort();
 }
 
+/**
+ * Sizes in stock across active products: distinct `option1` (the size axis,
+ * see QuickViewModal) of variants with stock. `product_options` is mostly
+ * unpopulated, so the variants are the source; PostgREST caps a response at
+ * 1000 rows, so this pages until a short page. Callers cache it (1h).
+ */
+export async function getCatalogSizes(): Promise<string[]> {
+  if (isSupabaseUnconfigured()) return [];
+  const supabase = createStaticClient();
+  const PAGE = 1000;
+  const sizes = new Set<string>();
+  // ponytail: pages every in-stock variant; a distinct-sizes RPC if the catalog grows past ~20k variants.
+  for (let from = 0; ; from += PAGE) {
+    const rows = await queryOrThrow<{ option1: string | null }[]>(
+      'products:sizes',
+      'products',
+      () => supabase
+        .from('product_variants')
+        .select('option1, products!inner(status)')
+        .gt('inventory_quantity', 0)
+        .eq('products.status', 'active')
+        .not('option1', 'is', null)
+        .order('id')
+        .range(from, from + PAGE - 1),
+    );
+    // Upper-cased so "xs" and "XS" are one option; colours, fits and Shopify's
+    // "Default Title" placeholder are not sizes.
+    for (const r of rows ?? []) if (r.option1 && isSizeLabel(r.option1)) sizes.add(r.option1.trim().toUpperCase());
+    if (!rows || rows.length < PAGE) break;
+  }
+  return sortSizes(sizes);
+}
+
 type ArtistCollectionRow = {
   id: number;
   title: string;
   handle: string | null;
   body_html: string | null;
   image_src: string | null;
+  storage_image_url: string | null;
 };
 
 function toArtistData(
@@ -229,7 +265,14 @@ function toArtistData(
     name: staticData?.name || col.title,
     tagline: staticData?.tagline || 'Official Merchandise',
     bio: (col.body_html ? stripHtml(col.body_html) : '') || staticData?.bio || `Shop exclusive ${col.title} merchandise.`,
-    heroImage: col.image_src || staticData?.heroImage,
+    // `image_src` is the pre-migration Shopify URL for 29 of 39 collections and
+    // every distinct value 404s, so a plain `||` chain let a dead database URL
+    // hide the working local hero. Take the first candidate that can render.
+    // Owner decision: the designed local portrait (`staticData.heroImage`) wins
+    // the full-bleed artist hero whenever one exists; generated DB covers
+    // (`storage_image_url`/`image_src`) are fallbacks — they still own the
+    // collection grid cards.
+    heroImage: firstDisplayableImageUrl(staticData?.heroImage, col.storage_image_url, col.image_src),
     logoImage: staticData?.logoImage,
     accentColor: staticData?.accentColor || 'var(--accent)',
     secondaryColor: staticData?.secondaryColor || '#1C1C1C',
@@ -253,7 +296,7 @@ export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistD
       'collections',
       () => supabase
         .from('collections')
-        .select('id, title, handle, body_html, image_src')
+        .select('id, title, handle, body_html, image_src, storage_image_url')
         .in('handle', ARTIST_COLLECTION_HANDLES as unknown as string[]),
     );
 
@@ -299,7 +342,7 @@ export async function getArtistByHandle(handle: string, useStatic = false): Prom
     'collections',
     () => supabase
       .from('collections')
-      .select('id, title, handle, body_html, image_src')
+      .select('id, title, handle, body_html, image_src, storage_image_url')
       .eq('handle', handle)
       .single(),
   );
@@ -323,6 +366,12 @@ export async function getArtistByHandle(handle: string, useStatic = false): Prom
  * Top products for an artist by handle (simplified for homepage use).
  * Returns the newest products without pagination. Unknown artist or no
  * linked products → `[]`; query failure → throws.
+ *
+ * The collection row is read with a `published` predicate: the homepage rails
+ * (and the concert surfaces that share this helper) must never surface products
+ * from a collection the admin has taken down, even when its `collects` rows are
+ * still populated. The artist page resolves its own handle (unpublished rows
+ * there are a deliberate exception — see `getArtistByHandle`).
  */
 export async function getTopProductsByArtistHandle(
   artistHandle: string,
@@ -339,6 +388,7 @@ export async function getTopProductsByArtistHandle(
       .from('collections')
       .select('id')
       .eq('handle', artistHandle)
+      .eq('published', true)
       .maybeSingle(),
   );
 
@@ -362,18 +412,97 @@ export async function getTopProductsByArtistHandle(
   return data;
 }
 
+/**
+ * Newest products for several artist collections in exactly 3 requests:
+ * collections `.in(handle)` → collects `.in(collection_id)` → one
+ * products fetch grouped per artist. Unknown/empty artists are absent
+ * from the map (callers hide the merch block); query failure → throws.
+ */
+export type ConcertProductsMap = Record<string, ProductWithDetails[]>;
+
+export async function getConcertProductsByHandles(
+  handles: string[],
+  limitPerArtist = 3,
+  useStatic = false
+): Promise<ConcertProductsMap> {
+  if (handles.length === 0) return {};
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
+
+  const collections = await queryOrThrow<{ id: number; handle: string | null }[]>(
+    'concerts:collections',
+    'collections',
+    () => supabase
+      .from('collections')
+      .select('id, handle')
+      .in('handle', handles)
+      .eq('published', true),
+  );
+  if (!collections || collections.length === 0) return {};
+
+  const idToHandle = new Map<number, string>();
+  for (const c of collections) {
+    if (c.handle) idToHandle.set(c.id, c.handle);
+  }
+  if (idToHandle.size === 0) return {};
+
+  const collectsData = await queryOrThrow<{ collection_id: number; product_id: number }[]>(
+    'concerts:collects',
+    'collects',
+    () => supabase
+      .from('collects')
+      .select('collection_id, product_id')
+      .in('collection_id', [...idToHandle.keys()]),
+  );
+  if (!collectsData || collectsData.length === 0) return {};
+
+  const idsByHandle = new Map<string, number[]>();
+  const allIds: number[] = [];
+  for (const row of collectsData) {
+    const handle = idToHandle.get(row.collection_id);
+    if (!handle) continue;
+    const list = idsByHandle.get(handle) || [];
+    list.push(row.product_id);
+    idsByHandle.set(handle, list);
+    allIds.push(row.product_id);
+  }
+
+  const { data } = await fetchProductsByIds(supabase, allIds, {
+    sort: 'newest',
+    page: 1,
+    pageSize: allIds.length,
+  });
+
+  // fetchProductsByIds returns newest-first; keep that order per artist.
+  const result: ConcertProductsMap = {};
+  for (const [handle, ids] of idsByHandle) {
+    const ordered = (data || []).filter((p) => ids.includes(p.id));
+    if (ordered.length > 0) result[handle] = ordered.slice(0, limitPerArtist);
+  }
+  return result;
+}
+
 export interface CollectionPageOptions {
+  /**
+   * The shopper's `?sort=` value. Leave it `undefined` when the URL carried no
+   * `?sort=` at all — that is what lets the collection's own `sort_order`
+   * apply — and pass the value only when the shopper chose a sort. An unknown
+   * value resolves to `newest`.
+   */
   sort?: SortOption;
   page?: number;
   pageSize?: number;
+  /** Applied to auto collections only; curated lists page by id first. */
+  filters?: CatalogFilterValues;
 }
 
 /**
  * Products for a collection/artist handle via the collects two-hop, paged.
- * Unknown handle → `null` (page calls `notFound()`); linked-nothing → empty
- * page; query failure → throws. Server twin of the old client-side
- * CollectionProducts/ArtistProducts fetches — one implementation serves
- * SSR page 1 and `GET /api/products` pages 2+.
+ * An auto handle (`new-arrivals`/`all`) is answered from `products` instead —
+ * same select, same order, same paging — so page 1 (SSR) and pages 2+
+ * (`GET /api/products`) cannot diverge. Unknown handle → `null` (page calls
+ * `notFound()`); linked-nothing → empty page; query failure → throws. Server
+ * twin of the old client-side CollectionProducts/ArtistProducts fetches — one
+ * implementation serves SSR page 1 and `GET /api/products` pages 2+.
  */
 export async function getProductsByCollectionHandle(
   handle: string,
@@ -385,10 +514,10 @@ export async function getProductsByCollectionHandle(
 
   let collectionQuery = supabase
     .from('collections')
-    .select('id')
+    .select('id, sort_order')
     .eq('handle', handle);
   if (publishedOnly) collectionQuery = collectionQuery.eq('published', true);
-  const collection = await queryOrThrow<{ id: number }>(
+  const collection = await queryOrThrow<{ id: number; sort_order: string | null }>(
     'collection:products-id',
     'collections',
     () => collectionQuery.maybeSingle(),
@@ -396,22 +525,51 @@ export async function getProductsByCollectionHandle(
 
   if (!collection) return null;
 
-  const collectsData = await queryOrThrow<{ product_id: number }[]>(
+  // The collection's own default order (admin → "Default product order"), used
+  // only when the shopper has not passed `?sort=`. `resolveSort` also supplies
+  // the fallback: NULL (every collection before this field existed) or an
+  // unknown value resolves to `newest`, which was the previous behaviour.
+  // Callers MUST leave `options.sort` undefined when the URL carried no
+  // `?sort=` — passing `parseSortParam(raw)` collapses the two cases and makes
+  // the collection default dead.
+  const sort = resolveSort(options.sort, collection.sort_order);
+
+  // Auto collections are computed from `products` instead of `collects`, so
+  // New Arrivals and All Products can never be empty or stale. The collection
+  // row above still gates them: an unpublished/deleted handle is a 404.
+  if (isAutoCollection(handle)) {
+    return fetchAutoCollectionPage(supabase, {
+      sort,
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? 12,
+      filters: options.filters,
+    });
+  }
+
+  const collectsData = await queryOrThrow<{ product_id: number; position: number | null }[]>(
     'collection:products-ids',
     'collects',
     () => supabase
       .from('collects')
-      .select('product_id')
-      .eq('collection_id', collection.id),
+      .select('product_id, position')
+      .eq('collection_id', collection.id)
+      // `collects.position` is the admin picker's saved order; reading the ids
+      // in that order makes the `manual` sort a pass-through instead of a
+      // separate code path. Every other sort re-orders the fetched rows anyway.
+      .order('position', { ascending: true, nullsFirst: false }),
   );
 
   if (!collectsData || collectsData.length === 0) return { data: [], count: 0 };
 
-  return fetchProductsByIds(supabase, collectsData.map((c) => c.product_id), {
-    sort: options.sort ?? 'newest',
-    page: options.page ?? 1,
-    pageSize: options.pageSize ?? 12,
-  });
+  return fetchProductsByIds(
+    supabase,
+    collectsData.map((c) => c.product_id),
+    {
+      sort,
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? 12,
+    },
+  );
 }
 
 /**
@@ -423,8 +581,7 @@ export async function getProductsByCollectionHandle(
 // existing `@/lib/supabase/queries` import sites keep working.
 export type { SortOption } from '@/lib/product';
 
-export interface ProductFilterOptions {
-  artist?: string;
+export interface ProductFilterOptions extends Omit<CatalogFilterValues, 'type'> {
   productType?: string;
   page?: number;
   pageSize?: number;
@@ -434,46 +591,47 @@ export interface ProductFilterOptions {
 export async function getProductsFiltered(
   options: ProductFilterOptions = {}
 ): Promise<{ data: ProductWithDetails[]; count: number }> {
-  const { artist, productType, page = 1, pageSize = 20, sortBy = 'newest' } = options;
+  const { productType, page = 1, pageSize = 20, sortBy = 'newest', ...rest } = options;
+  const filters: CatalogFilterValues = { ...rest, type: productType };
   // Backend-less builds degrade the filter UI to empty instead of failing.
   if (isSupabaseUnconfigured()) return { data: [], count: 0 };
   const supabase = await createServerClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from('products')
-    .select(PRODUCT_SELECT, { count: 'exact' })
-    .eq('status', 'active');
-
-  // Apply artist filter (match vendor name case-insensitively, escaped)
-  if (artist) {
-    query = query.ilike('vendor', `%${escapeLike(artist)}%`);
-  }
-
-  // Apply product type filter
-  if (productType) {
-    query = query.ilike('product_type', `%${escapeLike(productType)}%`);
-  }
+  let query = applyCatalogFilters(
+    supabase.from('products').select(catalogSelect(filters), { count: 'exact' }).eq('status', 'active'),
+    filters
+  );
 
   // Apply sorting. Price sorts order by the cached min_price in SQL (see
   // supabase/migrations/001_min_price.sql); rows that predate the backfill
   // (NULL min_price) sort NULLS LAST in both directions. Pagination is
   // database-side (`range(from, to)`) so every page — not just the first
   // PRICE_SORT_FETCH_LIMIT rows — is reachable and agrees with `count`.
-  const isPriceSort = sortBy === 'price-asc' || sortBy === 'price-desc';
-  if (sortBy === 'title') {
-    query = query.order('title', { ascending: true });
-  } else if (isPriceSort) {
-    query = query.order('min_price', { ascending: sortBy === 'price-asc', nullsFirst: false });
-  } else {
-    query = query.order('published_at', { ascending: false });
+  // The clause list comes from `catalogOrder` so `/products` pages exactly like
+  // the collection and artist grids do: same nulls placement, same `id desc`
+  // tie-break, so OFFSET paging cannot repeat or skip rows inside a tie group.
+  for (const clause of catalogOrder(sortBy)) {
+    query = query.order(clause.column, { ascending: clause.ascending, nullsFirst: clause.nullsFirst });
   }
 
   const { data, error, count } = await query.range(from, to);
 
-  // List queries cannot produce PGRST116; any error here is a failed read.
-  if (error) throwDbError('products:filtered', 'products', error);
+  // List queries cannot produce PGRST116; any error here is a failed read —
+  // except an offset past the end, which PostgREST reports as 416 (PGRST103)
+  // rather than an empty page. Re-issue the identical filtered query for one
+  // row to read the filtered total from its `count` header; `from >= total`
+  // keeps a 416 that is not an out-of-range offset a real failure.
+  if (error) {
+    if (isRangePastEnd(error)) {
+      const probe = await query.range(0, 0);
+      if (!probe.error && from >= (probe.count ?? 0)) {
+        return { data: [], count: probe.count ?? 0 };
+      }
+    }
+    throwDbError('products:filtered', 'products', error);
+  }
 
   // `as unknown as`: the inferred select shape is precise per the `Database`
   // type but structurally wider than the hand-maintained `ProductWithDetails`.

@@ -52,6 +52,10 @@ export function ThemeToggle({
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  // The roving tab stop follows the focused item, not the selected one: after
+  // arrowing to "Dark" and tabbing away, Shift+Tab has to come back to "Dark".
+  // `null` means "no item focused yet — use the selection".
+  const [tabStop, setTabStop] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -146,6 +150,12 @@ export function ThemeToggle({
   // `current` is the user's selection; `resolved` is what is actually painted.
   const current = mounted ? (theme ?? 'light') : 'light';
   const resolved = mounted ? (resolvedTheme ?? 'light') : 'light';
+  const selectedIndex = OPTIONS.findIndex((o) => o.value === current);
+  const activeTabStop = tabStop ?? (selectedIndex >= 0 ? selectedIndex : 0);
+  // Shown next to "System" so the menu explains itself: the trigger already
+  // reports what is painted, and without this the checkmark on "System" next to
+  // a Sun icon reads as a contradiction.
+  const resolvedLabel = resolved === 'dark' ? 'Dark' : 'Light';
 
   // On open, move focus into the menu (to the selected item, else the first).
   // Opening via Enter/Space leaves focus on the trigger, where ArrowDown is
@@ -178,7 +188,7 @@ export function ThemeToggle({
   if (variant === 'inline') {
     return (
       <div className={className}>
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] text-text-muted mb-4">
+        <p className="font-accent text-xs tracking-[0.2em] text-text-muted mb-4">
           APPEARANCE
         </p>
         <div
@@ -208,7 +218,10 @@ export function ThemeToggle({
                 )}
               >
                 <Icon size={18} className="shrink-0" />
-                <span className="font-[family-name:var(--font-jakarta)]">{label}</span>
+                <span className="font-body">{label}</span>
+                {isActive && value === 'system' ? (
+                  <span className="font-body text-xs text-text-muted">({resolvedLabel})</span>
+                ) : null}
                 {isActive && <Check size={16} className="ml-auto text-accent" />}
               </button>
             );
@@ -263,8 +276,9 @@ export function ThemeToggle({
                 type="button"
                 role="menuitemradio"
                 aria-checked={isActive}
-                tabIndex={index === 0 ? 0 : -1}
+                tabIndex={index === activeTabStop ? 0 : -1}
                 onClick={() => choose(value)}
+                onFocus={() => setTabStop(index)}
                 onKeyDown={(event) => onItemKeyDown(index, event)}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2 text-left transition-colors',
@@ -274,9 +288,12 @@ export function ThemeToggle({
                 )}
               >
                 <Icon size={16} className="shrink-0" />
-                <span className="font-[family-name:var(--font-jakarta)] text-sm">
+                <span className="font-body text-sm">
                   {label}
                 </span>
+                {isActive && value === 'system' ? (
+                  <span className="font-body text-xs text-text-muted">({resolvedLabel})</span>
+                ) : null}
                 {isActive && <Check size={14} className="ml-auto text-accent" />}
               </button>
             );

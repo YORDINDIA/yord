@@ -32,9 +32,9 @@ export type FieldErrors = Record<string, string[]>;
 export interface ActionContext {
   /** The authenticated admin. */
   user: { id: string; email?: string };
-  /** Service-role client: bypasses RLS, safe because `requireAdmin` just ran. */
+  /** Secret-key client: bypasses RLS, safe because `requireAdmin` just ran. */
   service: SupabaseClient<Database>;
-  /** Session-scoped anon client, when the action needs the caller's own RLS. */
+  /** Session-scoped publishable client, when the action needs the caller's own RLS. */
   supabase: SupabaseClient<Database>;
 }
 

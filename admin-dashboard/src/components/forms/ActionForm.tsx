@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { AlertCircle, type LucideIcon } from 'lucide-react';
 import type { ActionState } from '@/lib/action-state';
 import { INITIAL_ACTION_STATE } from '@/lib/action-state';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -19,10 +20,11 @@ import { useToast } from '@/components/ui/ToastProvider';
  * `pending` disables the submit button and swaps its label, which is what
  * replaces the old "clicked Save and nothing appeared to happen" experience.
  *
- * This module exports a hook, a field wrapper and a banner, not a `<form>` component:
- * each admin form needs its own field layout, and a generic shell would have to
- * grow props for every variation (which is how the unused `hiddenFields`,
- * `footer`, and `submitVariant` props in the first draft ended up dead).
+ * This module exports a hook, a field wrapper and a banner — plus `FormSection`
+ * and `FormActions`, which are layout only. Still not a `<form>` component: each
+ * admin form needs its own field layout, and a generic shell would have to grow
+ * props for every variation (which is how the unused `hiddenFields`, `footer`,
+ * and `submitVariant` props in the first draft ended up dead).
  */
 
 /**
@@ -74,12 +76,20 @@ export function useActionForm<T = undefined>(
   };
 }
 
-/** Form-level banner for a failed write. Renders nothing unless the action errored. */
+/**
+ * Form-level banner for a failed write. Renders nothing unless the action errored.
+ *
+ * `tone-rose` sets the local `--tone` so the glyph reads the error colour from
+ * the design system instead of a hardcoded hue.
+ */
 export function FormError<T = undefined>({ state }: { state: ActionState<T> }) {
   if (state.status !== 'error' || !state.formError) return null;
   return (
-    <div className="form-alert form-alert-error" role="alert">
-      {state.formError}
+    <div className="form-alert form-alert-error tone-rose" role="alert">
+      {/* `flex: none` inline: `.form-alert` has no `svg` rule, so a long message
+          in a narrow column would otherwise squash the glyph. */}
+      <AlertCircle size={15} className="tone-icon" aria-hidden style={{ flex: 'none' }} />
+      <span>{state.formError}</span>
     </div>
   );
 }
@@ -88,31 +98,72 @@ export function FormError<T = undefined>({ state }: { state: ActionState<T> }) {
  * Labelled field with its action-state error wired up.
  *
  * Renders the label, the control, and the message together, so a form cannot
- * ship a field with no error slot.
+ * ship a field with no error slot. `hint` fills the gap under the control while
+ * there is no error; the error replaces it rather than stacking with it.
  */
 export function ActionField<T = undefined>({
   name,
   label,
   state,
+  hint,
   children,
 }: {
   name: string;
   label: string;
   state: ActionState<T>;
+  /** Static help text under the control, hidden while an error is showing. */
+  hint?: string;
   children: ReactNode;
 }) {
   const message = state.status === 'error' ? state.fieldErrors?.[name]?.[0] : undefined;
   return (
-    <div>
-      <label className="helper" htmlFor={name}>
+    <div className="field">
+      <label className="label" htmlFor={name}>
         {label}
       </label>
       {children}
-      {message && (
+      {message ? (
         <div className="field-error" id={`${name}-error`} role="alert">
           {message}
         </div>
+      ) : (
+        hint && <div className="field-hint">{hint}</div>
       )}
     </div>
   );
+}
+
+/**
+ * Grouped block of related fields.
+ *
+ * `.form-section` is the tinted inset panel in globals.css; the header carries
+ * the optional glyph and the uppercase section label. Nothing here knows about
+ * actions, so a section can hold any content a form needs.
+ */
+export function FormSection({
+  title,
+  icon: Icon,
+  description,
+  children,
+}: {
+  title: string;
+  icon?: LucideIcon;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="form-section">
+      <div className="form-section-header">
+        {Icon && <Icon size={14} aria-hidden style={{ flex: 'none' }} />}
+        <span>{title}</span>
+      </div>
+      {description && <p className="helper">{description}</p>}
+      {children}
+    </section>
+  );
+}
+
+/** Right-aligned submit row with the divider above it. */
+export function FormActions({ children }: { children: ReactNode }) {
+  return <div className="form-actions">{children}</div>;
 }

@@ -1,49 +1,165 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
-import MediaUploader from './uploader';
-import CopyUrlButton from '@/components/media/CopyUrlButton';
+import {
+  HardDrive,
+  ImagePlus,
+  Images,
+  Newspaper,
+  Package,
+  SearchX,
+  Upload,
+  UploadCloud,
+} from 'lucide-react';
+import FilterBar, { FilterSelect } from '@/components/data/FilterBar';
+import SearchInput from '@/components/data/SearchInput';
 import Pagination from '@/components/data/Pagination';
+import MediaGrid from '@/components/media/MediaGrid';
+import { MEDIA_DELETE_UNAVAILABLE } from '@/components/media/display';
+import mediaStyles from '@/components/media/media.module.css';
 import EmptyState from '@/components/ui/EmptyState';
-import { ImageOff } from 'lucide-react';
-import { listArticleImages, listProductImages } from '@/lib/data/media';
+import PageHeader from '@/components/ui/PageHeader';
+import StatCard from '@/components/ui/StatCard';
+import {
+  getMediaStats,
+  listMediaAssets,
+  MEDIA_SORTS,
+  MEDIA_SOURCE_FILTERS,
+  MEDIA_UPLOAD_STATS_LIMIT,
+  parseMediaSort,
+  parseMediaSource,
+  type MediaSort,
+  type MediaSourceFilter,
+} from '@/lib/data/media';
 import { firstParam, pageCount } from '@/lib/pagination';
+import MediaUploader from './uploader';
 
 export const metadata: Metadata = { title: 'Media · YORD Admin' };
 
 type Search = Record<string, string | string[] | undefined>;
 
+const countFormat = new Intl.NumberFormat('en-IN');
+
+/** Labels for the two filter selects, keyed by the data layer's own vocabularies. */
+const SOURCE_LABELS: Record<MediaSourceFilter, string> = {
+  all: 'All sources',
+  product: 'Product images',
+  article: 'Article covers',
+  upload: 'Admin uploads',
+};
+
+const SORT_LABELS: Record<MediaSort, string> = {
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  name: 'File name',
+};
+
 /**
  * Media library.
  *
- * The two galleries were `.limit(24)` and `.limit(12)` with no pager, so older
- * media was unreachable. Both are paged now, and the previews render through
- * `next/image` with a real `alt` instead of `<img alt="">` behind an
- * eslint-disable.
+ * The library is *derived*, not stored: there is no `media` table. The grid is
+ * the union of product images, article covers, and the objects
+ * `uploadMediaAction` wrote to R2 (recorded only in the audit log), merged and
+ * paged by `listMediaAssets`. That union is why the page reads two things in
+ * parallel — one window of assets, and the head-only counts behind the strip —
+ * and why the "no results" case has to know whether the library is empty or the
+ * filters are.
+ *
+ * Two numbers the brief asked for are not derivable, and the UI says so rather
+ * than inventing them: total storage (no table stores a byte size; the object
+ * sizes would need one R2 `ListObjectsV2` per prefix, which `lib/r2.ts` does not
+ * expose) and a size sort (same reason). A tile's size is read with a single
+ * best-effort `HEAD` in the lightbox.
+ *
+ * `/media` writes nothing: `src/server/actions/media.ts` only uploads, and the
+ * delete affordance says so in the confirmation dialog (see `MediaGrid`).
  */
-export default async function MediaPage({
-  searchParams,
-}: {
-  searchParams?: Promise<Search>;
-}) {
-  const resolved = searchParams ? await searchParams : {};
-  // Two paginated tables on one route, so two page params: sharing `page` meant
-  // paging one grid moved the other too, and the two could never be on different
-  // pages.
-  const productPage = Number(firstParam(resolved?.product_page)) || 1;
-  const articlePage = Number(firstParam(resolved?.article_page)) || 1;
+export default async function MediaPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const resolved = (await searchParams) ?? {};
+  const q = firstParam(resolved.q)?.trim() || undefined;
+  const source = parseMediaSource(firstParam(resolved.source));
+  const sort = parseMediaSort(firstParam(resolved.sort));
+  const page = Number(firstParam(resolved.page)) || 1;
 
-  const [productImages, articleImages] = await Promise.all([
-    listProductImages({ page: productPage }),
-    listArticleImages({ page: articlePage }),
+  // Only the non-default values travel in the URL, so a plain visit stays
+  // `/media` and the pager keeps the filters it was used with.
+  const params: Record<string, string | undefined> = {
+    q,
+    source: source === 'all' ? undefined : source,
+    sort: sort === 'newest' ? undefined : sort,
+  };
+
+  const [assets, stats] = await Promise.all([
+    listMediaAssets({ page, source, sort, q }),
+    getMediaStats(),
   ]);
 
+  const pages = pageCount(assets.count, assets.pageSize);
+
   return (
-    <div className="grid gap-4">
-      <div className="card">
+    <>
+      <PageHeader
+        icon={Images}
+        title="Media"
+        description="Every image and file the storefront serves."
+        tone="rose"
+        actions={
+          <a className={`button ${mediaStyles.headerAction}`} href="#upload">
+            <Upload size={14} aria-hidden="true" />
+            Upload images
+          </a>
+        }
+      />
+
+      <div className="stat-grid">
+        <StatCard
+          label="Total assets"
+          value={countFormat.format(stats.total)}
+          icon={Images}
+          tone="rose"
+          hint="Images only — no video pipeline"
+        />
+        <StatCard
+          label="Product images"
+          value={countFormat.format(stats.productImages)}
+          icon={Package}
+          tone="indigo"
+          hint="Catalogue photography"
+        />
+        <StatCard
+          label="Article covers"
+          value={countFormat.format(stats.articleImages)}
+          icon={Newspaper}
+          tone="amber"
+          hint="Blog headers"
+        />
+        <StatCard
+          label="Admin uploads"
+          value={countFormat.format(stats.uploads)}
+          icon={UploadCloud}
+          tone="blue"
+          hint={
+            stats.uploadsTruncated
+              ? `Newest ${MEDIA_UPLOAD_STATS_LIMIT} batches only`
+              : `${countFormat.format(stats.uploadsLast30Days)} in the last 30 days`
+          }
+        />
+        <StatCard
+          label="Storage"
+          value="Not tracked"
+          icon={HardDrive}
+          tone="slate"
+          valueSm
+          hint="No table stores a byte size"
+        />
+      </div>
+
+      <div className="card" id="upload">
         <div className="card-header">
           <div>
-            <div className="section-title">Media Library</div>
-            <div className="helper">Drag and drop up to 10 images. URLs copy in one click.</div>
+            <div className="section-title">Upload</div>
+            <div className="helper">
+              Drop files or browse. Each image is converted to a WebP variant (max 1600px) in the
+              browser before it is sent to the bucket.
+            </div>
           </div>
         </div>
         <MediaUploader />
@@ -51,105 +167,76 @@ export default async function MediaPage({
 
       <div className="card">
         <div className="card-header">
-          <div className="section-title">Product Images</div>
-          <span className="helper">
-            page {productImages.page} of {pageCount(productImages.count, productImages.pageSize)}
-          </span>
-        </div>
-        {productImages.rows.length === 0 ? (
-          <EmptyState
-            title="No product images yet"
-            hint="Upload images above, then attach them from a product's detail page."
-            icon={<ImageOff size={28} />}
-          />
-        ) : (
-          <div className="media-grid">
-            {productImages.rows.map((img) => (
-              <div key={img.id} className="card media-card" style={{ padding: 12 }}>
-                <div className="helper">Product #{img.product_id}</div>
-                {img.supabase_url ? (
-                  <>
-                    <Image
-                      src={img.supabase_url}
-                      alt={`Product ${img.product_id} image`}
-                      width={320}
-                      height={320}
-                      sizes="(max-width: 768px) 50vw, 180px"
-                      style={{ marginTop: 8, width: '100%', height: 'auto', borderRadius: 8 }}
-                    />
-                    <div className="toolbar" style={{ marginTop: 8 }}>
-                      <CopyUrlButton url={img.supabase_url} />
-                    </div>
-                  </>
-                ) : (
-                  <div className="helper">No Supabase URL</div>
-                )}
-              </div>
-            ))}
+          <div>
+            <div className="section-title">Library</div>
+            <div className="helper">
+              {countFormat.format(assets.count)} {assets.count === 1 ? 'asset' : 'assets'} · page{' '}
+              {assets.page} of {pages}
+              {assets.truncated
+                ? ' · only the newest 500 are reachable — filter by source or search to narrow'
+                : ''}
+            </div>
           </div>
-        )}
-        <Pagination
-          basePath="/media"
-          params={articlePage > 1 ? { article_page: String(articlePage) } : {}}
-          page={productImages.page}
-          pageSize={productImages.pageSize}
-          total={productImages.count}
-          shown={productImages.rows.length}
-          label="product images"
-          pageParam="product_page"
-        />
-      </div>
+          <SearchInput placeholder="Search file name, alt text, or owner" delayMs={300} />
+        </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div className="section-title">Article Images</div>
-          <span className="helper">
-            page {articleImages.page} of {pageCount(articleImages.count, articleImages.pageSize)}
-          </span>
-        </div>
-        {articleImages.rows.length === 0 ? (
+        <FilterBar>
+          {/* Keeps the search term when the selects are applied: `FilterBar`
+              rebuilds the query string from the form. */}
+          {q ? <input type="hidden" name="q" value={q} /> : null}
+          <FilterSelect
+            name="source"
+            label="Source"
+            value={source}
+            options={MEDIA_SOURCE_FILTERS.map((value) => ({
+              value,
+              label: SOURCE_LABELS[value],
+            }))}
+          />
+          <FilterSelect
+            name="sort"
+            label="Sort"
+            value={sort}
+            options={MEDIA_SORTS.map((value) => ({ value, label: SORT_LABELS[value] }))}
+          />
+        </FilterBar>
+
+        {assets.rows.length > 0 ? (
+          <MediaGrid assets={assets.rows} />
+        ) : stats.total === 0 ? (
           <EmptyState
-            title="No article images"
-            hint="Article covers migrated from Shopify appear here."
-            icon={<ImageOff size={28} />}
+            icon={<ImagePlus size={28} />}
+            title="Nothing in the library yet"
+            hint="Upload the first images above, or attach images from a product or article — every one of them lands here."
+            actionLabel="Upload images"
+            actionHref="#upload"
           />
         ) : (
-          <div className="media-grid">
-            {articleImages.rows.map((article) => (
-              <div key={article.id} className="card media-card" style={{ padding: 12 }}>
-                <div className="helper">{article.title}</div>
-                {article.supabase_image_url ? (
-                  <>
-                    <Image
-                      src={article.supabase_image_url}
-                      alt={`Cover image for ${article.title}`}
-                      width={320}
-                      height={320}
-                      sizes="(max-width: 768px) 50vw, 180px"
-                      style={{ marginTop: 8, width: '100%', height: 'auto', borderRadius: 8 }}
-                    />
-                    <div className="toolbar" style={{ marginTop: 8 }}>
-                      <CopyUrlButton url={article.supabase_image_url} />
-                    </div>
-                  </>
-                ) : (
-                  <div className="helper">No Supabase image</div>
-                )}
-              </div>
-            ))}
-          </div>
+          <EmptyState
+            icon={<SearchX size={28} />}
+            title="No assets match these filters"
+            hint="Try a different file name, owner, or source. Sorting does not hide anything."
+            actionLabel="Clear filters"
+            actionHref="/media"
+          />
         )}
+
         <Pagination
           basePath="/media"
-          params={productPage > 1 ? { product_page: String(productPage) } : {}}
-          page={articleImages.page}
-          pageSize={articleImages.pageSize}
-          total={articleImages.count}
-          shown={articleImages.rows.length}
-          label="article images"
-          pageParam="article_page"
+          params={params}
+          page={assets.page}
+          pageSize={assets.pageSize}
+          total={assets.count}
+          shown={assets.rows.length}
+          label="assets"
         />
+
+        {assets.rows.length > 0 ? (
+          <div className="helper" style={{ marginTop: 8 }}>
+            {MEDIA_DELETE_UNAVAILABLE}
+          </div>
+        ) : null}
       </div>
-    </div>
+    </>
   );
 }

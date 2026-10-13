@@ -1,14 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { ShoppingBag, Heart, Share2, Truck, Shield, RotateCcw, Check, Minus, Plus } from 'lucide-react';
-import { formatPrice, cn } from '@yord/ui';
-import { isPriceOnSale } from '@/lib/product';
-import { sanitizeHtml } from '@/lib/sanitize';
+import Link from 'next/link';
+import { Check, Share2, ShoppingBag } from 'lucide-react';
+import { formatPrice } from '@yord/ui';
+import { isPriceOnSale, sortByPosition } from '@/lib/product';
 import { useCartStore } from '@/lib/stores/cartStore';
-import { useWishlistStore } from '@/lib/stores/wishlistStore';
 import { Button } from '@/features/ui/Button';
+import { IconButton } from '@/features/ui/IconButton';
+import { Reveal } from '@/features/ui/Reveal';
+import { SaleBadge } from '@/features/ui/Badge';
+import { TrustBadges } from '@/features/ui/TrustBadges';
+import { WishlistButton } from './WishlistButton';
+import { QuantityStepper } from './QuantityStepper';
+import { VariantPicker, type VariantChoice } from './VariantPicker';
+import { maxQuantityFor } from './cartItem';
 import { ARTISTS } from '@yord/db-types';
 
 interface ProductVariant {
@@ -18,6 +24,8 @@ interface ProductVariant {
   compareAtPrice: number | null;
   inventoryQuantity: number;
   option1: string;
+  /** Shopify/admin display order; the picker and quick view both sort on it. */
+  position: number;
 }
 
 interface ProductInfoProps {
@@ -39,12 +47,33 @@ function pickVariant(variants: ProductVariant[]): ProductVariant | null {
   return variants.find(v => v.inventoryQuantity > 0) || variants[0] || null;
 }
 
+/**
+ * The purchase column: artist, title, price, size, quantity and the two
+ * actions, plus the trust row and share control.
+ *
+ * The long description lives in `ProductDescription` (rendered below the
+ * gallery) rather than at the bottom of this column: the column is the sticky
+ * rail, and a rail as tall as the gallery it sits beside has no room left to
+ * stick, so the add-to-bag button would scroll away with the price anyway.
+ */
 export function ProductInfo({ product }: ProductInfoProps) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     () => pickVariant(product.variants)
   );
   const [quantity, setQuantity] = useState(1);
   const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied'>('idle');
+
+  const addItem = useCartStore((state) => state.addItem);
+  const openCart = useCartStore((state) => state.openCart);
+
+  // Re-sync when navigating between products (the instance is reused).
+  // Render-phase update: the documented alternative to setState-in-effect.
+  const [prevProductId, setPrevProductId] = useState(product.id);
+  if (prevProductId !== product.id) {
+    setPrevProductId(product.id);
+    setSelectedVariant(pickVariant(product.variants));
+    setQuantity(1);
+  }
 
   // Native share sheet on mobile, clipboard fallback on desktop.
   const handleShare = async () => {
@@ -67,48 +96,18 @@ export function ProductInfo({ product }: ProductInfoProps) {
     }
   };
 
-  // Re-sync when navigating between products (the instance is reused).
-  // Render-phase update: the documented alternative to setState-in-effect.
-  const [prevProductId, setPrevProductId] = useState(product.id);
-  if (prevProductId !== product.id) {
-    setPrevProductId(product.id);
-    setSelectedVariant(pickVariant(product.variants));
-    setQuantity(1);
-  }
-
-  const addItem = useCartStore((state) => state.addItem);
-  const openCart = useCartStore((state) => state.openCart);
-  const toggleWishlist = useWishlistStore((state) => state.toggleItem);
-  // Subscribe to derived state (not the stable isInWishlist fn) so this re-renders on toggle
-  const isWishlisted = useWishlistStore((state) =>
-    state.items.some((i) => i.productId === product.id)
-  );
-
   if (!selectedVariant) {
     return (
       <div className="space-y-8">
-        <h1 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary">
+        <h1 className="font-display text-3xl md:text-4xl text-text-primary">
           {product.title}
         </h1>
-        <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
+        <p className="font-body text-sm text-text-muted">
           This product is currently unavailable.
         </p>
       </div>
     );
   }
-
-  // Handle wishlist toggle
-  const handleToggleWishlist = () => {
-    toggleWishlist({
-      productId: product.id,
-      productHandle: product.handle,
-      title: product.title,
-      price: selectedVariant.price,
-      compareAtPrice: selectedVariant.compareAtPrice,
-      image: product.image || '',
-      artist: product.vendor,
-    });
-  };
 
   // Get artist data
   const artistHandle = product.vendor?.toLowerCase().replace(/\s+/g, '-');
@@ -121,6 +120,24 @@ export function ProductInfo({ product }: ProductInfoProps) {
     : 0;
   const isInStock = selectedVariant.inventoryQuantity > 0;
   const isLowStock = selectedVariant.inventoryQuantity > 0 && selectedVariant.inventoryQuantity <= 5;
+  const maxQuantity = maxQuantityFor(selectedVariant.inventoryQuantity);
+
+  // `position` order, the same one the quick view and the gallery use: sorting
+  // by id here showed the same product's sizes in a different order than the
+  // card's quick view did.
+  const choices: VariantChoice[] = sortByPosition(product.variants).map((variant) => ({
+    id: variant.id,
+    label: variant.option1,
+    available: variant.inventoryQuantity > 0,
+  }));
+
+  const handleSelectVariant = (id: number) => {
+    const variant = product.variants.find((v) => v.id === id);
+    if (variant) {
+      setSelectedVariant(variant);
+      setQuantity(1);
+    }
+  };
 
   const handleAddToCart = () => {
     addItem({
@@ -132,7 +149,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
       price: selectedVariant.price,
       compareAtPrice: selectedVariant.compareAtPrice,
       image: product.image || null,
-      maxQuantity: selectedVariant.inventoryQuantity,
+      maxQuantity,
       artist: product.vendor,
     }, quantity);
     openCart();
@@ -140,250 +157,125 @@ export function ProductInfo({ product }: ProductInfoProps) {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb-style Artist Link */}
+      {/* Artist Link */}
       {product.vendor && (
-        <motion.a
-          href={`/artist/${artistHandle}`}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-xs tracking-[0.2em] transition-colors"
-          style={{ color: 'var(--accent)' }}
-        >
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: accentColor }}
-          />
-          {product.vendor.toUpperCase()}
-        </motion.a>
+        <Reveal>
+          <Link
+            href={`/artist/${artistHandle}`}
+            className="inline-flex items-center gap-2 font-accent text-xs tracking-[0.2em] text-accent transition-colors hover:text-accent-hover"
+          >
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: accentColor }}
+            />
+            {product.vendor.toUpperCase()}
+          </Link>
+        </Reveal>
       )}
 
       {/* Title */}
-      <motion.h1
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-5xl text-text-primary"
-      >
-        {product.title}
-      </motion.h1>
+      <Reveal>
+        <h1 className="font-display text-3xl md:text-4xl lg:text-5xl text-text-primary break-words">
+          {product.title}
+        </h1>
+      </Reveal>
 
       {/* Price */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex items-center gap-4"
-      >
-        <span className="font-[family-name:var(--font-cormorant)] text-3xl text-text-primary">
+      <Reveal className="flex flex-wrap items-center gap-4">
+        <span className="font-heading text-3xl text-text-primary">
           {formatPrice(selectedVariant.price)}
         </span>
         {isOnSale && (
           <>
-            <span className="font-[family-name:var(--font-jakarta)] text-lg text-text-muted line-through">
+            <span className="font-body text-lg text-text-muted line-through">
               {formatPrice(selectedVariant.compareAtPrice!)}
             </span>
-            <span className="px-2 py-1 bg-red-500/20 text-red-400 text-sm font-[family-name:var(--font-bebas)] tracking-wider">
-              {discount}% OFF
-            </span>
+            <SaleBadge discount={discount} />
           </>
         )}
-      </motion.div>
+      </Reveal>
 
       {/* Size Selector */}
       {product.options.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted">
-              {product.options[0].name.toUpperCase()}
-            </span>
-            <a href="/size-guide" className="text-sm text-text-muted hover:text-accent underline">
+        <Reveal>
+          <VariantPicker
+            label={product.options[0].name}
+            name={`variant-${product.id}`}
+            choices={choices}
+            selectedId={selectedVariant.id}
+            onSelect={handleSelectVariant}
+            accentColor={accentColor}
+          />
+          <div className="mt-3">
+            <Link
+              href="/size-guide"
+              className="font-body text-xs text-text-muted underline underline-offset-2 hover:text-accent transition-colors"
+            >
               Size Guide
-            </a>
+            </Link>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {product.variants.map((variant) => {
-              const isAvailable = variant.inventoryQuantity > 0;
-              const isSelected = selectedVariant.id === variant.id;
-
-              return (
-                <button
-                  key={variant.id}
-                  onClick={() => {
-                    if (isAvailable) {
-                      setSelectedVariant(variant);
-                      setQuantity(1);
-                    }
-                  }}
-                  disabled={!isAvailable}
-                  className={cn(
-                    'min-w-[48px] h-12 px-4 flex items-center justify-center border-2 transition-all duration-200',
-                    'font-[family-name:var(--font-bebas)] text-sm tracking-wider',
-                    isSelected
-                      ? 'border-current text-text-on-brand'
-                      : isAvailable
-                      ? 'border-border-default text-text-secondary hover:border-text-muted'
-                      : 'border-border-default text-text-muted cursor-not-allowed line-through'
-                  )}
-                  style={{
-                    backgroundColor: isSelected ? accentColor : 'transparent',
-                    borderColor: isSelected ? accentColor : undefined,
-                  }}
-                >
-                  {variant.option1}
-                </button>
-              );
-            })}
-          </div>
-        </motion.div>
+        </Reveal>
       )}
 
       {/* Stock Status */}
       {isLowStock && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center gap-2 text-amber-500"
-        >
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span className="text-sm font-[family-name:var(--font-jakarta)]">
+        <p className="flex items-center gap-2 text-danger">
+          <span className="w-2 h-2 rounded-full bg-danger" />
+          <span className="text-sm font-body">
             Only {selectedVariant.inventoryQuantity} left in stock
           </span>
-        </motion.div>
+        </p>
       )}
 
       {/* Quantity & Add to Cart */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="flex flex-col sm:flex-row gap-4"
-      >
-        {/* Quantity Selector */}
-        <div className="flex items-center border border-border-default">
-          <button
-            onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors"
-            aria-label="Decrease quantity"
-          >
-            <Minus size={16} />
-          </button>
-          <span className="w-12 h-12 flex items-center justify-center text-text-primary font-[family-name:var(--font-jakarta)]">
-            {quantity}
-          </span>
-          <button
-            onClick={() => setQuantity(Math.min(selectedVariant.inventoryQuantity, quantity + 1))}
-            disabled={quantity >= selectedVariant.inventoryQuantity}
-            className={cn(
-              'w-12 h-12 flex items-center justify-center transition-colors',
-              quantity >= selectedVariant.inventoryQuantity
-                ? 'text-text-muted cursor-not-allowed'
-                : 'text-text-muted hover:text-text-primary hover:bg-surface-raised'
-            )}
-            aria-label="Increase quantity"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
+      <Reveal className="flex flex-col sm:flex-row gap-4">
+        <QuantityStepper
+          value={quantity}
+          max={maxQuantity}
+          onChange={setQuantity}
+          className="h-14"
+        />
 
-        {/* Add to Cart Button */}
         <Button
           onClick={handleAddToCart}
           disabled={!isInStock}
-          variant="gold"
+          variant="primary"
           size="lg"
           className="flex-1"
         >
-          <ShoppingBag size={18} />
+          <ShoppingBag size={18} aria-hidden="true" />
           {isInStock ? 'ADD TO BAG' : 'SOLD OUT'}
         </Button>
 
-        {/* Wishlist Button */}
-        <button
-          onClick={handleToggleWishlist}
-          className={cn(
-            'w-12 h-12 flex items-center justify-center border transition-colors',
-            isWishlisted
-              ? 'border-red-500 bg-red-500/10 text-red-500'
-              : 'border-border-default text-text-muted hover:text-red-500 hover:border-red-500'
-          )}
-          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-        >
-          <Heart size={18} fill={isWishlisted ? 'currentColor' : 'none'} />
-        </button>
-      </motion.div>
-
-      {/* Trust Badges */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="grid grid-cols-3 gap-4 py-6 border-t border-b border-border-default"
-      >
-        <div className="text-center">
-          <Truck size={20} className="mx-auto mb-2 text-accent" />
-          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
-            Free Shipping
-          </span>
-          <span className="block text-[10px] text-text-muted">Over ₹1,999</span>
-        </div>
-        <div className="text-center">
-          <Shield size={20} className="mx-auto mb-2 text-accent" />
-          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
-            Premium Quality
-          </span>
-          <span className="block text-[10px] text-text-muted">Fan Made</span>
-        </div>
-        <div className="text-center">
-          <RotateCcw size={20} className="mx-auto mb-2 text-accent" />
-          <span className="block text-xs text-text-muted font-[family-name:var(--font-jakarta)]">
-            Easy Returns
-          </span>
-          <span className="block text-[10px] text-text-muted">14 Days</span>
-        </div>
-      </motion.div>
-
-      {/* Description */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="prose prose-invert prose-gold max-w-none"
-      >
-        <h3 className="font-[family-name:var(--font-bebas)] text-sm tracking-[0.15em] text-text-muted mb-4">
-          DESCRIPTION
-        </h3>
-        <div
-          className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted space-y-4 [&_h4]:font-[family-name:var(--font-bebas)] [&_h4]:text-xs [&_h4]:tracking-[0.1em] [&_h4]:text-text-muted [&_h4]:mt-6 [&_h4]:mb-2 [&_ul]:list-none [&_ul]:pl-0 [&_li]:flex [&_li]:items-center [&_li]:gap-2 [&_li]:before:content-[''] [&_li]:before:w-1.5 [&_li]:before:h-1.5 [&_li]:before:rounded-full"
-          style={{
-            '--tw-prose-bullets': accentColor,
-          } as React.CSSProperties}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
+        <WishlistButton
+          variant="boxed"
+          size="lg"
+          productId={product.id}
+          productHandle={product.handle}
+          title={product.title}
+          price={selectedVariant.price}
+          compareAtPrice={selectedVariant.compareAtPrice}
+          image={product.image || ''}
+          artist={product.vendor}
         />
-      </motion.div>
+      </Reveal>
+
+      <TrustBadges className="py-6 border-t border-b border-border-default" />
 
       {/* Share */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7 }}
-        className="flex items-center gap-4"
-      >
-        <span className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.1em] text-text-muted">
+      <div className="flex items-center gap-4">
+        <span className="font-accent text-xs tracking-[0.1em] text-text-muted">
           SHARE
         </span>
-        <button
+        <IconButton
+          label={shareState === 'copied' ? 'Product link copied' : 'Share this product'}
+          variant="ghost"
+          size="sm"
           onClick={handleShare}
-          aria-label={shareState === 'copied' ? 'Product link copied' : 'Share this product'}
-          title={shareState === 'copied' ? 'Link copied!' : undefined}
-          className="w-8 h-8 flex items-center justify-center text-text-muted hover:text-accent transition-colors"
         >
           {shareState === 'copied' ? <Check size={16} /> : <Share2 size={16} />}
-        </button>
-      </motion.div>
+        </IconButton>
+      </div>
     </div>
   );
 }

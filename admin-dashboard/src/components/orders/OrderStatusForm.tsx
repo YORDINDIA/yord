@@ -93,7 +93,7 @@ export default function OrderStatusForm({
         )}
       </ActionField>
 
-      <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>
+      <button className="button primary block" type="submit" disabled={pending} aria-busy={pending}>
         {pending ? 'Saving…' : 'Save Status'}
       </button>
     </form>

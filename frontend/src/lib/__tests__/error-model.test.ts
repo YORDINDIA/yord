@@ -28,20 +28,20 @@ beforeEach(() => {
 // queryOrThrow short-circuits to null when Supabase is unconfigured, so the
 // failure-path tests below run with dummy env (read per call, not per import).
 const URL_KEY = 'NEXT_PUBLIC_SUPABASE_URL';
-const ANON_KEY = 'NEXT_PUBLIC_SUPABASE_ANON_KEY';
+const PUBLISHABLE_KEY = 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY';
 let savedUrl: string | undefined;
-let savedAnon: string | undefined;
+let savedPublishable: string | undefined;
 beforeAll(() => {
   savedUrl = process.env[URL_KEY];
-  savedAnon = process.env[ANON_KEY];
+  savedPublishable = process.env[PUBLISHABLE_KEY];
   process.env[URL_KEY] = 'http://localhost:54321';
-  process.env[ANON_KEY] = 'test-key';
+  process.env[PUBLISHABLE_KEY] = 'test-key';
 });
 afterAll(() => {
   if (savedUrl === undefined) delete process.env[URL_KEY];
   else process.env[URL_KEY] = savedUrl;
-  if (savedAnon === undefined) delete process.env[ANON_KEY];
-  else process.env[ANON_KEY] = savedAnon;
+  if (savedPublishable === undefined) delete process.env[PUBLISHABLE_KEY];
+  else process.env[PUBLISHABLE_KEY] = savedPublishable;
 });
 
 describe('error taxonomy', () => {

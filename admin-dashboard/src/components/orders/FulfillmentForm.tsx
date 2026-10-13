@@ -3,24 +3,17 @@
 import { useRef } from 'react';
 import { useActionForm, ActionField, FormError } from '@/components/forms/ActionForm';
 import { addFulfillmentAction } from '@/server/actions/orders';
-import { formatDate } from '@/lib/utils/format';
-import type { Fulfillment } from '@yord/db-types';
 
 /**
- * Add-a-fulfillment form plus the order's fulfillment history.
+ * Record a shipment.
  *
- * The old inline action required a tracking number by hand and returned early
- * for any insert error; the tracking row is now written by
- * `addFulfillmentAction`, which also reports the partial-failure case where the
- * tracking row lands but the order status flip does not.
+ * The order's fulfillment history renders above this form as a timeline, so the
+ * form is only the write. Behaviour is unchanged from the version that also
+ * listed the history: the tracking row is written by `addFulfillmentAction`,
+ * which reports the partial-failure case where the tracking row lands but the
+ * order status flip does not.
  */
-export default function FulfillmentForm({
-  orderId,
-  fulfillments,
-}: {
-  orderId: string;
-  fulfillments: Fulfillment[];
-}) {
+export default function FulfillmentForm({ orderId }: { orderId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const { state, pending, formAction, errorFor } = useActionForm(addFulfillmentAction, {
     onResult: (result) => {
@@ -34,18 +27,12 @@ export default function FulfillmentForm({
   });
 
   return (
-    <>
-      <form
-        ref={formRef}
-        action={formAction}
-        className="form-grid"
-        noValidate
-        style={{ marginBottom: fulfillments.length > 0 ? 16 : 0 }}
-      >
-        <input type="hidden" name="order_id" value={orderId} />
+    <form ref={formRef} action={formAction} className="stack-sm" noValidate>
+      <input type="hidden" name="order_id" value={orderId} />
 
-        <FormError state={state} />
+      <FormError state={state} />
 
+      <div className="form-grid">
         <ActionField name="tracking_company" label="Tracking Company" state={state}>
           <input
             className="input"
@@ -66,24 +53,14 @@ export default function FulfillmentForm({
             aria-describedby={errorFor('tracking_number') ? 'tracking_number-error' : undefined}
           />
         </ActionField>
+      </div>
 
-        <button className="button" type="submit" disabled={pending} aria-busy={pending}>
-          {pending ? 'Saving…' : 'Add Fulfillment'}
+      <div className="row">
+        <button className="button primary" type="submit" disabled={pending} aria-busy={pending}>
+          {pending ? 'Saving…' : 'Record fulfillment'}
         </button>
-      </form>
-
-      {fulfillments.length === 0 ? (
-        <span className="helper">No fulfillments yet.</span>
-      ) : (
-        <div className="helper" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {fulfillments.map((fulfillment) => (
-            <div key={fulfillment.id}>
-              #{fulfillment.id} · {fulfillment.tracking_company || 'Carrier n/a'} ·{' '}
-              {fulfillment.tracking_number} · {formatDate(fulfillment.created_at)}
-            </div>
-          ))}
-        </div>
-      )}
-    </>
+        <span className="helper">A successful save marks the order fulfilled.</span>
+      </div>
+    </form>
   );
 }

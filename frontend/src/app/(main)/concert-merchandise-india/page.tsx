@@ -1,13 +1,16 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ShoppingBag, Music, Truck, Shield, ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@yord/db-types';
+import { CtaLink } from '@/features/ui/CtaLink';
+import { SectionHeading } from '@/features/ui/SectionHeading';
+import { getArtistsWithMetadata } from '@/lib/supabase/queries';
+import { degrade } from '@/lib/result';
 import { JsonLd, organizationSchema, breadcrumbSchema, faqSchema } from '@/lib/seo/jsonld';
 
 export const metadata: Metadata = {
-  title: 'Buy Concert Merchandise Online in India | YORD India',
+  title: 'Buy Concert Merchandise Online in India',
   description:
-    "India's #1 premium concert merchandise store. Buy fan-made t-shirts, hoodies & accessories for Coldplay, Diljit Dosanjh, Karan Aujla, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto & 65+ artists. Free shipping above ₹1,999.",
+    "India's #1 premium concert merchandise store. Buy fan-made t-shirts, hoodies & accessories for Coldplay, Diljit Dosanjh, Karan Aujla, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto & 65+ artists. Free shipping on every order.",
   openGraph: {
     title: 'Buy Concert Merchandise Online in India | YORD India',
     description:
@@ -17,11 +20,16 @@ export const metadata: Metadata = {
   alternates: { canonical: '/concert-merchandise-india' },
 };
 
+/**
+ * The FAQ answers below are rendered on the page AND published as FAQPage
+ * structured data from the same array, so the two cannot drift. Search engines
+ * penalise markup that promises questions the page does not show.
+ */
 const LANDING_FAQS = [
   {
     question: 'Where can I buy concert merchandise in India?',
     answer:
-      'YORD India (yordindia.com) is India\'s leading online store for premium concert merchandise. We offer exclusive fan-made designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Kanye West, Calvin Harris, DJ Snake, Linkin Park, and more. We deliver across all of India with free shipping on orders above ₹1,999.',
+      'YORD India (yordindia.com) is India\'s leading online store for premium concert merchandise. We offer exclusive fan-made designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Kanye West, Calvin Harris, DJ Snake, Linkin Park, and more. We deliver across all of India with free shipping on every order.',
   },
   {
     question: 'What is the best website to buy concert merch in India?',
@@ -41,15 +49,43 @@ const LANDING_FAQS = [
   {
     question: 'Do you ship concert merchandise across India?',
     answer:
-      'Yes! YORD India delivers to every corner of India. Standard shipping takes 5-7 business days, metro cities receive orders within 3-5 days, and we offer free shipping on orders above ₹1,999.',
+      'Yes! YORD India delivers to every corner of India. Standard shipping takes 5-7 business days, metro cities receive orders within 3-5 days, and shipping is free on every order — orders above ₹1,999 travel with our fast service.',
   },
 ];
 
-export default function ConcertMerchandiseIndiaPage() {
-  const artistEntries = Object.values(ARTISTS).slice(0, 20);
+const VALUE_PROPS = [
+  {
+    icon: Music,
+    title: '65+ Artists',
+    desc: 'Merchandise for every major concert artist performing in India — Indian and international.',
+  },
+  {
+    icon: Shield,
+    title: 'Premium Quality',
+    desc: 'Fan-made designs printed on premium fabric. Crafted with care by passionate music fans.',
+  },
+  {
+    icon: Truck,
+    title: 'Free Shipping',
+    desc: 'Free delivery across India on every order, with fast shipping above ₹1,999.',
+  },
+];
+
+export default async function ConcertMerchandiseIndiaPage() {
+  // "Shop by Artist" links are resolved against the database: the static
+  // ARTISTS record has 71 handles but only the ones with a published,
+  // non-empty collection have an artist page, so 20 static entries meant
+  // mostly links to "Artist not found". A failed read hides the grid.
+  const artistsResult = await degrade(
+    getArtistsWithMetadata(true),
+    [],
+    'landing:artists',
+    'collections',
+  );
+  const artistEntries = artistsResult.ok ? artistsResult.value.slice(0, 20) : [];
 
   return (
-    <main className="min-h-screen bg-surface-page pt-24 pb-16">
+    <div className="min-h-screen bg-surface-page pt-32 pb-16">
       <JsonLd data={organizationSchema()} />
       <JsonLd
         data={breadcrumbSchema([
@@ -59,121 +95,101 @@ export default function ConcertMerchandiseIndiaPage() {
       />
       <JsonLd data={faqSchema(LANDING_FAQS)} />
 
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+      <div className="container-page">
         {/* Hero */}
         <div className="text-center mb-16">
           <div className="w-20 h-20 mx-auto mb-6 bg-accent-tint rounded-full flex items-center justify-center">
-            <ShoppingBag className="w-10 h-10 text-accent" />
+            <ShoppingBag aria-hidden="true" className="w-10 h-10 text-accent" />
           </div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
+          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-text-primary mb-6">
             Buy Concert Merchandise Online in India
           </h1>
-          <p className="font-[family-name:var(--font-jakarta)] text-text-muted max-w-3xl mx-auto text-lg leading-relaxed">
+          <p className="font-body text-text-muted max-w-3xl mx-auto text-lg leading-relaxed">
             YORD India is India&apos;s premier destination for premium concert merchandise. We offer
-            exclusive, fan-made designs for 50+ artists — from global superstars like Coldplay and
+            exclusive, fan-made designs for 65+ artists — from global superstars like Coldplay and
             Taylor Swift to Indian icons like Diljit Dosanjh and Karan Aujla. Premium quality,
-            pan-India delivery, and free shipping above ₹1,999.
+            pan-India delivery, and free shipping on every order.
           </p>
           <div className="flex flex-wrap justify-center gap-4 mt-8">
-            <Link
-              href="/products"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-accent text-text-on-accent font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:bg-accent-hover transition-colors"
-            >
-              SHOP ALL PRODUCTS <ArrowRight size={16} />
-            </Link>
-            <Link
-              href="/concerts"
-              className="inline-flex items-center gap-2 px-8 py-3 border border-text-muted text-text-muted font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] hover:border-accent hover:text-accent transition-colors"
-            >
-              BROWSE CONCERTS <Music size={16} />
-            </Link>
+            <CtaLink href="/products" size="lg">
+              SHOP ALL PRODUCTS
+              <ArrowRight size={16} />
+            </CtaLink>
+            <CtaLink href="/concerts" variant="secondary" size="lg">
+              BROWSE CONCERTS
+              <Music size={16} />
+            </CtaLink>
           </div>
         </div>
 
         {/* Value Props */}
         <div className="grid md:grid-cols-3 gap-6 mb-16">
-          {[
-            {
-              icon: Music,
-              title: '50+ Artists',
-              desc: 'Merchandise for every major concert artist performing in India — Indian and international.',
-            },
-            {
-              icon: Shield,
-              title: 'Premium Quality',
-              desc: 'Fan-made designs printed on premium fabric. Crafted with care by passionate music fans.',
-            },
-            {
-              icon: Truck,
-              title: 'Free Shipping',
-              desc: 'Free delivery across India on orders above ₹1,999. Fast shipping to all metros.',
-            },
-          ].map((v) => (
+          {VALUE_PROPS.map((value) => (
             <div
-              key={v.title}
+              key={value.title}
               className="text-center p-8 bg-surface-card border border-border-default"
             >
-              <v.icon className="w-10 h-10 text-accent mx-auto mb-4" />
-              <h3 className="font-[family-name:var(--font-bebas)] text-lg tracking-wider text-text-secondary mb-2">
-                {v.title}
-              </h3>
-              <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted">
-                {v.desc}
+              <value.icon aria-hidden="true" className="w-10 h-10 text-accent mx-auto mb-4" />
+              <h2 className="font-accent text-lg tracking-wider text-text-secondary mb-2">
+                {value.title}
+              </h2>
+              <p className="font-body text-sm text-text-muted">
+                {value.desc}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Artists Grid */}
-        <section className="mb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
-            Shop by Artist
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {artistEntries.map((artist) => (
+        {/* Artists Grid — hidden when the artist read fails, never a grid of
+            dead links */}
+        {artistEntries.length > 0 && (
+          <section className="mb-16">
+            <SectionHeading className="mb-8" align="center" title="Shop by Artist" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {artistEntries.map((artist) => (
+                <Link
+                  key={artist.handle}
+                  href={`/artist/${artist.handle}`}
+                  className="group block p-4 bg-surface-card border border-border-default text-center hover:border-accent/40 transition-all"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-3 h-3 rounded-full inline-block mb-2"
+                    style={{ backgroundColor: artist.accentColor }}
+                  />
+                  <h3 className="font-heading text-lg text-text-secondary group-hover:text-accent transition-colors">
+                    {artist.name}
+                  </h3>
+                  <p className="font-body text-xs text-text-muted mt-1">
+                    {artist.tagline}
+                  </p>
+                </Link>
+              ))}
+            </div>
+            <div className="text-center mt-6">
               <Link
-                key={artist.handle}
-                href={`/artist/${artist.handle}`}
-                className="group block p-4 bg-surface-card border border-border-default text-center hover:border-accent/40 transition-all"
+                href="/artists"
+                className="inline-flex items-center gap-2 text-accent font-accent tracking-wider text-sm hover:underline"
               >
-                <span
-                  className="w-3 h-3 rounded-full inline-block mb-2"
-                  style={{ backgroundColor: artist.accentColor }}
-                />
-                <h3 className="font-[family-name:var(--font-cormorant)] text-lg text-text-secondary group-hover:text-accent transition-colors">
-                  {artist.name}
-                </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-xs text-text-muted mt-1">
-                  {artist.tagline}
-                </p>
+                VIEW ALL ARTISTS <ArrowRight size={14} />
               </Link>
-            ))}
-          </div>
-          <div className="text-center mt-6">
-            <Link
-              href="/artists"
-              className="inline-flex items-center gap-2 text-accent font-[family-name:var(--font-bebas)] tracking-wider text-sm hover:underline"
-            >
-              VIEW ALL ARTISTS <ArrowRight size={14} />
-            </Link>
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
 
         {/* FAQ Section */}
         <section className="mb-16">
-          <h2 className="font-[family-name:var(--font-playfair)] text-3xl text-text-primary mb-8 text-center">
-            Frequently Asked Questions
-          </h2>
+          <SectionHeading className="mb-8" align="center" title="Frequently Asked Questions" />
           <div className="max-w-3xl mx-auto space-y-4">
             {LANDING_FAQS.map((faq) => (
               <div
                 key={faq.question}
                 className="bg-surface-card border border-border-default p-6"
               >
-                <h3 className="font-[family-name:var(--font-jakarta)] text-text-secondary font-medium mb-3">
+                <h3 className="font-body text-text-secondary font-medium mb-3">
                   {faq.question}
                 </h3>
-                <p className="font-[family-name:var(--font-jakarta)] text-sm text-text-muted leading-relaxed">
+                <p className="font-body text-sm text-text-muted leading-relaxed">
                   {faq.answer}
                 </p>
               </div>
@@ -183,18 +199,18 @@ export default function ConcertMerchandiseIndiaPage() {
 
         {/* SEO Content */}
         <section className="bg-surface-card border border-border-default p-8 md:p-12">
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-text-primary mb-6">
+          <h2 className="font-display text-2xl text-text-primary mb-6">
             India&apos;s Leading Concert Merchandise Store
           </h2>
-          <div className="font-[family-name:var(--font-jakarta)] text-text-muted space-y-4 text-sm leading-relaxed">
+          <div className="font-body text-text-muted space-y-4 text-sm leading-relaxed">
             <p>
-              YORD India is India&apos;s premier online destination for premium concert merchandise. Founded with a passion for live music and fashion, YORD India bridges the gap between concert experiences and everyday style. We offer an extensive catalog of fan-made, artist-inspired designs for over 65 artists — both Indian and international — who have performed or are performing in India in 2024, 2025, and 2026.
+              YORD India is India&apos;s premier online destination for premium concert merchandise. Founded with a passion for live music and fashion, YORD India bridges the gap between concert experiences and everyday style. We offer an extensive catalog of fan-made, artist-inspired designs for over 65 artists — both Indian and international — performing in India in 2026 and 2027.
             </p>
             <p>
-              Our collection spans global superstars including Coldplay (Music of the Spheres World Tour), Kanye West (India Debut 2026), Calvin Harris (India Debut 2026), DJ Snake (India Tour 2026), Linkin Park (Lollapalooza India 2026), Tiësto (India Tour 2026), Def Leppard (India Tour 2026), Dream Theater (40th Anniversary), The Lumineers (Automatic World Tour), John Mayer (India Solo Debut), Ed Sheeran, Dua Lipa, Bryan Adams, Green Day, Maroon 5, and Imagine Dragons. Indian music icons are equally represented: Diljit Dosanjh (Dil-Luminati Tour), Karan Aujla (P-Pop Culture World Tour 2026), AP Dhillon (The Brownprint Tour), Arijit Singh, Yo Yo Honey Singh, DIVINE, Hanumankind, KRSNA, Seedhe Maut, King, Badshah, Raftaar, Prateek Kuhad, and Anuv Jain.
+              Our collection spans the biggest upcoming shows in India: Diljit Dosanjh (Aura World Tour), Guns N&apos; Roses (India Tour 2026), Anyma (ÆDEN World Tour), Fred again.. (India Tour 2026), Khalid (India debut), The Chainsmokers (India Tour 2026), Gorillaz (India Tour 2027), and Foo Fighters (India Debut 2027) — alongside catalogue favourites including Coldplay, Kanye West, Calvin Harris, DJ Snake, Linkin Park, Tiësto, Def Leppard, Ed Sheeran, Dua Lipa, Imagine Dragons, and Taylor Swift. Indian music icons are equally represented: Karan Aujla, AP Dhillon, Arijit Singh, Yo Yo Honey Singh, DIVINE, Hanumankind, KRSNA, Seedhe Maut, King, Badshah, Raftaar, Prateek Kuhad, and Anuv Jain.
             </p>
             <p>
-              We also offer exclusive merchandise for India&apos;s biggest music festivals: Lollapalooza India in Mumbai, Sunburn Festival in Goa, and NH7 Weekender in Pune. Every piece in our collection is designed by fans who share your passion, printed on premium-quality fabric, and shipped across India with free delivery on orders above ₹1,999.
+              We also offer exclusive merchandise for India&apos;s biggest music festivals: Lollapalooza India in Mumbai, Sunburn Festival in Goa, and NH7 Weekender in Pune. Every piece in our collection is designed by fans who share your passion, printed on premium-quality fabric, and shipped across India with free delivery on every order.
             </p>
             <p>
               Whether you&apos;re looking for concert t-shirts, artist hoodies, music festival apparel, or unique fan merchandise, YORD India has you covered. Browse our collections by artist, browse by concert, or explore by city — and find the perfect piece to remember your concert experience.
@@ -202,6 +218,6 @@ export default function ConcertMerchandiseIndiaPage() {
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

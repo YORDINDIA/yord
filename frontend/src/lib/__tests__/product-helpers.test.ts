@@ -1,8 +1,11 @@
 // Product helper tests: sorting, pricing guards, badges, param parsing.
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   artistAccentColor,
   getFirstByPosition,
+  getImageUrl,
   getMinVariantPrice,
   getProductBadge,
   isPriceOnSale,
@@ -11,7 +14,7 @@ import {
   sortByPosition,
   sortProductsByPrice,
 } from '@/lib/product';
-import type { ProductWithDetails, ProductVariant } from '@yord/db-types';
+import type { ProductImage, ProductWithDetails, ProductVariant } from '@yord/db-types';
 
 function variant(price: number | string, compareAt?: number | string | null): ProductVariant {
   return {
@@ -125,5 +128,34 @@ describe('artistAccentColor', () => {
     // AA; --accent is 5.48:1 on light and 14.49:1 on dark.
     expect(artistAccentColor(null)).toBe('var(--accent)');
     expect(artistAccentColor('Nobody')).toBe('var(--accent)');
+  });
+});
+
+describe('getImageUrl', () => {
+  const image = {
+    id: 1,
+    product_id: 1,
+    position: 1,
+    src: 'https://cdn.shopify.com/s/files/1/0000/tee.jpg',
+    alt: null,
+    width: null,
+    height: null,
+    storage_url: null,
+    created_at: '',
+    updated_at: '',
+  } satisfies ProductImage;
+
+  it('prefers the stored storage_url and falls back to the original src', () => {
+    const stored = 'https://pub-abc123.r2.dev/products/premium-tee/01.webp';
+    expect(getImageUrl({ ...image, storage_url: stored })).toBe(stored);
+    expect(getImageUrl(image)).toBe(image.src);
+  });
+
+  it('points the missing-image fallback at a file that is really there', () => {
+    // The fallback is a plain path, so a wrong extension 404s silently on every
+    // product and collection card without an image. Assert the file, not the string.
+    const fallback = getImageUrl(null);
+    expect(fallback).toBe('/placeholder-product.png');
+    expect(existsSync(path.join(process.cwd(), 'public', fallback.replace(/^\//, '')))).toBe(true);
   });
 });

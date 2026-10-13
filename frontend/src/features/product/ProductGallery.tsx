@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { cn } from '@yord/ui';
 import { sortByPosition } from '@/lib/product';
+import { IconButton } from '@/features/ui/IconButton';
 
 interface ProductImage {
   id: number;
@@ -17,28 +18,41 @@ interface ProductImage {
 interface ProductGalleryProps {
   images: ProductImage[];
   title: string;
+  /** Artist brand colour, or the theme accent when the vendor has no brand. */
   accentColor?: string;
 }
 
-export function ProductGallery({ images, title, accentColor = '#FFD966' }: ProductGalleryProps) {
+export function ProductGallery({
+  images,
+  title,
+  accentColor = 'var(--accent)',
+}: ProductGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
 
   const sortedImages = sortByPosition(images);
   const selectedImage = sortedImages[selectedIndex];
 
+  // Every path that changes the image also clears the zoom: the transform is
+  // relative to the previous image's frame, so carrying it over landed the next
+  // photo mid-crop with no way to tell it was zoomed.
+  const goTo = (index: number) => {
+    setSelectedIndex(index);
+    setIsZoomed(false);
+  };
+
   const goToPrevious = () => {
-    setSelectedIndex((prev) => (prev === 0 ? sortedImages.length - 1 : prev - 1));
+    goTo(selectedIndex === 0 ? sortedImages.length - 1 : selectedIndex - 1);
   };
 
   const goToNext = () => {
-    setSelectedIndex((prev) => (prev === sortedImages.length - 1 ? 0 : prev + 1));
+    goTo(selectedIndex === sortedImages.length - 1 ? 0 : selectedIndex + 1);
   };
 
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative aspect-[3/4] bg-surface-card overflow-hidden group">
+      <div className="relative aspect-[3/4] bg-surface-card overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedIndex}
@@ -58,7 +72,9 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
                   'object-cover transition-transform duration-500',
                   isZoomed && 'scale-150'
                 )}
-                priority
+                // Only the first frame is the LCP: `priority` on a gallery that
+                // swaps images preloads every one of them.
+                priority={selectedIndex === 0}
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -74,37 +90,40 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation Arrows */}
+        {/* Navigation Arrows — always visible: a hover-only reveal made them
+            unreachable on touch and invisible to keyboard users, who could
+            still Tab onto them. The translucent surface lives on the wrapper,
+            because a `bg-*` in the button's className would race the variant's
+            own background for the cascade. */}
         {sortedImages.length > 1 && (
           <>
-            <button
-              onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Previous image"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <button
-              onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Next image"
-            >
-              <ChevronRight size={20} />
-            </button>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-surface-page/80">
+              <IconButton label="Previous image" variant="ghost" onClick={goToPrevious}>
+                <ChevronLeft size={20} />
+              </IconButton>
+            </div>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-surface-page/80">
+              <IconButton label="Next image" variant="ghost" onClick={goToNext}>
+                <ChevronRight size={20} />
+              </IconButton>
+            </div>
           </>
         )}
 
         {/* Zoom Toggle */}
-        <button
-          onClick={() => setIsZoomed(!isZoomed)}
-          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-surface-page/80 text-text-secondary hover:bg-accent hover:text-text-on-accent transition-colors opacity-0 group-hover:opacity-100"
-          aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
-        >
-          <ZoomIn size={18} />
-        </button>
+        <div className="absolute top-4 right-4 bg-surface-page/80">
+          <IconButton
+            label={isZoomed ? 'Zoom out' : 'Zoom in'}
+            variant="ghost"
+            aria-pressed={isZoomed}
+            onClick={() => setIsZoomed(!isZoomed)}
+          >
+            <ZoomIn size={18} />
+          </IconButton>
+        </div>
 
         {/* Image Counter */}
-        <div className="absolute bottom-4 right-4 px-3 py-1 bg-surface-page/80 text-text-secondary text-sm font-[family-name:var(--font-bebas)] tracking-wider">
+        <div className="absolute bottom-4 right-4 px-3 py-1 bg-surface-page/80 text-text-secondary text-sm font-accent tracking-wider">
           {selectedIndex + 1} / {sortedImages.length}
         </div>
 
@@ -120,13 +139,16 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
 
       {/* Thumbnails */}
       {sortedImages.length > 1 && (
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {sortedImages.map((image, index) => (
             <button
               key={image.id}
-              onClick={() => setSelectedIndex(index)}
+              type="button"
+              onClick={() => goTo(index)}
+              aria-label={`View image ${index + 1}`}
+              aria-current={selectedIndex === index ? 'true' : undefined}
               className={cn(
-                'relative w-20 h-24 flex-shrink-0 bg-surface-card overflow-hidden transition-all duration-200',
+                'relative w-20 h-24 flex-shrink-0 bg-surface-card overflow-hidden transition-opacity duration-200',
                 selectedIndex === index
                   ? 'ring-2'
                   : 'opacity-60 hover:opacity-100'
@@ -134,7 +156,6 @@ export function ProductGallery({ images, title, accentColor = '#FFD966' }: Produ
               style={{
                 '--tw-ring-color': selectedIndex === index ? accentColor : 'transparent',
               } as React.CSSProperties}
-              aria-label={`View image ${index + 1}`}
             >
               {image.src ? (
                 <Image

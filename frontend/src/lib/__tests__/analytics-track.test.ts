@@ -18,7 +18,7 @@ type TrackModule = typeof import('@/lib/analytics/track');
 const UUID_A = '11111111-1111-4111-8111-111111111111';
 const UUID_B = '22222222-2222-4222-8222-222222222222';
 
-function browserStubs(options: { sendBeaconOk: boolean; existingSid?: string } = {}) {
+function browserStubs(options: { sendBeaconOk?: boolean; existingSid?: string } = {}) {
   const store = new Map<string, string>(options.existingSid ? [['yord-sid', options.existingSid]] : []);
   const listeners: Record<string, (event?: unknown) => void> = {};
   let uuidCount = 0;
@@ -42,9 +42,11 @@ function browserStubs(options: { sendBeaconOk: boolean; existingSid?: string } =
     }),
   };
   const navigatorObj = {
-    sendBeacon: vi.fn(() => options.sendBeaconOk ?? true),
+    sendBeacon: vi.fn<(url: string, data: Blob) => boolean>(() => options.sendBeaconOk ?? true),
   };
-  const fetchMock = vi.fn(async () => ({ ok: true, status: 204 }));
+  const fetchMock = vi.fn<
+    (url: string, init: { method: string; body: string }) => Promise<{ ok: boolean; status: number }>
+  >(async () => ({ ok: true, status: 204 }));
 
   vi.stubGlobal('window', windowObj);
   vi.stubGlobal('document', documentObj);
@@ -190,5 +192,27 @@ describe('trackIfNew', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.events).toHaveLength(2);
     expect(body.events.map((event: { productId: number }) => event.productId)).toEqual([12, 13]);
+  });
+
+  it('dedupes per event type, so the page tracker cannot reset the product tracker', async () => {
+    // Regression: one shared slot meant the two trackers overwrote each
+    // other's key on a product page, so StrictMode's remount fired BOTH
+    // events twice. Same event type + key must stay suppressed even when a
+    // different event type fired in between.
+    const { fetchMock } = browserStubs({ sendBeaconOk: false });
+    const { trackIfNew, flushAnalytics } = await freshTrack();
+
+    trackIfNew('product:12', { type: 'product_viewed', productId: 12, handle: 'tee' });
+    trackIfNew('/product/tee', { type: 'page_viewed', template: 'product', handle: 'tee' });
+    // The StrictMode remount of each tracker:
+    trackIfNew('product:12', { type: 'product_viewed', productId: 12, handle: 'tee' });
+    trackIfNew('/product/tee', { type: 'page_viewed', template: 'product', handle: 'tee' });
+
+    await flushAnalytics();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.events.map((event: { type: string }) => event.type)).toEqual([
+      'product_viewed',
+      'page_viewed',
+    ]);
   });
 });

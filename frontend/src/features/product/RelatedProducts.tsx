@@ -1,15 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ProductCard } from '@/features/ui/ProductCard';
+import { Container } from '@/features/ui/Container';
+import { ErrorState } from '@/features/ui/ErrorState';
+import { Reveal } from '@/features/ui/Reveal';
+import { SectionHeading } from '@/features/ui/SectionHeading';
+import { Skeleton } from '@/features/ui/Skeleton';
 import { createClient } from '@/lib/supabase/client';
-import { getFirstByPosition, getProductBadge } from '@/lib/product';
+import { getFirstByPosition, getProductBadge, sortByPosition } from '@/lib/product';
 import { escapeLike } from '@/lib/search';
 import { vendorToHandle } from '@yord/db-types';
 import type { ProductWithDetails } from '@yord/db-types';
+import { maxQuantityFor } from './cartItem';
 
 interface RelatedProductsProps {
   currentProductId: number;
@@ -30,44 +35,51 @@ interface SimpleProduct {
   maxQuantity: number;
 }
 
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'ready'; products: SimpleProduct[] }
+  | { status: 'error' };
+
+/**
+ * "More from this artist" rail.
+ *
+ * Three states, kept distinct: loading (skeleton), empty (render nothing — an
+ * optional section, not an error) and failed (an error state with its own
+ * retry). The failed read used to fall into the empty path and silently vanish.
+ */
 export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(--accent)' }: RelatedProductsProps) {
-  const [products, setProducts] = useState<SimpleProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<LoadState>({ status: 'loading' });
 
-  useEffect(() => {
-    async function fetchRelatedProducts() {
-      // Vendor-less products have no "more from" set; skip instead of match-all (%%)
-      if (!vendor.trim()) {
-        setProducts([]);
-        setLoading(false);
-        return;
-      }
+  /** Resolves to the rail's products, or `null` when the read failed. */
+  const fetchRelated = useCallback(async (): Promise<SimpleProduct[] | null> => {
+    // Vendor-less products have no "more from" set; skip instead of match-all (%%)
+    if (!vendor.trim()) return [];
 
-      const supabase = createClient();
+    const supabase = createClient();
 
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          id, title, handle, published_at,
-          product_variants (id, title, price, compare_at_price, inventory_quantity, position),
-          product_images (id, src, supabase_url, position)
-        `)
-        .eq('status', 'active')
-        .neq('id', currentProductId)
-        .ilike('vendor', `%${escapeLike(vendor)}%`)
-        .order('published_at', { ascending: false })
-        .limit(4);
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        id, title, handle, published_at,
+        product_variants (id, title, price, compare_at_price, inventory_quantity, position),
+        product_images (id, src, storage_url, position)
+      `)
+      .eq('status', 'active')
+      .neq('id', currentProductId)
+      .ilike('vendor', `%${escapeLike(vendor)}%`)
+      .order('published_at', { ascending: false })
+      .limit(4);
 
-      if (error || !data) {
-        setLoading(false);
-        return;
-      }
+    if (error || !data) return null;
 
-      const transformedProducts: SimpleProduct[] = (data as unknown as ProductWithDetails[])
-        // A null handle becomes an empty string and a broken /product/ link.
-        .filter((p) => p.handle)
-        .map((p) => {
-        const variant = getFirstByPosition(p.product_variants);
+    return (data as unknown as ProductWithDetails[])
+      // A null handle becomes an empty string and a broken /product/ link.
+      .filter((p) => p.handle)
+      .map((p) => {
+        const variants = sortByPosition(p.product_variants);
+        const variant =
+          variants.find((candidate) => candidate.inventory_quantity > 0) ??
+          getFirstByPosition(p.product_variants);
         const image = getFirstByPosition(p.product_images);
 
         return {
@@ -76,87 +88,94 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
           title: p.title,
           price: variant?.price || 0,
           compareAtPrice: variant?.compare_at_price || null,
-          image: image?.supabase_url || image?.src || null,
+          image: image?.storage_url || image?.src || null,
           badge: getProductBadge(p, variant),
           variantId: variant?.id ?? null,
           variantTitle: variant?.title ?? null,
-          maxQuantity: variant && variant.inventory_quantity > 0 ? variant.inventory_quantity : 10,
+          maxQuantity: maxQuantityFor(variant?.inventory_quantity),
         };
       });
-
-      setProducts(transformedProducts);
-      setLoading(false);
-    }
-
-    fetchRelatedProducts();
   }, [currentProductId, vendor]);
 
-  if (loading) {
+  const applyResult = useCallback((products: SimpleProduct[] | null) => {
+    setState(products === null ? { status: 'error' } : { status: 'ready', products });
+  }, []);
+
+  // The result lands in a promise callback rather than synchronously in the
+  // effect body (a cascading render), and a product change cancels the in-flight
+  // response so a slow rail cannot overwrite the new product's.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const products = await fetchRelated();
+      if (!cancelled) applyResult(products);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchRelated, applyResult]);
+
+  const retry = useCallback(async () => {
+    setState({ status: 'loading' });
+    applyResult(await fetchRelated());
+  }, [fetchRelated, applyResult]);
+
+  if (state.status === 'loading') {
     return (
       <section className="py-24 bg-surface-card">
-        <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-          <div className="animate-pulse">
-            <div className="h-4 w-32 bg-surface-raised mb-3" />
-            <div className="h-8 w-64 bg-surface-raised mb-12" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i}>
-                  <div className="aspect-[3/4] bg-surface-raised mb-4" />
-                  <div className="h-4 bg-surface-raised mb-2 w-1/3" />
-                  <div className="h-5 bg-surface-raised mb-2" />
-                  <div className="h-4 bg-surface-raised w-1/4" />
-                </div>
-              ))}
-            </div>
+        <Container>
+          <Skeleton variant="text-block" className="mb-12 max-w-sm" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} variant="product-card" />
+            ))}
           </div>
-        </div>
+        </Container>
       </section>
     );
   }
 
-  if (products.length === 0) return null;
+  if (state.status === 'error') {
+    return (
+      <section className="py-24 bg-surface-card">
+        <Container>
+          <ErrorState
+            as="h2"
+            title="Could not load more products"
+            message="Check your connection and try again."
+            onRetry={retry}
+            retryLabel="Retry"
+            showHomeLink={false}
+          />
+        </Container>
+      </section>
+    );
+  }
+
+  if (state.products.length === 0) return null;
 
   return (
     <section className="py-24 bg-surface-card">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6 }}
-          className="flex items-end justify-between mb-12"
-        >
-          <div>
-            <p
-              className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] mb-3"
-              style={{ color: 'var(--accent)' }}
-            >
-              MORE FROM {vendor.toUpperCase()}
-            </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-3xl md:text-4xl text-text-primary">
-              You May Also Like
-            </h2>
-          </div>
-          <Link
-            href={`/artist/${vendorToHandle(vendor)}`}
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
-          >
-            VIEW ALL
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </motion.div>
+      <Container>
+        <Reveal className="mb-12">
+          <SectionHeading
+            eyebrow={`MORE FROM ${vendor.toUpperCase()}`}
+            title="You May Also Like"
+            action={
+              <Link
+                href={`/artist/${vendorToHandle(vendor)}`}
+                className="hidden sm:flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
+              >
+                VIEW ALL
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+            }
+          />
+        </Reveal>
 
-        {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-          {products.map((product, index) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-            >
+          {state.products.map((product, index) => (
+            <Reveal key={product.id} delay={index * 0.1}>
               <ProductCard
                 handle={product.handle}
                 title={product.title}
@@ -171,10 +190,10 @@ export function RelatedProducts({ currentProductId, vendor, accentColor = 'var(-
                 variantTitle={product.variantTitle}
                 maxQuantity={product.maxQuantity}
               />
-            </motion.div>
+            </Reveal>
           ))}
         </div>
-      </div>
+      </Container>
     </section>
   );
 }

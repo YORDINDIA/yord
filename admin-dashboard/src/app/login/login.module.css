@@ -1,0 +1,291 @@
+/*
+ * Login screen styles.
+ *
+ * globals.css owns the vocabulary (`.card`, `.input`, `.label`, `.button`,
+ * `.stack`, `.skeleton`); this file holds only what the split screen adds — the
+ * two-panel grid, the brand panel's texture, the password reveal control, and
+ * the footer meta row.
+ *
+ * Colours come from semantic tokens only, so both themes are covered by
+ * construction: body copy is `--text-strong` / `--text` / `--text-muted` (each
+ * ≥4.5:1 on the panel surface in both themes), marks are `--accent` on
+ * `--accent-soft` (≥3:1, and non-text), and the monogram is `--on-accent` on the
+ * `--accent-fill` gradient.
+ */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* Transparent on purpose: the fixed aurora layer (z-index -1)
+     shows through the form column, while <html> carries the page
+     fill via --surface-page. The brand panel stays opaque. */
+  background: transparent;
+}
+
+@media (min-width: 900px) {
+  .page {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+/* ── Brand panel ─────────────────────────────────────────────────────────── */
+
+.brand {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-default);
+}
+
+@media (min-width: 900px) {
+  .brand {
+    padding: 40px;
+    border-bottom: 0;
+    border-right: 1px solid var(--border-default);
+  }
+}
+
+/*
+ * Grid + glow texture.
+ *
+ * One positioned pseudo-element *under* the content (`.brandInner` is
+ * positioned, so it paints above). That ordering is what keeps the copy at full
+ * contrast in both themes: the wash is a tint behind the text, never a fill on
+ * top of it.
+ */
+.brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(120% 70% at 8% 0%, var(--accent-soft) 0%, transparent 62%),
+    repeating-linear-gradient(to right, var(--border-default) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(to bottom, var(--border-default) 0 1px, transparent 1px 34px);
+}
+
+.brandInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/* Below 900px the panel collapses to a header strip: identity only, no claims. */
+@media (max-width: 899px) {
+  .brandInner {
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+  }
+
+  .statement,
+  .capabilities {
+    display: none;
+  }
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 50%, #b45309 100%);
+  color: #050608;
+  font-family: var(--font-display, Georgia, serif);
+  font-weight: 800;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 16px -2px rgba(245, 183, 69, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(252, 211, 77, 0.5);
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+
+.wordmarkTail {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+}
+
+.statement {
+  max-width: 30ch;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capability {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.capabilityIcon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  box-shadow: 0 0 10px -2px var(--accent-soft);
+}
+
+/* ── Form panel ──────────────────────────────────────────────────────────── */
+
+/*
+ * The BorderGlow card's pre-hydration surface. The resolved colour
+ * arrives as an inline style after the token store hydrates; an empty
+ * inline background does not override a class, so this keeps the card
+ * opaque from the first paint (static prerender included).
+ */
+.loginGlow {
+  background: var(--surface-card);
+}
+
+.formPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 22px 16px 18px;
+}
+
+@media (min-width: 900px) {
+  .formPanel {
+    padding: 40px;
+  }
+}
+
+.formInner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.formHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formTitle {
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.passwordField {
+  position: relative;
+  display: flex;
+}
+
+/*
+ * Room for the reveal button so a long password never runs underneath it. Set
+ * here rather than with a `pr-*` utility: `.input`'s padding is unlayered and
+ * would win over the layered Tailwind class.
+ */
+.passwordField input {
+  padding-right: 32px;
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  color: var(--text-strong);
+  background: var(--surface-hover);
+}
+
+.reveal[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.spin {
+  animation: login-spin 900ms linear infinite;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* ── Footer meta ─────────────────────────────────────────────────────────── */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--divider);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.metaHost {
+  max-width: 130px;
+}

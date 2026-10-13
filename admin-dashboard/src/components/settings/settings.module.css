@@ -1,0 +1,185 @@
+/* Settings-page-local styles.
+ *
+ * globals.css owns the vocabulary (cards, tables, badges, chips, the modal
+ * shell); everything here is specific to `/settings`: the per-row toggle form,
+ * its inline refusal, the identity cell, and the audit diff. Compound selectors
+ * (`form.rowForm`, `div.auditModal`, `tr > td.leading`) are written to clear the
+ * global rules they extend on specificity, the same reason data.module.css
+ * documents — a plain class would lose to `.table td` / `.modal-card` on
+ * stylesheet order.
+ *
+ * Colour comes from tokens only, so both themes stay ≥4.5:1 on their own
+ * surface: `--text-muted` (body text), `--text-strong` (emphasised values),
+ * `--text-subtle` (uppercase micro-labels only), `--tone-rose` (a refused
+ * write), `--tone-amber` (a changed key).
+ */
+
+/* The toggle control is a `<form>` inside an actions cell. `.row` inside it
+   keeps the button and the "you" chip on one line; the column direction is so a
+   refused write can drop its message under the button. */
+form.rowForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+}
+
+/* Per-row refusal ("You cannot deactivate your own account."). Capped so one
+   message cannot stretch the actions column across the page. */
+.rowError {
+  max-width: 220px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--tone-rose);
+}
+
+/* Leading glyph in the form's success banner. `.form-alert` has no `svg` rule,
+   so without `flex: none` a long message in a narrow column squashes the glyph —
+   the same guard `FormError` applies inline. */
+.alertIcon {
+  flex: none;
+}
+
+/* Name/email/added stack inside a table cell. `min-width: 0` lets the `.truncate`
+   children actually truncate instead of widening the column. */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* The diff modal is wider than `.modal-card`'s 460px: two JSON columns plus a
+   key column do not fit there. `div.` raises specificity above `.modal-card`.
+   It also bounds itself to the viewport: on a phone the Raw JSON panels stack
+   below the 42vh diff table and each `pre` may take 30vh, which can push the
+   Close button past the bottom edge — the modal scrolls inside instead. */
+div.auditModal {
+  max-width: 760px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+.modalMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.modalMeta strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Vertical scroll for the key/value table, so a 40-key payload cannot push the
+   modal past the viewport. The table's own `.table-wrap` still handles
+   horizontal overflow inside it. */
+.diffScroll {
+  max-height: 42vh;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: var(--surface-inset);
+}
+
+/* Key column: the long token in a payload (`body_html`, `storage_image_url`). */
+.diffKey {
+  color: var(--text-strong);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+/* Values are capped and ellipsized the way the other dense tables do it: an
+   uncapped cell is what silently turns a table into a horizontal scroller, and
+   a wrapping one turns long values into tall rows. The full value stays in the
+   cell's `title`, and the raw JSON below carries it untruncated. */
+.diffValue {
+  display: inline-block;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+/* A key whose value differs between `before` and `after` — the whole point of
+   the modal. The bar is decorative; the emphasis is the value's colour. */
+.diffRowChanged td:first-child {
+  box-shadow: inset 2px 0 0 var(--tone-amber);
+}
+
+.diffRowChanged .diffValue {
+  color: var(--text-strong);
+}
+
+.rawDetails {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.rawDetails > summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.rawGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Pretty-printed payloads. `pre` (not `pre-wrap`) so indentation survives; the
+   box scrolls instead. */
+.rawPre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 30vh;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.rawLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 768px) {
+  /* Side-by-side JSON stops being readable before the grid stops fitting. */
+  .rawGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .diffValue {
+    max-width: 150px;
+  }
+
+  .rowError {
+    max-width: 180px;
+  }
+}

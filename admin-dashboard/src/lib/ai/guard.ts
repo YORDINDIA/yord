@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 // Shared cost guard for admin AI routes (listing, marketing, blog, image).
 // In-memory and best-effort (resets on redeploy); promotes to Upstash/DB
 // counters if abuse persists. Adoption: call assertAiAllowed(userId) at the
-// top of each POST handler before invoking OpenAI.
+// top of each POST handler before invoking Agnes AI.
 //
 //   const denied = assertAiAllowed(user.id);
 //   if (denied) return denied;

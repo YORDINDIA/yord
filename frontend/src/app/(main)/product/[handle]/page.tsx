@@ -1,11 +1,16 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Metadata } from 'next';
+import { ChevronRight } from 'lucide-react';
 import { ProductGallery } from '@/features/product/ProductGallery';
 import { ProductInfo } from '@/features/product/ProductInfo';
+import { ProductDescription } from '@/features/product/ProductDescription';
 import { ProductViewTracker } from '@/features/product/ProductViewTracker';
 import { RelatedProducts } from '@/features/product/RelatedProducts';
+import { Container } from '@/features/ui/Container';
 import { getProductByHandleStatic } from '@/lib/supabase/queries';
 import { createStaticClient } from '@/lib/supabase/server';
+import { sortByPosition } from '@/lib/product';
 import { ARTISTS } from '@yord/db-types';
 import { stripHtml } from '@yord/ui';
 import { JsonLd, productSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
@@ -53,7 +58,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const description = product.meta_description
     ?? (product.body_html
       ? stripHtml(product.body_html).slice(0, 160)
-      : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping above ₹1,999.`);
+      : `Shop ${product.title} from ${product.vendor || 'YORD India'}. Premium concert merchandise. Buy online with free shipping on every order.`);
 
   return {
     title: product.meta_title
@@ -108,14 +113,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
       alt: img.alt || productData.title,
       position: img.position,
     })) || [],
-    variants: productData.product_variants?.map((v) => ({
+    // `position` order, matching the gallery and the quick view. Sorting by id
+    // put the same product's sizes in a different order on the PDP than in the
+    // grid's quick view.
+    variants: sortByPosition(productData.product_variants).map((v) => ({
       id: v.id,
       title: v.title || v.option1 || 'Default',
       price: v.price,
       compareAtPrice: v.compare_at_price,
       inventoryQuantity: v.inventory_quantity,
       option1: v.option1 || 'Default',
-    })).sort((a, b) => a.id - b.id) || [],
+      position: v.position,
+    })),
     options: productData.product_options?.map((opt) => ({
       name: opt.name,
       values: opt.values || [],
@@ -125,7 +134,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <main className="bg-surface-page pt-20">
+    <div className="bg-surface-page pt-20">
       <ProductViewTracker productId={product.id} handle={product.handle} />
       <JsonLd data={productSchema(productData)} />
       <JsonLd
@@ -135,8 +144,37 @@ export default async function ProductPage({ params }: ProductPageProps) {
           { name: product.title, url: `/product/${productData.handle}` },
         ])}
       />
-      {/* Product Section */}
-      <section className="max-w-[1440px] mx-auto px-6 lg:px-12 py-12">
+      {/* Visible breadcrumb: the hierarchy existed only in the JSON-LD, so the
+          page itself offered no way back up to /products. */}
+      <Container className="pt-6">
+        <nav aria-label="Breadcrumb">
+          <ol className="flex flex-wrap items-center gap-2 font-body text-xs text-text-muted">
+            <li>
+              <Link href="/" className="hover:text-accent transition-colors">
+                Home
+              </Link>
+            </li>
+            <li aria-hidden="true">
+              <ChevronRight size={12} />
+            </li>
+            <li>
+              <Link href="/products" className="hover:text-accent transition-colors">
+                Products
+              </Link>
+            </li>
+            <li aria-hidden="true">
+              <ChevronRight size={12} />
+            </li>
+            <li aria-current="page" className="text-text-secondary truncate max-w-[18rem]">
+              {product.title}
+            </li>
+          </ol>
+        </nav>
+      </Container>
+
+      {/* Product Section — the info column is the sticky rail, so price and
+          add-to-bag stay reachable while the gallery scrolls. */}
+      <Container as="section" className="py-8 lg:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
           {/* Gallery */}
           <ProductGallery
@@ -146,15 +184,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
           />
 
           {/* Product Info */}
-          <ProductInfo
-            key={product.id}
-            product={{
-              ...product,
-              image: product.images[0]?.src || null,
-            }}
-          />
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <ProductInfo
+              key={product.id}
+              product={{
+                ...product,
+                image: product.images[0]?.src || null,
+              }}
+            />
+          </div>
         </div>
-      </section>
+      </Container>
+
+      {/* Description — full width below the fold, so the sticky rail stays
+          short enough to actually stick. */}
+      <Container size="narrow" className="pb-16">
+        <ProductDescription html={product.description} />
+      </Container>
 
       {/* Related Products */}
       <RelatedProducts
@@ -162,6 +208,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         vendor={product.vendor}
         accentColor={product.accentColor}
       />
-    </main>
+    </div>
   );
 }

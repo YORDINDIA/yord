@@ -1,0 +1,318 @@
+/* Poster concept: artist rails, story, newsletter, reduced motion. */
+
+/* ── Artist rails ────────────────────────────────────────────────────────── */
+
+.poster-rail {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  padding-block: clamp(2.5rem, 5vw, 4.5rem);
+}
+.poster-rail[data-side="right"] .poster-rail-body {
+  order: -1;
+}
+.poster-rail[data-side="right"] .poster-rail-name {
+  margin-left: 14%;
+}
+/* The name is its own size container: it is sized so the last letter runs
+   0.24em past the right edge on purpose, and the start stays fully legible. */
+.poster-rail-name {
+  container-type: inline-size;
+  margin: 0;
+  padding-block: 1.1vw;
+  overflow: clip;
+  background: var(--poster-grain), var(--c);
+  color: var(--ink);
+  transition: background-color 0.14s, color 0.14s;
+}
+.poster-rail-name:hover,
+.poster-rail-name:has(a:focus-visible) {
+  background: var(--poster-grain), var(--ink);
+  color: var(--c);
+}
+.poster-rail-name a {
+  --pad: 4cqw;
+  --crop: 0.24;
+  --size: min(27cqw, calc((100cqw - var(--pad)) / (var(--w) - var(--crop))));
+  display: block;
+  width: max-content;
+  margin-left: calc(100cqw - (var(--w) - var(--crop)) * var(--size));
+  font-size: var(--size);
+  line-height: 0.9;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.poster-rail-body {
+  padding-inline: var(--poster-gutter);
+}
+.poster-rail-meta {
+  margin: 0 0 1rem;
+}
+.poster-rail-scroller {
+  display: flex;
+  gap: 0.75rem;
+  margin-inline: calc(var(--poster-gutter) * -1);
+  padding: 0 var(--poster-gutter) 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--poster-gutter);
+  scrollbar-width: thin;
+}
+.poster-rail-scroller > .poster-tile {
+  flex: 1 0 14.5rem;
+  max-width: 24rem;
+  scroll-snap-align: start;
+}
+
+/* ── Story ───────────────────────────────────────────────────────────────── */
+
+.poster-story-head {
+  container-type: inline-size;
+  margin-bottom: clamp(2.5rem, 5vw, 4.5rem);
+}
+.poster-story-title {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: calc(100cqw / var(--w));
+  line-height: 0.8;
+  white-space: nowrap;
+}
+.poster-story-main {
+  display: grid;
+  gap: 2.5rem;
+  margin-bottom: clamp(3rem, 6vw, 5.5rem);
+}
+@media (min-width: 900px) {
+  .poster-story-main {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 1.5rem;
+    align-items: end;
+  }
+  .poster-established {
+    grid-column: 1 / 8;
+  }
+  .poster-story-copy {
+    grid-column: 8 / 13;
+  }
+}
+.poster-established {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+}
+.poster-established span {
+  font-size: clamp(1.25rem, 1.8vw, 1.75rem);
+  line-height: 1;
+}
+.poster-established b {
+  display: block;
+  width: fit-content;
+  font-weight: 400;
+  font-size: clamp(10rem, 25vw, 24rem);
+  line-height: 0.8;
+  padding-bottom: 0.04em;
+  background-color: var(--poster-accent);
+  background-image: var(--photo);
+  background-size: cover;
+  background-position: center 40%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.poster-story-copy {
+  display: grid;
+  gap: 1rem;
+  max-width: 34rem;
+}
+.poster-story-copy p {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.poster-story-copy .poster-pull {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  line-height: 0.92;
+  color: var(--text-primary);
+}
+.poster-story-copy .poster-textlink {
+  justify-self: start;
+  margin-top: 0.5rem;
+  color: var(--text-primary);
+}
+.poster-values {
+  display: grid;
+  gap: 2.25rem 3.5rem;
+  margin: 0;
+  list-style: none;
+}
+@media (min-width: 640px) {
+  .poster-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.poster-values li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 1.5rem;
+  align-items: start;
+}
+.poster-value-num {
+  grid-row: span 2;
+  padding-bottom: 0.14em;
+  border-bottom: 0.14em solid var(--poster-accent);
+  font-size: clamp(2.75rem, 4.4vw, 4rem);
+  line-height: 0.8;
+}
+.poster-values h3 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.poster-values li p {
+  margin: 0;
+  max-width: 24rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+/* ── Newsletter ──────────────────────────────────────────────────────────── */
+
+.poster-news {
+  padding-block: clamp(3rem, 7vw, 6rem) clamp(2.5rem, 5vw, 4rem);
+  /* The lower third steps toward the ink so the block has tone, not a flat fill. */
+  background:
+    var(--poster-grain),
+    linear-gradient(to bottom, transparent 45%, color-mix(in srgb, var(--poster-accent-ink) 8%, transparent)),
+    var(--poster-accent);
+  color: var(--poster-accent-ink);
+}
+.poster-news-fit {
+  container-type: inline-size;
+  padding-inline: var(--poster-gutter);
+}
+.poster-news-title {
+  margin: 0;
+  font-size: calc(100cqw / 5.46);
+  line-height: 0.8;
+  white-space: nowrap;
+}
+.poster-news-body {
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(1.75rem, 3vw, 2.75rem);
+}
+.poster-news-lead {
+  max-width: 36rem;
+  margin: 0;
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  line-height: 1.5;
+}
+.poster-news-form {
+  display: grid;
+  gap: 0.25rem;
+}
+.poster-news-form[hidden] {
+  display: none;
+}
+.poster-news-form:focus-within {
+  outline: 3px solid currentColor;
+  outline-offset: 6px;
+}
+.poster-news-form input {
+  min-width: 0;
+  padding: 0.35em 0;
+  border: 0;
+  border-bottom: 4px solid currentColor;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: clamp(1.5rem, 3.4vw, 3rem);
+  font-weight: 600;
+}
+.poster-news-form input::placeholder {
+  color: color-mix(in srgb, var(--poster-accent-ink) 78%, transparent);
+  opacity: 1;
+}
+.poster-news-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.5em;
+  padding: 0.9em 1.1em;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.14s, color 0.14s;
+}
+.poster-news-form button:hover:not(:disabled),
+.poster-news-form button:focus-visible {
+  background: var(--poster-accent-ink);
+  color: var(--poster-accent);
+  outline: none;
+}
+.poster-news-form button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+@media (min-width: 640px) {
+  .poster-news-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 2rem;
+    border-bottom: 4px solid currentColor;
+  }
+  .poster-news-form input {
+    border-bottom-color: transparent;
+  }
+}
+.poster-news-status {
+  min-height: 1.5em;
+  margin: 0;
+  font-weight: 600;
+}
+.poster-news-status[data-state="success"] {
+  font-size: clamp(1.4rem, 2.6vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.poster-news-fine {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .poster {
+    transition: none;
+  }
+  .poster-curtain {
+    display: none;
+  }
+  .poster-card,
+  .poster-card img,
+  .poster-peek,
+  .poster-textlink-arrow {
+    transition: none;
+  }
+  .poster-marquee {
+    overflow-x: auto;
+  }
+  .poster-marquee-track {
+    animation: none;
+  }
+  .poster-marquee-group[aria-hidden] {
+    display: none;
+  }
+}

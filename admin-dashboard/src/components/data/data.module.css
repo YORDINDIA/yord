@@ -1,0 +1,29 @@
+/* DataTable density variants.
+ *
+ * globals.css defines the dense table (30px header, 34px rows) and nothing
+ * else, so the two opt-ins DataTable offers — the comfortable row height and
+ * the 34px row-lead cell — live here with the component that owns them.
+ *
+ * Local class names on purpose: Next runs css-loader in `pure` mode, which
+ * rejects a top-level `:global()` selector, and a global rule would need
+ * globals.css, which this component does not own. The compounds below
+ * (`table.comfortable td`, `tr > td.leading`) are written to clear `.table td`
+ * on specificity, so the variant cannot lose to the base rule on stylesheet
+ * order.
+ */
+
+table.comfortable th {
+  height: 38px;
+}
+
+table.comfortable td {
+  height: 46px;
+  padding: 8px 12px;
+}
+
+/* Row-lead cell: the non-interactive twin of `.table-select`. */
+tr > th.leading,
+tr > td.leading {
+  width: 34px;
+  padding-left: 0;
+}

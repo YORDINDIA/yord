@@ -16,7 +16,7 @@ from supabase import Client
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.supabase_helpers import get_supabase_client, get_supabase_count
-from utils.config import resolve_supabase_url
+from utils.config import resolve_supabase_secret_key, resolve_supabase_url
 from utils.cli import create_parser, configure_logging
 
 # Load environment variables
@@ -35,7 +35,7 @@ SHOPIFY_HEADERS = {
 # Supabase configuration (URL falls back to NEXT_PUBLIC_SUPABASE_URL;
 # see root .env.example)
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
 
 
 class MigrationVerifier:
@@ -327,7 +327,7 @@ class MigrationVerifier:
         return all_match
 
     def verify_media_migration(self):
-        """Verify media has been migrated to Supabase Storage."""
+        """Verify media has been migrated to storage (Cloudflare R2 or legacy Supabase)."""
         print("\n" + "=" * 60)
         print("MEDIA MIGRATION VERIFICATION")
         print("=" * 60)
@@ -341,13 +341,13 @@ class MigrationVerifier:
         # Count migrated images
         migrated_response = self.supabase.table('product_images').select(
             'id', count='exact'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').execute()
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').execute()
         migrated_images = migrated_response.count if migrated_response.count else 0
 
         migration_percentage = (migrated_images / total_images * 100) if total_images > 0 else 0
 
         print(f"  Total product images:    {total_images}")
-        print(f"  Migrated to Supabase:    {migrated_images}")
+        print(f"  Migrated to storage:     {migrated_images}")
         print(f"  Migration percentage:    {migration_percentage:.1f}%")
 
         self.results['media_checks'] = {
@@ -358,8 +358,8 @@ class MigrationVerifier:
 
         # Sample check: verify URLs are accessible
         sample_response = self.supabase.table('product_images').select(
-            'supabase_url'
-        ).not_.is_('supabase_url', 'null').neq('supabase_url', '').limit(5).execute()
+            'storage_url'
+        ).not_.is_('storage_url', 'null').neq('storage_url', '').limit(5).execute()
 
         sample_urls = sample_response.data if sample_response.data else []
 
@@ -367,7 +367,7 @@ class MigrationVerifier:
             print("\n  Sample URL accessibility check:")
             accessible = 0
             for item in sample_urls:
-                url = item['supabase_url']
+                url = item['storage_url']
                 try:
                     response = requests.head(url, timeout=5)
                     if response.status_code == 200:
@@ -435,7 +435,7 @@ def main():
 
     # Validate environment
     required_vars = ['SHOPIFY_STORE_NAME', 'SHOPIFY_ADMIN_API_ACCESS_TOKEN',
-                     'SUPABASE_SERVICE_ROLE_KEY']
+                     'SUPABASE_SECRET_KEY']
     missing = [var for var in required_vars if not os.getenv(var)]
     if not SUPABASE_URL:
         missing.insert(0, 'SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)')

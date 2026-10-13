@@ -1,45 +1,66 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion, useInView } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { ARTISTS } from '@yord/db-types';
+import { SectionHeading } from '@/features/ui/SectionHeading';
+import { SECTION_PADDING } from './section';
+import '@/features/ui/reveal.css';
+import type { ArtistData } from '@yord/db-types';
 
-export function ArtistShowcase() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: '-100px' });
+/**
+ * Featured Artists rail.
+ *
+ * The tiles are the artists the database can actually serve — the caller passes
+ * `getArtistsWithMetadata()`, which only returns artist handles whose published
+ * collection has products. Rendering the static `ARTISTS` record instead (71
+ * handles, 61 with no collection row at all) produced 61 links to the
+ * "Artist not found" page. Display name, accent and hero still come from the
+ * static metadata, merged into `ArtistData` by the query layer.
+ */
+/**
+ * Handles the owner wants first in the rail, ahead of the product-count order
+ * the query layer returns. Pinned here rather than in `getArtistsWithMetadata`
+ * because this ordering is homepage merchandising, not a property of the data —
+ * `/artists`, the header, the footer and the catalog filters keep the count
+ * order. A pinned handle that has no published products simply is not in the
+ * list, so nothing renders for it.
+ */
+const RAIL_PINNED_HANDLES = ['diljit-dosanjh'];
 
-  const artists = Object.values(ARTISTS);
+function railOrder(artists: ArtistData[]): ArtistData[] {
+  const pinned = RAIL_PINNED_HANDLES.flatMap((handle) =>
+    artists.filter((artist) => artist.handle === handle),
+  );
+  return [...pinned, ...artists.filter((artist) => !RAIL_PINNED_HANDLES.includes(artist.handle))];
+}
+
+export function ArtistShowcase({ artists }: { artists: ArtistData[] }) {
+  const ordered = railOrder(artists);
+
+  // No artist data (backend hiccup or none published yet): hide the rail
+  // rather than render a header over an empty scroll strip.
+  if (artists.length === 0) return null;
 
   return (
-    <section ref={containerRef} className="py-24 bg-surface-page overflow-hidden">
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
-          className="flex items-end justify-between mb-12"
-        >
-          <div>
-            <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.3em] text-accent mb-3">
-              EXCLUSIVE COLLECTIONS
-            </p>
-            <h2 className="font-[family-name:var(--font-playfair)] text-4xl md:text-5xl text-text-primary">
-              Featured Artists
-            </h2>
-          </div>
-          <Link
-            href="/artists"
-            className="hidden sm:flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
-            data-cursor="pointer"
-          >
-            VIEW ALL
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </motion.div>
+    <section className={`reveal-clip bg-surface-page ${SECTION_PADDING}`}>
+      <div className="container-page">
+        <SectionHeading
+          className="reveal-up mb-12"
+          eyebrow="EXCLUSIVE COLLECTIONS"
+          title="Featured Artists"
+          action={
+            <Link
+              href="/artists"
+              className="hidden sm:flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors group"
+              data-cursor="pointer"
+            >
+              VIEW ALL
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+          }
+        />
       </div>
 
       {/* Artist Cards - Horizontal Scroll */}
@@ -48,18 +69,24 @@ export function ArtistShowcase() {
         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-surface-page to-transparent z-10 pointer-events-none" />
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-surface-page to-transparent z-10 pointer-events-none" />
 
-        {/* Scrollable Container */}
-        <div className="overflow-x-auto scrollbar-hide">
+        {/* Scrollable Container. A native scroller: touch pans it, the trackpad
+            pans it, and `tabIndex` gives it a keyboard entry point so the rail
+            is reachable without a pointer (it was hover-only in practice — the
+            tiles are links, but nothing moved the strip to bring an off-screen
+            tile into view). */}
+        <div
+          className="overflow-x-auto scrollbar-hide"
+          tabIndex={0}
+          role="region"
+          aria-label="Featured artists"
+        >
           <div className="flex gap-6 px-6 lg:px-12 pb-4" style={{ width: 'max-content' }}>
-            {artists.map((artist, index) => (
-              <motion.div
-                key={artist.handle}
-                initial={{ opacity: 0, x: 50 }}
-                animate={isInView ? { opacity: 1, x: 0 } : {}}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-              >
+            {/* No reveal class here: a horizontal scroller is a scroll
+                container, so a `view()` timeline would never play. */}
+            {ordered.map((artist) => (
+              <div key={artist.handle}>
                 <ArtistCard artist={artist} />
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -69,7 +96,7 @@ export function ArtistShowcase() {
       <div className="sm:hidden mt-8 text-center">
         <Link
           href="/artists"
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-bebas)] text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
+          className="inline-flex items-center gap-2 font-accent text-sm tracking-[0.1em] text-text-secondary hover:text-accent transition-colors"
         >
           VIEW ALL ARTISTS
           <ArrowRight size={16} />
@@ -79,31 +106,36 @@ export function ArtistShowcase() {
   );
 }
 
-function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS] }) {
-  const [rotateX, setRotateX] = useState(0);
-  const [rotateY, setRotateY] = useState(0);
-  const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
+function ArtistCard({ artist }: { artist: ArtistData }) {
   const [isHovering, setIsHovering] = useState(false);
+  const accent = artist.accentColor ?? 'var(--accent)';
 
+  /**
+   * Tilt and spotlight are written straight to the element as CSS custom
+   * properties. They were three `useState` calls updated on every mousemove —
+   * a React re-render of the whole card per event, for two values only CSS
+   * ever reads. `isHovering` stays state because it selects a transition.
+   */
   const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
 
-    // 3D tilt effect - max 7.5 degrees
-    setRotateY((x - 0.5) * 15);
-    setRotateX((0.5 - y) * 15);
-
+    // 3D tilt effect - max 7.5 degrees each way
+    el.style.setProperty('--tilt-x', `${(0.5 - y) * 15}deg`);
+    el.style.setProperty('--tilt-y', `${(x - 0.5) * 15}deg`);
     // Spotlight glow position
-    setGlowPosition({ x: x * 100, y: y * 100 });
+    el.style.setProperty('--glow-x', `${x * 100}%`);
+    el.style.setProperty('--glow-y', `${y * 100}%`);
   };
 
-  const handleMouseEnter = () => setIsHovering(true);
-
-  const handleMouseLeave = () => {
+  const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
     setIsHovering(false);
-    setRotateX(0);
-    setRotateY(0);
+    // Reset so the 0.5s transition has something to animate back to.
+    e.currentTarget.style.setProperty('--tilt-x', '0deg');
+    e.currentTarget.style.setProperty('--tilt-y', '0deg');
   };
 
   return (
@@ -111,20 +143,22 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
       href={`/artist/${artist.handle}`}
       className="group relative block w-[280px] sm:w-[320px] aspect-[3/4] overflow-hidden"
       onMouseMove={handleMouseMove}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={handleMouseLeave}
       data-cursor="pointer"
       style={{
-        transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+        transform: 'perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))',
         transformStyle: 'preserve-3d',
-        transition: isHovering ? 'none' : 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+        transition: isHovering
+          ? 'transform 0.1s ease-out'
+          : 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
       }}
     >
       {/* Background with Artist Color */}
       <div
         className="absolute inset-0 transition-all duration-500 group-hover:scale-105"
         style={{
-          background: `linear-gradient(135deg, ${artist.accentColor}20 0%, ${artist.secondaryColor}30 100%)`,
+          background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 12%, transparent) 0%, color-mix(in srgb, ${artist.secondaryColor ?? accent} 18%, transparent) 100%)`,
         }}
       />
 
@@ -141,13 +175,13 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
         )}
       </div>
 
-      {/* Spotlight Glow Effect - follows cursor */}
+      {/* Spotlight Glow Effect - follows the cursor via --glow-x/--glow-y */}
       <div
         className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
         style={{
           background: `radial-gradient(
-            400px circle at ${glowPosition.x}% ${glowPosition.y}%,
-            ${artist.accentColor}25 0%,
+            400px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+            color-mix(in srgb, ${accent} 15%, transparent) 0%,
             transparent 60%
           )`,
         }}
@@ -162,60 +196,36 @@ function ArtistCard({ artist }: { artist: (typeof ARTISTS)[keyof typeof ARTISTS]
       {/* Content */}
       <div className="absolute inset-0 p-6 flex flex-col justify-end" style={{ transform: 'translateZ(20px)' }}>
         {/* Artist Accent Line */}
-        <motion.div
-          className="h-0.5 w-12 mb-4"
-          style={{ backgroundColor: artist.accentColor }}
-          whileHover={{ width: 60 }}
-          transition={{ duration: 0.3 }}
+        <div
+          className="h-0.5 w-12 mb-4 transition-[width] duration-300 group-hover:w-[60px]"
+          style={{ backgroundColor: accent }}
         />
 
         {/* Artist Name */}
-        <h3 className="font-[family-name:var(--font-playfair)] text-2xl text-text-on-media mb-1 group-hover:text-accent-on-media transition-colors">
+        <h3 className="font-display text-2xl text-text-on-media mb-1 group-hover:text-accent-on-media transition-colors">
           {artist.name}
         </h3>
 
         {/* Tagline */}
-        <p className="font-[family-name:var(--font-bebas)] text-xs tracking-[0.15em] text-text-on-media-muted mb-4">
+        <p className="font-accent text-xs tracking-[0.15em] text-text-on-media-muted mb-4">
           {(artist.tagline || 'Fan Collection').toUpperCase()}
         </p>
 
         {/* CTA */}
         <div className="flex items-center gap-2 text-sm">
           <span
-            className="font-[family-name:var(--font-bebas)] tracking-[0.1em]"
-            style={{ color: artist.accentColor }}
+            className="font-accent tracking-[0.1em]"
+            style={{ color: accent }}
           >
             SHOP COLLECTION
           </span>
           <ArrowRight
             size={14}
-            style={{ color: artist.accentColor }}
+            style={{ color: accent }}
             className="group-hover:translate-x-1 transition-transform"
           />
         </div>
       </div>
-
-      {/* Animated Gradient Border on Hover */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{
-          background: `linear-gradient(var(--border-angle, 0deg), ${artist.accentColor} 0%, transparent 50%)`,
-          mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-          maskComposite: 'xor',
-          WebkitMaskComposite: 'xor',
-          padding: '2px',
-          animation: isHovering ? 'borderRotate 3s linear infinite' : 'none',
-        }}
-      />
-
-      {/* Bottom Accent Line */}
-      <motion.div
-        className="absolute bottom-0 left-0 right-0 h-0.5"
-        style={{ backgroundColor: artist.accentColor }}
-        initial={{ scaleX: 0 }}
-        whileHover={{ scaleX: 1 }}
-        transition={{ duration: 0.3 }}
-      />
     </Link>
   );
 }

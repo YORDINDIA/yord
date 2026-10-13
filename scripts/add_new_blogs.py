@@ -4,23 +4,23 @@ Add New Blog Articles to YORD India Supabase Database.
 Inserts 10 new articles via Supabase REST API.
 """
 
-import os
 import json
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
-from utils.config import resolve_supabase_url
+from utils.config import resolve_supabase_secret_key, resolve_supabase_url
 
 load_dotenv()
 
 # Falls back to NEXT_PUBLIC_SUPABASE_URL; see root .env.example
 SUPABASE_URL = resolve_supabase_url()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_SECRET_KEY = resolve_supabase_secret_key()
 BLOG_ID = 89876988081
 
+# New-format keys (sb_secret_...) go on `apikey` only: they are not JWTs, so a
+# matching `Authorization: Bearer` header would be rejected downstream.
 HEADERS = {
-    'apikey': SUPABASE_SERVICE_ROLE_KEY,
-    'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+    'apikey': SUPABASE_SECRET_KEY,
     'Content-Type': 'application/json',
     'Prefer': 'resolution=merge-duplicates'
 }
@@ -503,8 +503,8 @@ ARTICLES = [
 
 
 def main():
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        print("ERROR: Missing Supabase URL (SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY in root .env")
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        print("ERROR: Missing Supabase URL (SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SECRET_KEY in root .env")
         return
 
     print(f"Supabase URL: {SUPABASE_URL}")
@@ -530,8 +530,7 @@ def main():
     ids = ','.join(str(a['id']) for a in ARTICLES)
     verify_url = f"{SUPABASE_URL}/rest/v1/articles?id=in.({ids})&select=id,title,handle,published"
     verify_headers = {
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+        'apikey': SUPABASE_SECRET_KEY,
     }
     verify_response = requests.get(verify_url, headers=verify_headers)
 
