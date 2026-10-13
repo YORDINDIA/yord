@@ -71,7 +71,9 @@ export async function POST(req: Request) {
     // Agnes returns PNG at 1024px (1K / 1:1); the storefront's variant policy
     // does not apply here (no browser canvas on the server), so the PNG is
     // stored as-is and flagged in the media docs.
-    const key = `ai/${Date.now()}`;
+    // Random suffix: two generations in the same millisecond must not share
+    // a key, or the second upload overwrites the first image.
+    const key = `ai/${Date.now()}-${crypto.randomUUID()}`;
     let uploaded: { url: string; key: string };
     try {
       uploaded = await uploadImageBuffer(buffer, { key, contentType: 'image/png' });

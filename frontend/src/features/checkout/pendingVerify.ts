@@ -261,11 +261,10 @@ const SETTLED_CODES = new Set([
   'AMOUNT_MISMATCH', // refunded before this attempt could see it
   'OUT_OF_STOCK', // refunded before this attempt could see it
   'ORDER_NUMBER_OVERFLOW', // refunded
-  // The row was stamped compensated but the refund call itself failed: the
-  // money is accounted for on the order (a refund-failed note marks it for
-  // manual reconciliation), and every replay of this payment answers
-  // ORDER_REFUNDED, since the row is terminal.
-  'REFUND_FAILED',
+  // REFUND_FAILED is deliberately absent: the money is still captured, so the
+  // body stays stored and each replay retries the refund server-side. The
+  // replay settles once the refund lands (ORDER_REFUNDED, or a 402 when the
+  // gateway no longer reports the payment as captured).
 ]);
 
 /**

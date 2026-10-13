@@ -10,12 +10,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL('/concepts-disabled', request.url));
   }
 
+  // Protected routes - redirect to login if not authenticated
+  const protectedPaths = ['/account'];
+  const isProtectedPath = protectedPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+  const loginRedirect = () => {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
+    return NextResponse.redirect(loginUrl);
+  };
+
   // Supabase unconfigured (no URL/publishable key): there is no session to
-  // refresh and no user to redirect on, so skip auth entirely instead of
-  // constructing a client that would throw. Reads degrade via lib/result.ts
-  // as they do in RSC.
+  // refresh, so skip the client instead of constructing one that would throw.
+  // Public reads degrade via lib/result.ts as they do in RSC; protected paths
+  // fail closed, since no user can be proven.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     console.warn('[proxy] Supabase env not set — skipping session refresh.');
+    if (isProtectedPath) return loginRedirect();
     return NextResponse.next({ request });
   }
 
@@ -51,17 +63,7 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ['/account'];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-
-  if (isProtectedPath && !user) {
-    const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  if (isProtectedPath && !user) return loginRedirect();
 
   // Redirect authenticated users away from auth pages
   const authPaths = ['/auth/login', '/auth/register'];

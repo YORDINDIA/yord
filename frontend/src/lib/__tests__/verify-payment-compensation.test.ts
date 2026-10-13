@@ -515,11 +515,47 @@ describe('verify-payment: post-capture compensation is terminal', () => {
     expect(first.status).toBe(409);
     expect(String(first.body.error)).toBe('Insufficient stock for one or more items');
     expect(h.state.refunds).toEqual([]);
+    expect(first.body.code).toBe('REFUND_FAILED');
     expect(String(h.state.orders[0].note)).toContain('refund-failed');
-    // Terminal regardless of the refund outcome: money may still be captured,
-    // and a re-claim is never the answer.
+    // A replay retries the refund, never re-claims: while the gateway keeps
+    // refusing, the answer stays REFUND_FAILED so the client keeps the body.
     const second = await post(signedBody());
-    expect(second.body.code).toBe('ORDER_REFUNDED');
+    expect(second.body.code).toBe('REFUND_FAILED');
+    expect(h.state.refunds).toEqual([]);
+    // Once the refund lands, the payment settles as refunded.
+    h.state.fail.refund = false;
+    const third = await post(signedBody());
+    expect(third.body.code).toBe('ORDER_REFUNDED');
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    expect(h.state.orders).toHaveLength(1);
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(5);
+  });
+
+  it('answers REFUND_FAILED, not a settled code, when an amount-mismatch refund fails', async () => {
+    h.state.payments.get(PAYMENT_ID)!.amount = PAID_PAISE - 100;
+    h.state.fail.refund = true;
+    const first = await post(signedBody());
+    expect(first.status).toBe(500);
+    expect(first.body.code).toBe('REFUND_FAILED');
+    h.state.fail.refund = false;
+    const second = await post(signedBody());
+    expect(second.status).toBe(402);
+    expect(second.body.code).toBe('AMOUNT_MISMATCH');
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+  });
+
+  it('answers a replay from the order row, not from today\'s stock or price', async () => {
+    h.state.variants.get(VARIANT_ID)!.inventory_quantity = 2;
+    expect((await post(signedBody())).status).toBe(200);
+    // The first purchase took the last units, then the price changed.
+    expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(0);
+    h.state.variants.get(VARIANT_ID)!.price = 1200;
+
+    const replay = await post(signedBody());
+    expect(replay.status).toBe(200);
+    expect(replay.body).toMatchObject({ success: true, message: 'Payment already recorded' });
+    expect(h.state.refunds).toEqual([]);
+    expect(h.state.orders[0].financial_status).toBe('paid');
   });
 
   it('refuses the payment when the claim race is lost to a compensated row', async () => {
@@ -547,14 +583,13 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   it('still refuses the payment once the gateway reports it refunded', async () => {
     h.state.raceStock.add(VARIANT_ID);
     await post(signedBody());
-    // Steady state after the compensation: Razorpay no longer reports the
-    // payment as captured, so the route's pre-existing status check is the
-    // second, independent guard behind the row stamp.
+    // Steady state after the compensation: the row stamp answers before the
+    // gateway status is ever read.
     h.state.payments.get(PAYMENT_ID)!.status = 'refunded';
 
     const replay = await post(signedBody());
-    expect(replay.status).toBe(402);
-    expect(replay.body).toMatchObject({ error: 'Payment not captured' });
+    expect(replay.status).toBe(409);
+    expect(replay.body.code).toBe('ORDER_REFUNDED');
     expect(h.state.orders).toHaveLength(1);
     expect(h.state.lineItems).toHaveLength(0);
   });

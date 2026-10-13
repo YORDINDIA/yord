@@ -93,6 +93,38 @@ function compensatedReplayResponse() {
   );
 }
 
+// A replay of a compensated payment. When the route's own refund failed (a
+// refund-failed stamp on the row) and the gateway still holds the capture,
+// the replay retries that refund: answering ORDER_REFUNDED over captured
+// money would let the client drop the body and charge the shopper again.
+// Only that stamp triggers a retry — an admin-cancelled or partially
+// refunded order is never refunded from here.
+async function answerCompensatedReplay(
+  supabase: CheckoutSupabase,
+  razorpay: Razorpay,
+  orderId: number,
+  paymentId: string
+): Promise<NextResponse> {
+  const { data } = await supabase.from('orders').select('note').eq('id', orderId).maybeSingle();
+  const note = (data as { note?: string | null } | null)?.note ?? '';
+  if (!note.includes(' refund-failed]')) return compensatedReplayResponse();
+  try {
+    const payment = await razorpay.payments.fetch(paymentId);
+    if (payment.status !== 'captured') return compensatedReplayResponse();
+  } catch (fetchError) {
+    logDbError('verify-payment:razorpay-fetch', fetchError);
+    return NextResponse.json({ error: 'Could not confirm payment' }, { status: 502 });
+  }
+  if (await refundCapturedPayment(razorpay, paymentId, 'refund retried on replay')) {
+    await persistCompensation(supabase, orderId, 'refund-retried', 'refund succeeded on replay');
+    return compensatedReplayResponse();
+  }
+  return NextResponse.json(
+    { error: 'Your refund is still being processed. Please contact support.', code: 'REFUND_FAILED' },
+    { status: 500 }
+  );
+}
+
 // The behavioral analytics session id is optional client input, so it is
 // accepted only when uuid-shaped (the route is the boundary; the client is
 // untrusted). Anything else degrades to a synthetic sid below.
@@ -466,6 +498,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 });
     }
 
+    // Idempotency with completion state, BEFORE the cart and amount checks: a
+    // replay of a recorded payment is answered from its order row, never
+    // re-validated against today's stock and prices (the first attempt took
+    // the last units, or a price changed since — either would refund money
+    // for an order that stands). The payment id is stored in
+    // confirmation_number; a row counts only once its line items commit (a
+    // bare row is an in-flight claim), and a compensated row is terminal.
+    const { data: preExisting } = await supabase
+      .from('orders')
+      .select('id, name, total_price, financial_status, cancelled_at')
+      .eq('confirmation_number', razorpay_payment_id)
+      .maybeSingle();
+    const found = (preExisting as ClaimOrder | null) ?? null;
+    if (found) {
+      if (isCompensatedOrder(found)) {
+        return answerCompensatedReplay(supabase, razorpay, found.id, razorpay_payment_id);
+      }
+      const state = await waitForCompletion(supabase, found.id);
+      if (state !== 'incomplete') {
+        return answerPolledState(
+          supabase,
+          state,
+          found,
+          razorpay_payment_id,
+          razorpay_order_id,
+          orderData,
+          'A previous attempt left this payment incomplete. Please wait a moment and try again.'
+        );
+      }
+    }
+
     // Authoritative pricing from DB variants via the shared helper
     // (client prices ignored; money math lives in lib/pricing).
     const validated = await validateCartLines(supabase, orderData.cartItems);
@@ -507,9 +570,11 @@ export async function POST(request: NextRequest) {
           error: refunded
             ? 'Paid amount does not match order total. Payment refunded.'
             : 'Paid amount does not match order total',
-          code: 'AMOUNT_MISMATCH',
+          // The code is the client's money signal (see OUT_OF_STOCK below):
+          // only a refund that went through may read as settled.
+          code: refunded ? 'AMOUNT_MISMATCH' : 'REFUND_FAILED',
         },
-        { status: 402 }
+        { status: refunded ? 402 : 500 }
       );
     }
 
@@ -526,40 +591,15 @@ export async function POST(request: NextRequest) {
           error: refunded
             ? 'Payment confirmed but order save failed. Payment refunded.'
             : 'Payment confirmed but order save failed',
-          code: 'ORDER_NUMBER_OVERFLOW',
+          code: refunded ? 'ORDER_NUMBER_OVERFLOW' : 'REFUND_FAILED',
         },
         { status: 500 }
       );
     }
     const { orderName, uniqueOrderNumber } = identity;
 
-    // Idempotency with completion state: a replayed/confirmed payment returns
-    // the existing order (payment id is stored in confirmation_number) — but
-    // only when its line items have committed. A bare row is an in-flight
-    // claim, not a completed payment. A compensated row is neither: the money
-    // went back, so it is terminal and this attempt must fail too.
-    const { data: preExisting } = await supabase
-      .from('orders')
-      .select('id, name, total_price, financial_status, cancelled_at')
-      .eq('confirmation_number', razorpay_payment_id)
-      .maybeSingle();
-
     let order: ClaimOrder | null = null;
-    if (preExisting) {
-      const found = preExisting as ClaimOrder;
-      if (isCompensatedOrder(found)) return compensatedReplayResponse();
-      const state = await waitForCompletion(supabase, found.id);
-      if (state !== 'incomplete') {
-        return answerPolledState(
-          supabase,
-          state,
-          found,
-          razorpay_payment_id,
-          razorpay_order_id,
-          orderData,
-          'A previous attempt left this payment incomplete. Please wait a moment and try again.'
-        );
-      }
+    if (found) {
       // Incomplete claim from a crashed attempt with the same totals: adopt it
       // through the CAS RPC rather than minting a second order for one
       // payment. The RPC flips claim_adopted_at only for a still-'paid',
@@ -719,7 +759,7 @@ export async function POST(request: NextRequest) {
               error: refunded
                 ? 'Payment confirmed but order save failed. Payment refunded.'
                 : 'Payment confirmed but order save failed',
-              code: overflow ? 'ORDER_NUMBER_OVERFLOW' : undefined,
+              code: !refunded ? 'REFUND_FAILED' : overflow ? 'ORDER_NUMBER_OVERFLOW' : undefined,
             },
             { status: 500 }
           );

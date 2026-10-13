@@ -40,7 +40,8 @@ export function isRateLimited(key: string, maxHits: number, windowMs: number): b
  * `cf-connecting-ip` would be authoritative on Cloudflare Workers, but it is
  * client-supplied on the Netlify fallback path, so it is deliberately not
  * trusted while both hosts are live; XFF-last (which Cloudflare appends) is
- * the Workers-safe fallback.
+ * the Workers-safe fallback. `x-real-ip` is not read: no host here sets it,
+ * so any value in it came from the client.
  *
  * Takes anything with a `.headers.get()` — a `NextRequest`, or `{ headers }`
  * wrapping `await headers()` from next/headers (server actions).
@@ -55,7 +56,6 @@ export function clientIp(request: { headers: { get(name: string): string | null 
   return (
     request.headers.get('x-nf-client-connection-ip')?.trim() ||
     forwardedFor ||
-    request.headers.get('x-real-ip') ||
     'unknown'
   );
 }

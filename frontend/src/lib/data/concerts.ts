@@ -617,9 +617,11 @@ export interface UpcomingArtistConcert {
 }
 
 export function getUpcomingConcertsByArtist(): UpcomingArtistConcert[] {
-  const now = new Date();
+  // Date-only comparison: `new Date('YYYY-MM-DD')` is midnight UTC, so a
+  // show dated today compared as already past.
+  const today = new Date().toISOString().slice(0, 10);
   const upcoming = CONCERTS.filter(
-    (c) => (c.status === 'upcoming' || c.status === 'announced') && new Date(c.date) > now
+    (c) => (c.status === 'upcoming' || c.status === 'announced') && c.date >= today
   );
 
   const artistMap = new Map<string, Concert[]>();

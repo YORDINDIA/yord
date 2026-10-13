@@ -66,10 +66,12 @@ export function useCheckout() {
           // written: the body carries no item titles, prices or total, so
           // anything rendered from it would be fabricated — the confirmation
           // screen falls back to the order number and ETA, which are real.
+          // An unparseable snapshot leaves the cart untouched: the ordered
+          // lines are unknown, and the current cart is not the order.
           const cart = useCartStore.getState();
           for (const change of planRecoveredCartChanges(
             cart.items,
-            paymentResponse.recovered.cartItems
+            paymentResponse.recovered.snapshot?.cartItems ?? []
           )) {
             if (change.kind === 'remove') cart.removeItem(change.variantId);
             else cart.updateQuantity(change.variantId, change.quantity);

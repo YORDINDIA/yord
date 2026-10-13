@@ -49,12 +49,12 @@ interface UseRazorpayReturn {
 export interface VerifiedPaymentResponse extends RazorpayPaymentResponse {
   order_name: string;
   /**
-   * The order the stored verify body describes, when this payment was
-   * recovered from a pending-verify replay. The checkout removes exactly
-   * these lines from the cart; absent on a fresh payment, where the checkout
-   * clears the whole cart as before.
+   * Present only when this payment was recovered from a pending-verify
+   * replay. `snapshot` is the order the stored body describes (null when it
+   * could not be parsed); the checkout removes exactly those lines and never
+   * clears the cart. Absent on a fresh payment, where the cart is cleared.
    */
-  recovered?: PendingOrderSnapshot | null;
+  recovered?: { snapshot: PendingOrderSnapshot | null };
 }
 
 /**
@@ -126,7 +126,7 @@ export function useRazorpay(): UseRazorpayReturn {
           razorpay_order_id: pending.ids.razorpay_order_id,
           razorpay_signature: pending.ids.razorpay_signature,
           order_name: pending.orderName,
-          recovered: pending.snapshot,
+          recovered: { snapshot: pending.snapshot },
         };
       }
       if (pending.kind === 'blocked') {
@@ -256,9 +256,8 @@ export function useRazorpay(): UseRazorpayReturn {
                   code: answer.code,
                 })
               ) {
-                // The server answered (not a timeout) and the payment's fate
-                // is accounted for — the refunded codes, or a refund that
-                // failed and is stamped on the order for reconciliation. The
+                // The server answered (not a timeout) and the payment was
+                // refunded or never captured. The
                 // body is stored so the next attempt reconciles this payment
                 // before charging again; without it, a second charge would
                 // start with no reconcile gate over captured money.

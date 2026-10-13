@@ -146,6 +146,13 @@ describe('sanitizeHtml', () => {
     const proseWithOn = '<p>Buy one, get one on = free</p>';
     expect(sanitizeHtml(proseWithOn)).toBe(proseWithOn);
   });
+  it('re-scans until a split tag cannot reassemble', () => {
+    const split =
+      '<ifr<script>ame srcdoc="<scr<script>ipt>alert(document.domain)</script x>"></iframe>';
+    const out = sanitizeHtml(split);
+    expect(out).not.toMatch(/<\s*(iframe|script)/i);
+    expect(sanitizeHtml('<img src=x o<script></script>nerror=alert(1)>')).not.toMatch(/onerror/i);
+  });
 });
 
 describe('slugify', () => {

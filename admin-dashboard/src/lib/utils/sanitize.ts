@@ -242,34 +242,42 @@ const STRIPPED_END_TAGS = new RegExp(`<\\s*/\\s*(${STRIPPED_ELEMENTS})\\s*>`, 'g
  */
 export function sanitizeHtml(html: string | null | undefined): string {
   if (!html) return '';
-  // Decode numeric/element entities first so encoded payloads cannot slip past.
-  let out = decodeEntities(String(html));
-  // Drop dangerous elements with their content, then any leftover open or
-  // closing tags.
-  out = out.replace(STRIPPED_WITH_CONTENT, '');
-  out = out.replace(STRIPPED_TAGS, '');
-  out = out.replace(STRIPPED_END_TAGS, '');
-  // Strip event-handler attributes (onclick=, onerror=, ...), quoted or not.
-  // An attribute can follow whitespace, a `/` (`<svg/onload=…>`), a quote (the
-  // previous attribute's closing quote) or the start of the input — requiring
-  // `\s+` here is how `<svg/onload=…>` got through. The prefix character is
-  // captured and put back so the match cannot eat the quote that opens or
-  // closes a neighbouring attribute.
-  out = out.replace(/(^|[\s/"'])(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '$1');
-  // Neutralize javascript:/data:/vbscript: and friends in URL attributes. Same
-  // prefix rule as the event handlers: `<a/href="javascript:…">` is a real
-  // attribute to the browser, and a bare `\s` missed it.
-  out = out.replace(
-    /(^|[\s/"'])(href|src|xlink:href|action|formaction)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
-    (m, prefix: string, attr: string, val: string) => {
-      const raw = String(val)
-        .replace(/^['"]|['"]$/g, '')
-        .replace(/[\s\u0000-\u001F]+/g, '')
-        .toLowerCase();
-      if (/^(javascript|data|vbscript|file|blob):/.test(raw)) return `${prefix}${attr}="#"`;
-      return m;
-    },
-  );
+  // Every pass runs again until the output stops changing. One pass is a
+  // bypass: removing an inner tag rejoins the text around it, so
+  // `<ifr<script>ame srcdoc=…>` becomes a live `<iframe>` after a single
+  // sweep. Each pass that changes the string shrinks it, so the loop ends.
+  let out = String(html);
+  let prev: string;
+  do {
+    prev = out;
+    out = decodeEntities(out);
+    // Drop dangerous elements with their content, then any leftover open or
+    // closing tags.
+    out = out.replace(STRIPPED_WITH_CONTENT, '');
+    out = out.replace(STRIPPED_TAGS, '');
+    out = out.replace(STRIPPED_END_TAGS, '');
+    // Strip event-handler attributes (onclick=, onerror=, ...), quoted or not.
+    // An attribute can follow whitespace, a `/` (`<svg/onload=…>`), a quote (the
+    // previous attribute's closing quote) or the start of the input — requiring
+    // `\s+` here is how `<svg/onload=…>` got through. The prefix character is
+    // captured and put back so the match cannot eat the quote that opens or
+    // closes a neighbouring attribute.
+    out = out.replace(/(^|[\s/"'])(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '$1');
+    // Neutralize javascript:/data:/vbscript: and friends in URL attributes. Same
+    // prefix rule as the event handlers: `<a/href="javascript:…">` is a real
+    // attribute to the browser, and a bare `\s` missed it.
+    out = out.replace(
+      /(^|[\s/"'])(href|src|xlink:href|action|formaction)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
+      (m, prefix: string, attr: string, val: string) => {
+        const raw = String(val)
+          .replace(/^['"]|['"]$/g, '')
+          .replace(/[\s\u0000-\u001F]+/g, '')
+          .toLowerCase();
+        if (/^(javascript|data|vbscript|file|blob):/.test(raw)) return `${prefix}${attr}="#"`;
+        return m;
+      },
+    );
+  } while (out !== prev);
   return out;
 }
 

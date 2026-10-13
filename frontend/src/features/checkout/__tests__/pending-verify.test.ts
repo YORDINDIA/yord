@@ -149,7 +149,6 @@ describe('isSettledVerifyFailure', () => {
       'AMOUNT_MISMATCH',
       'OUT_OF_STOCK',
       'ORDER_NUMBER_OVERFLOW',
-      'REFUND_FAILED', // stamped compensated, refund call failed — reconciled on the row
     ]) {
       expect(isSettledVerifyFailure(attempt({ status: 500, code }))).toBe(true);
     }
@@ -159,6 +158,8 @@ describe('isSettledVerifyFailure', () => {
 
   it('does not treat an unresolved answer as settled', () => {
     expect(isSettledVerifyFailure(attempt({ status: 500 }))).toBe(false);
+    // Captured money the refund did not return: never safe to charge again.
+    expect(isSettledVerifyFailure(attempt({ status: 500, code: 'REFUND_FAILED' }))).toBe(false);
     expect(isSettledVerifyFailure(attempt({ status: 400, code: 'UNKNOWN_VARIANT' }))).toBe(false);
     expect(isSettledVerifyFailure(attempt({ status: 409, code: 'ORDER_INCOMPLETE' }))).toBe(false);
     expect(isSettledVerifyFailure(attempt({ status: 502, code: 'PAYMENT_FETCH_FAILED' }))).toBe(false);

@@ -127,6 +127,14 @@ describe('sanitizeHtml', () => {
     expect(sanitizeHtml('<a href="&#X6a;avascript:alert(1)">x</a>')).toBe('<a href="#">x</a>');
   });
 
+  it('re-scans until a split tag cannot reassemble', () => {
+    const split =
+      '<ifr<script>ame srcdoc="<scr<script>ipt>alert(document.domain)</script x>"></iframe>';
+    const out = sanitizeHtml(split);
+    expect(out).not.toMatch(/<\s*(iframe|script)/i);
+    expect(sanitizeHtml('<img src=x o<script></script>nerror=alert(1)>')).not.toMatch(/onerror/i);
+  });
+
   it('catches entity-encoded payloads', () => {
     expect(sanitizeHtml('&lt;script&gt;alert(1)&lt;/script&gt;')).toBe('');
     expect(sanitizeHtml('<img src="x" onerror=&#97;&#108;&#101;&#114;&#116;(1)>')).toBe(

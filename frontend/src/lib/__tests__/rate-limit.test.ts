@@ -59,8 +59,8 @@ describe('clientIp', () => {
     expect(clientIp(requestWith({ 'x-forwarded-for': ' 203.0.113.9 , ' }))).toBe('203.0.113.9');
   });
 
-  it('falls back to x-real-ip and then to a constant', () => {
-    expect(clientIp(requestWith({ 'x-real-ip': '203.0.113.9' }))).toBe('203.0.113.9');
+  it('ignores client-set x-real-ip and falls back to a constant', () => {
+    expect(clientIp(requestWith({ 'x-real-ip': '203.0.113.9' }))).toBe('unknown');
     expect(clientIp(requestWith({}))).toBe('unknown');
     expect(clientIp(requestWith({ 'x-forwarded-for': '' }))).toBe('unknown');
   });
