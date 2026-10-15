@@ -4,9 +4,8 @@ import "./globals.css";
 import { playfairDisplay, cormorantGaramond, plusJakartaSans, bebasNeue, bevellier } from "@/lib/fonts";
 import { ClientProviders } from "@/providers/ClientProviders";
 
-// Both are env-gated: unset means no tag is rendered, which is what keeps
-// local dev and CI clean (see .env.example → ANALYTICS & MONITORING).
-const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+// Google Analytics is enabled in every storefront build. Search Console
+// verification remains environment-gated.
 const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 
 // Origins the first paint needs a connection to: R2 serves every product image
@@ -140,8 +139,8 @@ export default function RootLayout({
         <div className="noise-overlay" aria-hidden="true" />
 
         <ClientProviders>{children}</ClientProviders>
-        {/* GA4: pageviews (including SPA route changes) are automatic. */}
-        {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
+        {/* Google tag: pageviews (including SPA route changes) are automatic. */}
+        <GoogleAnalytics gaId="GT-KF6P3KGX" />
       </body>
     </html>
   );

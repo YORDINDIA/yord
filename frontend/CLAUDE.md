@@ -188,7 +188,6 @@ Copy the root `.env.example` to root `.env` and configure (loaded automatically 
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `NEXT_PUBLIC_RAZORPAY_KEY_ID` - Payments
 - `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME` - App config (not read by code yet)
 - `NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST` - Analytics
-- `NEXT_PUBLIC_GA_MEASUREMENT_ID` - GA4 stream id; unset = no GA script (root layout)
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` - Search Console meta tag; unset = tag omitted
 - `NEXT_PUBLIC_SENTRY_DSN` (+ build-only `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`) - Sentry errors only; see `src/sentry-options.ts`
 - `NEXT_PUBLIC_MEDIA_BASE_URL` - optional; rewrites stored `*.r2.dev` image URLs to a custom domain (see Images)

@@ -20,7 +20,6 @@ Copy the root `.env.example` to root `.env` and fill it in — `dev`/`build`/`st
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `NEXT_PUBLIC_RAZORPAY_KEY_ID`
 - `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME`
 - `NEXT_PUBLIC_POSTHOG_KEY` / `NEXT_PUBLIC_POSTHOG_HOST`
-- `NEXT_PUBLIC_GA_MEASUREMENT_ID` (GA4; unset = no GA script)
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` (Search Console meta tag)
 - `NEXT_PUBLIC_SENTRY_DSN` (+ build-only `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` for source maps)
 

@@ -266,7 +266,6 @@ tooling uses.
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | server-only |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | browser checkout |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | analytics |
-| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | GA4 stream id; unset = no GA script is rendered |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Search Console meta-tag verification; unset = tag omitted (a DNS-verified Domain property needs nothing here) |
 | `NEXT_PUBLIC_SENTRY_DSN` | error monitoring, free tier (errors only); unset = Sentry disabled |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | build-time only: source-map upload so stack traces are readable. Absent = the build skips the upload and still succeeds |
@@ -423,8 +422,8 @@ Rules learned getting here:
   per-isolate on Workers: each isolate counts independently, so the limits are
   advisory, not enforced quotas. Move the counter into a Durable Object if abuse
   ever appears.
-- Analytics/monitoring: the public vars (`NEXT_PUBLIC_GA_MEASUREMENT_ID`,
-  `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_SENTRY_DSN`) are inlined
+- Analytics/monitoring: the public vars (`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`,
+  `NEXT_PUBLIC_SENTRY_DSN`) are inlined
   at build time, so export them before `npm run build:worker` as well as setting
   them on the Worker. `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` are
   build-time only (source maps) — never add them as Worker runtime vars.
@@ -505,9 +504,9 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    in `scripts/` reports every sampled URL as accessible.
 5. **Empty states.** With no data yet, product/collection/blog pages render
    their empty states; once the ingest runs, they list rows.
-6. **Analytics.** With `NEXT_PUBLIC_GA_MEASUREMENT_ID` set and rebuilt: GA4 →
-   Reports → Realtime shows your visit, and PostHog → Activity → Live events
-   shows the pageview. In Search Console, the property verifies and accepts
+6. **Analytics.** After deploying the storefront, GA4 → Reports → Realtime
+   shows your visit, and PostHog → Activity → Live events shows the pageview.
+   In Search Console, the property verifies and accepts
    `https://yordindia.com/sitemap.xml`.
 7. **Sentry.** With `NEXT_PUBLIC_SENTRY_DSN` set and rebuilt, run
    `setTimeout(() => { throw new Error('sentry smoke test') })` in the browser
