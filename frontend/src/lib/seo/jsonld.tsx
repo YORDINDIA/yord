@@ -30,9 +30,17 @@ export function organizationSchema() {
     '@type': 'Organization',
     name: 'YORD India',
     url: BASE_URL,
-    logo: `${BASE_URL}/favicon.ico`,
+    logo: `${BASE_URL}/brand/yord-logo-1500x750.png`,
     description:
       "India's premium concert merchandise store. Shop exclusive fan-made designs for 65+ artists including Coldplay, Diljit Dosanjh, Karan Aujla, Ed Sheeran, Taylor Swift, and more.",
+    email: 'support@yordindia.com',
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Gurgaon',
+      addressRegion: 'Haryana',
+      postalCode: '122001',
+      addressCountry: 'IN',
+    },
     // No `foundingCountry`: it is not a schema.org Organization property (a
     // validator flags it). The country lives on `areaServed` below.
     sameAs: [
@@ -43,6 +51,7 @@ export function organizationSchema() {
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'customer service',
+      email: 'support@yordindia.com',
       availableLanguage: ['English', 'Hindi'],
     },
     areaServed: {
@@ -79,10 +88,18 @@ export function websiteSchema() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function productSchema(product: ProductWithDetails) {
-  const variant = product.product_variants?.[0];
+  const variants = product.product_variants ?? [];
+  // Mirror `pickVariant` on the PDP (first in-stock, else first) so the
+  // structured-data price matches the price the page actually shows.
+  const variant = variants.find((v) => (v.inventory_quantity || 0) > 0) ?? variants[0];
   const image = product.product_images?.[0];
-  const price = variant?.price || 0;
-  const inStock = (variant?.inventory_quantity || 0) > 0;
+  // DECIMAL columns can arrive as strings at runtime (see `lib/product.ts`);
+  // `Number` keeps `.toFixed` safe either way.
+  const rawPrice = Number(variant?.price ?? 0);
+  const price = Number.isFinite(rawPrice) ? rawPrice : 0;
+  // "In stock" when ANY size can be bought: a sold-out size must not mark the
+  // whole product out of stock to Search.
+  const inStock = variants.some((v) => (v.inventory_quantity || 0) > 0);
   const description = product.meta_description?.trim()
     ? product.meta_description
     : (product.body_html
@@ -96,9 +113,11 @@ export function productSchema(product: ProductWithDetails) {
     description,
     image: image?.storage_url || image?.src || undefined,
     url: `${BASE_URL}/product/${product.handle}`,
+    // The store's own brand, not the artist's: these are fan-made designs and
+    // structured data must not imply artist endorsement.
     brand: {
       '@type': 'Brand',
-      name: product.vendor || 'YORD India',
+      name: 'YORD India',
     },
     offers: {
       '@type': 'Offer',
@@ -107,6 +126,7 @@ export function productSchema(product: ProductWithDetails) {
       availability: inStock
         ? 'https://schema.org/InStock'
         : 'https://schema.org/OutOfStock',
+      itemCondition: 'https://schema.org/NewCondition',
       url: `${BASE_URL}/product/${product.handle}`,
       seller: {
         '@type': 'Organization',
@@ -118,6 +138,25 @@ export function productSchema(product: ProductWithDetails) {
           '@type': 'DefinedRegion',
           addressCountry: 'IN',
         },
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: '0.00',
+          currency: 'INR',
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 2, unitCode: 'DAY' },
+          transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' },
+        },
+      },
+      // Mirrors /returns: 14 days, mail returns, free (prepaid label).
+      hasMerchantReturnPolicy: {
+        '@type': 'MerchantReturnPolicy',
+        applicableCountry: 'IN',
+        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+        merchantReturnDays: 14,
+        returnMethod: 'https://schema.org/ReturnByMail',
+        returnFees: 'https://schema.org/FreeReturn',
       },
     },
     ...(product.product_images && product.product_images.length > 1

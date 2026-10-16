@@ -28,9 +28,9 @@ export function useCheckout() {
   const { initiatePayment, error: paymentError } = useRazorpay();
 
   // Client-side display totals only. Both checkout routes recompute from DB
-  // prices; nothing here is ever trusted as an amount to charge.
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const { gstAmount, total } = computeTotals(subtotal);
+  // prices; nothing here is ever trusted as an amount to charge. Prices are
+  // GST-inclusive, so `total` is the cart subtotal itself.
+  const { subtotal, gstAmount, total } = computeTotals(items);
 
   const placeOrder = useCallback(
     async (data: CheckoutData) => {

@@ -10,7 +10,9 @@ import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   computeTotals,
-  GST_RATE,
+  GST_RATE_HIGH,
+  GST_RATE_LOW,
+  GST_SLAB_THRESHOLD,
   MAX_ORDER_LINES,
   MAX_QTY_PER_LINE,
 } from '@/lib/pricing';
@@ -67,28 +69,49 @@ function variantRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('checkout gates', () => {
-  it('computes 18% GST with paise total', () => {
-    expect(GST_RATE).toBe(0.18);
-    const { gstAmount, total, totalPaise } = computeTotals(1000);
-    expect(gstAmount).toBe(180);
-    expect(total).toBe(1180);
-    expect(totalPaise).toBe(118000);
+  it('extracts 5% GST from inclusive prices on the low slab', () => {
+    expect(GST_RATE_LOW).toBe(0.05);
+    expect(GST_SLAB_THRESHOLD).toBe(2500);
+    const { gstAmount, total, totalPaise } = computeTotals([{ price: 1000, quantity: 1 }]);
+    // 1000 - 1000/1.05 = 47.62 -> 48. The price is all-in: no amount is added.
+    expect(gstAmount).toBe(48);
+    expect(total).toBe(1000);
+    expect(totalPaise).toBe(100000);
   });
 
-  it('rounds fractional GST to the nearest rupee', () => {
-    // 1999 * 0.18 = 359.82 -> 360
-    const { gstAmount, total, totalPaise } = computeTotals(1999);
-    expect(gstAmount).toBe(360);
-    expect(total).toBe(2359);
-    expect(totalPaise).toBe(235900);
-    expect(computeTotals(0)).toEqual({ gstAmount: 0, total: 0, totalPaise: 0 });
+  it('rounds fractional GST to the nearest rupee and stays inclusive', () => {
+    // 1999 - 1999/1.05 = 95.19 -> 95
+    const { gstAmount, total, totalPaise } = computeTotals([{ price: 1999, quantity: 1 }]);
+    expect(gstAmount).toBe(95);
+    expect(total).toBe(1999);
+    expect(totalPaise).toBe(199900);
+    expect(computeTotals([])).toEqual({ subtotal: 0, gstAmount: 0, total: 0, totalPaise: 0 });
+  });
+
+  it('reads the GST slab per piece, not per line total', () => {
+    expect(GST_RATE_HIGH).toBe(0.18);
+    // A piece above ₹2,500 attracts 18%: 3000 - 3000/1.18 = 457.63 -> 458.
+    const high = computeTotals([{ price: 3000, quantity: 1 }]);
+    expect(high.gstAmount).toBe(458);
+    expect(high.total).toBe(3000);
+    // Two ₹2,400 tees are two 5% pieces (line total ₹4,800, still 5%):
+    // 4800 - 4800/1.05 = 228.57 -> 229.
+    const two = computeTotals([{ price: 2400, quantity: 2 }]);
+    expect(two.gstAmount).toBe(229);
+    // Mixed cart: each line's own slab, summed.
+    const mixed = computeTotals([
+      { price: 2400, quantity: 2 },
+      { price: 3000, quantity: 1 },
+    ]);
+    expect(mixed.gstAmount).toBe(229 + 458);
+    expect(mixed.total).toBe(2400 * 2 + 3000);
   });
 
   it('never charges shipping at any cart value', () => {
-    // Both checkout routes charge `subtotal + GST` (computeTotals above) and
-    // the order row is written with `total_shipping_price: 0`. The shipping
-    // line is the only shipping surface, and at every value it must stay a
-    // free tier with no amount in it.
+    // Both checkout routes charge the GST-inclusive total (`computeTotals`
+    // above) and the order row is written with `total_shipping_price: 0`. The
+    // shipping line is the only shipping surface, and at every value it must
+    // stay a free tier with no amount in it.
     for (const subtotal of [0, 1, 499, 998, 999, 1999, 2000, 5000]) {
       const label = shippingLabel(subtotal);
       expect(label.startsWith('FREE')).toBe(true);
@@ -127,11 +150,11 @@ describe('checkout gates', () => {
     const ok = await validateCartLines(stubSupabase([variantRow()]), [{ variantId: 1, quantity: 2 }]);
     expect(ok.ok).toBe(true);
     if (ok.ok) {
-      // 2 x 1000 = 2000 subtotal, 18% GST = 360, total 2360 = 236000 paise.
+      // 2 x 1000 = 2000, GST-inclusive: 2000 - 2000/1.05 = 95.24 -> 95, total 2000.
       expect(ok.subtotal).toBe(2000);
-      expect(ok.gstAmount).toBe(360);
-      expect(ok.total).toBe(2360);
-      expect(ok.totalPaise).toBe(236000);
+      expect(ok.gstAmount).toBe(95);
+      expect(ok.total).toBe(2000);
+      expect(ok.totalPaise).toBe(200000);
     }
     const unknown = await validateCartLines(stubSupabase([]), [{ variantId: 9, quantity: 1 }]);
     expect(unknown).toMatchObject({ ok: false, code: 'UNKNOWN_VARIANT', status: 400 });

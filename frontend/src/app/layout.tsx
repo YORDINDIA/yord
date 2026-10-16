@@ -74,7 +74,7 @@ export const metadata: Metadata = {
     url: "https://yordindia.com",
     images: [
       {
-        url: "/favicon.ico",
+        url: "/brand/yord-logo-1500x750.png",
         alt: "YORD India — Premium Concert Merchandise",
       },
     ],
@@ -86,7 +86,7 @@ export const metadata: Metadata = {
       "India's #1 concert merchandise store. Coldplay, Diljit, Karan Aujla, Ed Sheeran & 65+ artists.",
     creator: "@yordindia",
     site: "@yordindia",
-    images: ["/favicon.ico"],
+    images: ["/brand/yord-logo-1500x750.png"],
   },
   robots: {
     index: true,

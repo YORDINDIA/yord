@@ -11,12 +11,19 @@ interface ArtistHeroProps {
   artist: ArtistData;
 }
 
-/** Decorative counters. Rendered from one list rather than three copies. */
-const STATS = [
-  { value: '50+', label: 'PRODUCTS' },
-  { value: '10K+', label: 'FANS' },
-  { value: '5★', label: 'RATING' },
-];
+/**
+ * Factual counters, derived from real data. The "10K+ FANS" / "5★ RATING"
+ * pair this replaces was unverifiable social proof with no rating system
+ * behind it — exactly the kind of claim Google's Misrepresentation checks
+ * flag, so nothing here may state a number the database cannot back.
+ */
+function statsFor(artist: ArtistData): { value: string; label: string }[] {
+  return [
+    { value: artist.productCount ? String(artist.productCount) : 'NEW', label: 'DESIGNS' },
+    { value: 'FREE', label: 'SHIPPING' },
+    { value: '14-DAY', label: 'RETURNS' },
+  ];
+}
 
 export function ArtistHero({ artist }: ArtistHeroProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +44,7 @@ export function ArtistHero({ artist }: ArtistHeroProps) {
   // surface is dark in both themes, and `--accent` is bronze in light mode.
   const accent = artist.accentColor || 'var(--accent-on-media)';
   const secondary = artist.secondaryColor || '#1C1C1C';
+  const stats = statsFor(artist);
 
   return (
     <section
@@ -165,7 +173,7 @@ export function ArtistHero({ artist }: ArtistHeroProps) {
         <Reveal delay={0.3} className="flex justify-center py-6 px-6">
           <div className="relative max-w-md w-full stats-premium-border">
             <div className="glass py-5 px-8 flex items-center justify-center gap-8">
-              {STATS.map((stat, index) => (
+              {stats.map((stat, index) => (
                 <Fragment key={stat.label}>
                   {index > 0 && <div className="gradient-divider" />}
                   <div className="text-center group cursor-default">

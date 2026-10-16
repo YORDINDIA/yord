@@ -181,18 +181,21 @@ export function ProductInfo({ product }: ProductInfoProps) {
       </Reveal>
 
       {/* Price */}
-      <Reveal className="flex flex-wrap items-center gap-4">
-        <span className="font-heading text-3xl text-text-primary">
-          {formatPrice(selectedVariant.price)}
-        </span>
-        {isOnSale && (
-          <>
-            <span className="font-body text-lg text-text-muted line-through">
-              {formatPrice(selectedVariant.compareAtPrice!)}
-            </span>
-            <SaleBadge discount={discount} />
-          </>
-        )}
+      <Reveal>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="font-heading text-3xl text-text-primary">
+            {formatPrice(selectedVariant.price)}
+          </span>
+          {isOnSale && (
+            <>
+              <span className="font-body text-lg text-text-muted line-through">
+                {formatPrice(selectedVariant.compareAtPrice!)}
+              </span>
+              <SaleBadge discount={discount} />
+            </>
+          )}
+        </div>
+        <p className="mt-2 font-body text-xs text-text-muted">Inclusive of all taxes</p>
       </Reveal>
 
       {/* Size Selector */}

@@ -47,7 +47,7 @@ export function OrderConfirmation({
     stored && stored.orderName === orderName ? stored : null;
 
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const shareText = `Just ordered from YORD India — concert fashion and official merch.${siteUrl ? ` ${siteUrl}` : ''}`;
+  const shareText = `Just ordered from YORD India — concert fashion and fan-made merch.${siteUrl ? ` ${siteUrl}` : ''}`;
   const shareLinks = [
     {
       label: 'Share on WhatsApp',
@@ -155,15 +155,16 @@ export function OrderConfirmation({
                 <dt className="text-text-muted">Subtotal</dt>
                 <dd className="text-text-secondary">{formatPrice(order.subtotal)}</dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-text-muted">GST</dt>
-                <dd className="text-text-secondary">{formatPrice(order.gst)}</dd>
-              </div>
               <div className="flex justify-between pt-2 border-t border-border-default">
                 <dt className="font-display text-base text-text-primary">Total paid</dt>
                 <dd className="font-display text-base text-accent">{formatPrice(order.total)}</dd>
               </div>
             </dl>
+            {/* GST is contained in the inclusive price, not added to it.
+                Outside the <dl>: a bare <p> is not valid dt/dd/div content. */}
+            <p className="px-4 pb-4 font-body text-xs text-text-muted">
+              Inclusive of all taxes (GST {formatPrice(order.gst)})
+            </p>
 
             <div className="border-t border-border-default p-4">
               <p className="font-body text-xs uppercase tracking-wider text-text-muted mb-2">

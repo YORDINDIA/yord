@@ -77,10 +77,17 @@ export function Footer({ artists }: { artists: ArtistData[] }) {
       <div className="border-t border-border-default">
         <Container className="py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {/* Copyright */}
-            <p className="font-body text-xs text-text-muted text-center md:text-left">
-              &copy; {new Date().getFullYear()} YORD India. All rights reserved.
-            </p>
+            {/* Copyright + the non-affiliation disclaimer. This line is
+                load-bearing for Google: it stops the fan-made designs from
+                reading as artist-endorsed merchandise. */}
+            <div className="text-center md:text-left">
+              <p className="font-body text-xs text-text-muted">
+                &copy; {new Date().getFullYear()} YORD India. All rights reserved.
+              </p>
+              <p className="mt-1 font-body text-xs text-text-muted">
+                Unofficial fan-made designs. Not affiliated with or endorsed by any artist.
+              </p>
+            </div>
 
             {/* Social Links */}
             <div className="flex items-center gap-4">

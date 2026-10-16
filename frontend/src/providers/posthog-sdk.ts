@@ -56,13 +56,11 @@ async function initPostHog(): Promise<PostHogSdk | null> {
       person_profiles: 'identified_only',
       capture_pageview: false, // PostHogPageView captures manually.
       // No flags request (that endpoint is what 401'd on the placeholder key),
-      // no autocapture, no session recording: recording is a privacy and weight
-      // decision, and desktop-only recording can be enabled later with
-      // `disable_session_recording: false` plus masking
-      // (`session_recording: { maskAllInputs: true }`).
-      advanced_disable_flags: true,
+      // and no autocapture. Session recording is enabled for the storefront,
+      // with all input values masked.
+      advanced_disable_feature_flags: true,
       autocapture: false,
-      disable_session_recording: true,
+      session_recording: { maskAllInputs: true },
     });
     return posthog;
   } catch {

@@ -263,7 +263,10 @@ function toArtistData(
     handle,
     vendorName: col.title, // Use collection title as display name
     name: staticData?.name || col.title,
-    tagline: staticData?.tagline || 'Official Merchandise',
+    // Never "Official Merchandise": the catalog is fan-made artwork, and
+    // implying artist affiliation is both a trademark risk and the exact
+    // claim Google's Misrepresentation policy flags.
+    tagline: staticData?.tagline || 'Fan Collection',
     bio: (col.body_html ? stripHtml(col.body_html) : '') || staticData?.bio || `Shop exclusive ${col.title} merchandise.`,
     // `image_src` is the pre-migration Shopify URL for 29 of 39 collections and
     // every distinct value 404s, so a plain `||` chain let a dead database URL

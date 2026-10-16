@@ -11,7 +11,7 @@ import { Layers } from 'lucide-react';
 
 export const metadata = {
   title: 'Collections',
-  description: 'Browse our curated collections of official artist merchandise.',
+  description: 'Browse our curated collections of artist-inspired concert merchandise.',
   alternates: { canonical: '/collections' },
 };
 

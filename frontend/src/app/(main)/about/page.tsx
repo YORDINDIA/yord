@@ -59,7 +59,9 @@ export default function AboutPage() {
                 artists — from global superstars like Coldplay, Kanye West, Calvin Harris, and Linkin Park
                 to Indian icons like Diljit Dosanjh, Karan Aujla, and Arijit Singh. With
                 merchandise for over 65 artists and pan-India delivery, we bring the concert
-                experience home to every music lover in India.
+                experience home to every music lover in India. We are an independent fan
+                merchandise brand, not affiliated with or endorsed by any of the artists we
+                celebrate.
               </p>
               <CtaLink href="/artists" size="lg">
                 EXPLORE ARTISTS

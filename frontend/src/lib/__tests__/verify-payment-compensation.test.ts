@@ -450,14 +450,14 @@ vi.mock('@/lib/validate-cart', async () => {
           return { ok: false, code: 'OUT_OF_STOCK', error: 'Insufficient stock', status: 409 };
         }
       }
-      const subtotal = items.reduce(
-        (sum, line) => sum + variantFor(line.variantId)!.price * line.quantity,
-        0
-      );
+      const priced = items.map((line) => ({
+        price: variantFor(line.variantId)!.price,
+        quantity: line.quantity,
+      }));
+      const { subtotal, gstAmount, total, totalPaise } = computeTotals(priced);
       if (subtotal <= 0) {
         return { ok: false, code: 'BAD_AMOUNT', error: 'Invalid cart items', status: 400 };
       }
-      const { gstAmount, total, totalPaise } = computeTotals(subtotal);
       const byId = new Map(
         items.map((line) => {
           const variant = variantFor(line.variantId)!;
@@ -487,8 +487,8 @@ process.env.RAZORPAY_KEY_SECRET = 'test-key-secret';
 const PAYMENT_ID = 'pay_TEST0001';
 const RAZORPAY_ORDER_ID = 'order_TEST0001';
 const VARIANT_ID = 11;
-// 2 x 1000 = 2000 subtotal, 18% GST = 360, total 2360 = 236000 paise.
-const PAID_PAISE = 236000;
+// 2 x 1000 = 2000, GST-inclusive: 2000 - 2000/1.05 = 95.24 -> 95, total 2000 = 200000 paise.
+const PAID_PAISE = 200000;
 
 const ORDER_DATA = {
   email: 'buyer@example.in',
@@ -586,7 +586,7 @@ describe('verify-payment: happy path', () => {
     expect(h.state.orders[0]).toMatchObject({
       financial_status: 'paid',
       confirmation_number: PAYMENT_ID,
-      total_price: 2360,
+      total_price: 2000,
     });
     expect(h.state.lineItems).toHaveLength(1);
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(3);
@@ -742,13 +742,13 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   it('records a failed stock restore on the surviving row', async () => {
     // Two lines so there is something to restore: line 11 decrements, line 12
     // is refused, and the restore of line 11 fails — the case the note exists
-    // for. 2 x 1000 + 1 x 500 = 2500 + 450 GST = 2950 -> 295000 paise.
+    // for. 2 x 1000 + 1 x 500 = 2500, GST-inclusive -> 250000 paise.
     h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5 });
     h.state.raceStock.add(12);
     h.state.fail.restore = true;
     h.state.payments.set(PAYMENT_ID, {
       status: 'captured',
-      amount: 295000,
+      amount: 250000,
       currency: 'INR',
       order_id: RAZORPAY_ORDER_ID,
     });
@@ -783,7 +783,7 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   it('records a failed refund on the surviving row', async () => {
     h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5 });
     h.state.raceStock.add(12);
-    h.state.payments.get(PAYMENT_ID)!.amount = 295000;
+    h.state.payments.get(PAYMENT_ID)!.amount = 250000;
     h.state.fail.refund = true;
 
     const body = signedBody({
@@ -822,7 +822,7 @@ describe('verify-payment: post-capture compensation is terminal', () => {
   it('does not let a previous failed refund bypass a newer in-flight lease', async () => {
     h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5 });
     h.state.raceStock.add(12);
-    h.state.payments.get(PAYMENT_ID)!.amount = 295000;
+    h.state.payments.get(PAYMENT_ID)!.amount = 250000;
     h.state.fail.refund = true;
     const body = signedBody({
       orderData: {
@@ -861,7 +861,7 @@ describe('verify-payment: post-capture compensation is terminal', () => {
     h.state.orders.push({
       id: 1,
       name: 'YORD-1759600000-AAAA',
-      total_price: 2360,
+      total_price: 2000,
       financial_status: 'paid',
       cancelled_at: new Date().toISOString(),
       confirmation_number: PAYMENT_ID,
@@ -879,7 +879,7 @@ describe('verify-payment: post-capture compensation is terminal', () => {
     h.state.orders.push({
       id: 1,
       name: 'YORD-1759600000-AAAA',
-      total_price: 2360,
+      total_price: 2000,
       financial_status: 'paid',
       cancelled_at: new Date().toISOString(),
       confirmation_number: PAYMENT_ID,
@@ -895,7 +895,7 @@ describe('verify-payment: post-capture compensation is terminal', () => {
     h.state.orders.push({
       id: 1,
       name: 'YORD-1759600000-AAAA',
-      total_price: 2360,
+      total_price: 2000,
       financial_status: 'cancelled',
       cancelled_at: new Date().toISOString(),
       confirmation_number: PAYMENT_ID,
@@ -987,7 +987,7 @@ describe('verify-payment: lease-backed claim recovery', () => {
       financial_status: 'paid',
       cancelled_at: null,
       currency: 'INR',
-      total_price: 2360,
+      total_price: 2000,
       confirmation_number: PAYMENT_ID,
       note: '',
       ...orderOverrides,
@@ -1018,7 +1018,7 @@ describe('verify-payment: lease-backed claim recovery', () => {
       status: 'active',
       owner_token: leaseOverrides.owner ?? 'crashed-owner',
       expires_at: leaseOverrides.expiresAt ?? Date.now() - 1_000,
-      total: 2360,
+      total: 2000,
       lines,
       shipping,
     });
@@ -1079,7 +1079,7 @@ describe('verify-payment: lease-backed claim recovery', () => {
     h.state.orders.push({
       id: CLAIM_ID,
       name: 'YORD-1759600000-AAAA',
-      total_price: 2360,
+      total_price: 2000,
       financial_status: 'paid',
       cancelled_at: null,
       confirmation_number: PAYMENT_ID,
@@ -1108,7 +1108,7 @@ describe('verify-payment: lease-backed claim recovery', () => {
     seedIncompleteClaim();
     const oldAdopt = await h.chain.rpc('adopt_order_claim', {
       p_order_id: CLAIM_ID,
-      p_total: 2360,
+      p_total: 2000,
     });
     const oldDecrement = await h.chain.rpc('decrement_variant_stock', {
       p_variant_id: VARIANT_ID,
@@ -1133,7 +1133,7 @@ describe('verify-payment: address-only recovery', () => {
       order_number: 1759600000 * 65536 + 43690,
       financial_status: 'paid',
       cancelled_at: null,
-      total_price: 2360,
+      total_price: 2000,
       confirmation_number: PAYMENT_ID,
       claim_adopted_at: null,
       note: '',
@@ -1182,7 +1182,7 @@ describe('verify-payment: restore integrity', () => {
     h.state.fail.restoreEmpty = true;
     h.state.payments.set(PAYMENT_ID, {
       status: 'captured',
-      amount: 295000,
+      amount: 250000,
       currency: 'INR',
       order_id: RAZORPAY_ORDER_ID,
     });

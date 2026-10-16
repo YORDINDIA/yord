@@ -39,7 +39,7 @@ const LANDING_FAQS = [
   {
     question: 'Do you sell official concert merchandise?',
     answer:
-      'YORD India sells premium fan-made, artist-inspired merchandise. Each design is created by fans who share your passion for music, ensuring authentic and creative pieces that celebrate the artists you love.',
+      'No — YORD India is not affiliated with, sponsored by, or endorsed by the artists. We create original, fan-made designs inspired by the artists we love; every piece is our own artwork, made by fans for fans.',
   },
   {
     question: 'Which artists do you have merchandise for?',

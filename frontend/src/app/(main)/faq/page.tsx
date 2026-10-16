@@ -23,7 +23,7 @@ const FAQ_DATA: FAQCategory[] = [
       },
       {
         question: 'Is your merchandise officially licensed?',
-        answer: 'YORD India sells fan-made, artist-inspired designs crafted by passionate fans for fans. Our products celebrate the artists you love with premium quality materials and unique creative designs. Each piece is made with care and attention to detail.',
+        answer: 'No. YORD India is an independent fan merchandise brand. Our designs are original, fan-made artwork inspired by the artists we love, and we are not affiliated with, sponsored by, or endorsed by any artist, band, label, or their representatives. Artist and band names are used for identification purposes only.',
       },
       {
         question: 'Do you sell merchandise for upcoming concerts in India?',

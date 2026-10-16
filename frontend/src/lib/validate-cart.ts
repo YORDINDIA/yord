@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { computeTotals } from '@/lib/pricing';
+import { computeTotals, type PricedLine } from '@/lib/pricing';
 
 export interface CartLine {
   variantId: number;
@@ -125,7 +125,7 @@ export async function validateCartLines(
     );
   }
 
-  let subtotal = 0;
+  const priced: PricedLine[] = [];
   for (const line of items) {
     const variant = byId.get(line.variantId);
     if (!variant) {
@@ -153,8 +153,10 @@ export async function validateCartLines(
         status: 409,
       };
     }
-    subtotal += variant.price * line.quantity;
+    priced.push({ price: variant.price, quantity: line.quantity });
   }
+
+  const { subtotal, gstAmount, total, totalPaise } = computeTotals(priced);
 
   if (subtotal <= 0) {
     return {
@@ -165,6 +167,5 @@ export async function validateCartLines(
     };
   }
 
-  const { gstAmount, total, totalPaise } = computeTotals(subtotal);
   return { ok: true, subtotal, gstAmount, total, totalPaise, byId };
 }

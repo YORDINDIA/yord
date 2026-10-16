@@ -1,12 +1,16 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { Check, Mail, MapPin, Phone, Send } from 'lucide-react';
+import { Check, Mail, MapPin, Send } from 'lucide-react';
 import { Field, SelectInput, TextInput } from '@/features/ui/Field';
 import { Button } from '@/features/ui/Button';
 import { FormBanner } from '@/features/ui/FormBanner';
 import { SectionHeading } from '@/features/ui/SectionHeading';
 
+// No phone number: the placeholder that used to live here (`+91 98765 43210`)
+// was fake contact information, which Google's Misrepresentation policy
+// explicitly flags. Email and the office address are the real channels — add
+// a phone block back only with a number that is actually answered.
 const CONTACT_DETAILS = [
   {
     icon: Mail,
@@ -14,13 +18,6 @@ const CONTACT_DETAILS = [
     lines: [
       { label: 'General Inquiries', value: 'info@yordindia.com', href: 'mailto:info@yordindia.com' },
       { label: 'Order Support', value: 'support@yordindia.com', href: 'mailto:support@yordindia.com' },
-    ],
-  },
-  {
-    icon: Phone,
-    title: 'CALL US',
-    lines: [
-      { label: 'Mon - Sat, 10am - 7pm IST', value: '+91 98765 43210', href: 'tel:+919876543210' },
     ],
   },
 ] as const;

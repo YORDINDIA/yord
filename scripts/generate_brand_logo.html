@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  YORD India rectangular logo — source for Google Merchant Center upload.
+
+  Renders the storefront wordmark (Playfair Display "YORD" + bronze diamond +
+  Bebas Neue "INDIA") at exactly 1500x750 (2:1), which is inside Google's
+  required 1000x500 - 2000x1000 PNG/WebP range. Regenerate with:
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless=new --disable-gpu --hide-scrollbars \
+      --window-size=1500,750 --force-device-scale-factor=1 \
+      --virtual-time-budget=8000 \
+      --screenshot=frontend/public/brand/yord-logo-1500x750.png \
+      file://$PWD/scripts/generate_brand_logo.html
+
+  Colours are the light-theme tokens: --text-primary #14161A (ink) and
+  --accent-on-surface #7C5E1E (bronze). White background on purpose: Google
+  shows the logo on white surfaces, and a solid background is legible at the
+  small sizes that check is about.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 1500px;
+      height: 750px;
+      background: #ffffff;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wordmark {
+      display: flex;
+      align-items: center;
+    }
+    .yord {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 300px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #14161A;
+    }
+    .diamond {
+      display: block;
+      width: 34px;
+      height: 34px;
+      margin: 0 44px;
+    }
+    .india {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 118px;
+      line-height: 1;
+      letter-spacing: 0.2em;
+      /* A trailing letter-space balances the visual right margin. */
+      margin-right: -0.2em;
+      color: #7C5E1E;
+    }
+  </style>
+</head>
+<body>
+  <div class="wordmark">
+    <span class="yord">YORD</span>
+    <svg class="diamond" viewBox="0 0 6 6" aria-hidden="true">
+      <path d="M3 0L6 3L3 6L0 3L3 0Z" fill="#7C5E1E" />
+    </svg>
+    <span class="india">INDIA</span>
+  </div>
+</body>
+</html>

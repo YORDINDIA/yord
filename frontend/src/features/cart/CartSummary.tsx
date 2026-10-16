@@ -73,7 +73,7 @@ export function CartSummary({ className }: CartSummaryProps) {
           <span className="font-heading text-3xl text-text-primary">{formatPrice(subtotal)}</span>
         </div>
         <p className="mt-2 font-body text-xs text-text-muted">
-          GST is added at checkout.
+          Inclusive of all taxes.
         </p>
       </div>
 

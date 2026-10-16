@@ -6,7 +6,7 @@ import { ShoppingBag, Tag } from 'lucide-react';
 import { cn, formatPrice } from '@yord/ui';
 import { useCartStore } from '@/lib/stores/cartStore';
 import { isPriceOnSale } from '@/lib/product';
-import { computeTotals, GST_RATE } from '@/lib/pricing';
+import { computeTotals } from '@/lib/pricing';
 import { shippingLabel } from '@/lib/shipping';
 import { EmptyState } from '@/features/ui/EmptyState';
 import { CtaLink } from '@/features/ui/CtaLink';
@@ -22,16 +22,18 @@ export interface OrderSummaryProps {
  * threshold, `FREE Standard` below it — because shipping is free on every
  * order. No branch here ever adds an amount.
  *
- * The total is `subtotal + GST`, the same money path both checkout routes
- * charge and the order row is written with (`total_shipping_price: 0`), so the
- * displayed total is exactly what Razorpay collects.
+ * Catalog prices are GST-inclusive, so the total IS the subtotal; the GST
+ * line is a component of it, for transparency and the invoice trail, not an
+ * addition. The same money path both checkout routes charge and the order row
+ * is written with (`total_shipping_price: 0`), so the displayed total is
+ * exactly what Razorpay collects.
  */
 export function OrderSummary({ className }: OrderSummaryProps) {
   const items = useCartStore((state) => state.items);
   const subtotal = useCartStore((state) => state.subtotal());
   const totalSavings = useCartStore((state) => state.totalSavings());
 
-  const { gstAmount, total } = computeTotals(subtotal);
+  const { gstAmount, total } = computeTotals(items);
 
   const shipping = shippingLabel(subtotal);
 
@@ -153,11 +155,6 @@ export function OrderSummary({ className }: OrderSummaryProps) {
           <span className="text-success">{shipping}</span>
         </div>
 
-        <div className="flex justify-between font-body text-sm">
-          <span className="text-text-muted">Tax ({Math.round(GST_RATE * 100)}% GST)</span>
-          <span className="text-text-secondary">{formatPrice(gstAmount)}</span>
-        </div>
-
         <div className="pt-3 border-t border-border-default">
           <div className="flex justify-between">
             <span className="font-display text-lg text-text-primary">
@@ -167,6 +164,9 @@ export function OrderSummary({ className }: OrderSummaryProps) {
               {formatPrice(total)}
             </span>
           </div>
+          <p className="mt-1 text-right font-body text-xs text-text-muted">
+            Inclusive of all taxes (GST {formatPrice(gstAmount)})
+          </p>
         </div>
       </div>
     </div>
