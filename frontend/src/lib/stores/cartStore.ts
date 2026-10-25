@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useShallow } from 'zustand/react/shallow';
 import type { CartItem } from '@yord/db-types';
 import { track } from '@/lib/analytics/track';
 
@@ -173,9 +172,6 @@ export const useCartStore = create<CartStore>()(
   )
 );
 
-// Selector hooks for specific pieces of state
-export const useCartItems = () => useCartStore((state) => state.items);
-
 /**
  * Fire a cart analytics event with the cart totals as they are NOW
  * (post-mutation), so `cart_value`/`cart_items` describe the cart the shopper
@@ -199,17 +195,6 @@ function trackCart(
 }
 
 export const useCartOpen = () => useCartStore((state) => state.isOpen);
-// useShallow: the actions object keeps a stable identity so consumers don't
-// re-render on every unrelated store change.
-export const useCartActions = () => useCartStore(useShallow((state) => ({
-  addItem: state.addItem,
-  removeItem: state.removeItem,
-  updateQuantity: state.updateQuantity,
-  clearCart: state.clearCart,
-  openCart: state.openCart,
-  closeCart: state.closeCart,
-  toggleCart: state.toggleCart,
-})));
 
 /**
  * Run `fn` against the rehydrated cart state. `claimCart`/`releaseCart` must

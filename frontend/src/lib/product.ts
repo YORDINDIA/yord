@@ -3,7 +3,6 @@ import type {
   ProductImage,
   ProductWithDetails,
   BadgeType,
-  TransformedProduct,
 } from '@yord/db-types';
 import { ARTISTS } from '@yord/db-types';
 
@@ -172,31 +171,6 @@ export function getProductBadge(
   if (tags.includes('trending')) return 'TRENDING';
 
   return null;
-}
-
-/** Transform a ProductWithDetails into a TransformedProduct for UI display. */
-export function transformProductForCard(
-  product: ProductWithDetails,
-  overrides?: {
-    artist?: string;
-    accentColor?: string;
-  }
-): TransformedProduct {
-  const variant = getFirstByPosition(product.product_variants);
-  const image = getFirstByPosition(product.product_images);
-  const artist = overrides?.artist || product.vendor || '';
-
-  return {
-    id: product.id.toString(),
-    handle: product.handle ?? '',
-    title: product.title,
-    artist,
-    price: variant?.price || 0,
-    compareAtPrice: variant?.compare_at_price || null,
-    image: image?.storage_url || image?.src || null,
-    badge: getProductBadge(product, variant),
-    accentColor: overrides?.accentColor || artistAccentColor(product.vendor),
-  };
 }
 
 /**

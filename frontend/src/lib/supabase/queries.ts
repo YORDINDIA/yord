@@ -69,40 +69,6 @@ export async function getProductByHandleStatic(handle: string): Promise<ProductW
   return data as ProductWithDetails | null;
 }
 
-/**
- * Related products (same vendor or product type), excluding the current one.
- * Genuinely empty (vendor-less product, no matches) → `[]`.
- */
-export async function getRelatedProducts(
-  product: ProductWithDetails,
-  limit = 4
-): Promise<ProductWithDetails[]> {
-  const supabase = await createServerClient();
-
-  // Null vendor/type would interpolate as literal 'null'; fall back to newest
-  const filters: string[] = [];
-  if (product.vendor) filters.push(`vendor.eq."${escapeFilterValue(product.vendor)}"`);
-  if (product.product_type) filters.push(`product_type.eq."${escapeFilterValue(product.product_type)}"`);
-
-  let query = supabase
-    .from('products')
-    .select(PRODUCT_SELECT)
-    .eq('status', 'active')
-    .neq('id', product.id);
-
-  if (filters.length > 0) {
-    query = query.or(filters.join(','));
-  }
-
-  const data = await queryOrThrow<ProductWithDetails[]>(
-    'products:related',
-    'products',
-    () => query.order('published_at', { ascending: false }).limit(limit),
-  );
-
-  return (data || []) as ProductWithDetails[];
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // COLLECTION QUERIES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -122,24 +88,6 @@ export async function getCollections(): Promise<Collection[]> {
   );
 
   return (data || []) as Collection[];
-}
-
-/** Single published collection by handle. Missing → `null`. */
-export async function getCollectionByHandle(handle: string): Promise<Collection | null> {
-  const supabase = await createServerClient();
-
-  const data = await queryOrThrow<Collection>(
-    'collections:by-handle',
-    'collections',
-    () => supabase
-      .from('collections')
-      .select('*')
-      .eq('handle', handle)
-      .eq('published', true)
-      .maybeSingle(),
-  );
-
-  return data as Collection | null;
 }
 
 /**
@@ -774,12 +722,4 @@ export async function getArticlesStatic(): Promise<Article[]> {
   } catch {
     return [];
   }
-}
-
-/**
- * Escape a value for a double-quoted PostgREST eq/neq filter. Unlike
- * `sanitizeOrPattern`, LIKE wildcards stay literal because eq does no matching.
- */
-export function escapeFilterValue(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

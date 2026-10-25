@@ -41,7 +41,7 @@ npm run clean  # rm -rf .next
 - `src/app/` — thin routes plus API routes; `src/middleware.ts` + `src/proxy.ts`
 - `src/lib/data/` — **every read** (one module per entity: products, orders, collections, blogs, customers, inventory, discounts, media, settings, analytics, nav, search, covers)
 - `src/server/actions/` — **every write**, all returning `ActionState`
-- `src/components/` — `layout/` (shell, sidebar, topbar, command palette), `ui/` (PageHeader, StatCard, Avatar, Thumb, Tabs, ProgressBar, Tooltip, EmptyState, StatusBadge, ConfirmModal, ToastProvider), `charts/` (Recharts: ChartCard, AreaTrend, Bars, Donut, Sparkline), `data/` (DataTable, Pagination, FilterBar, SearchInput, BulkActions, TableSkeleton), `forms/` (ActionForm, ActionField, FormSection, FormActions), plus per-domain folders
+- `src/components/` — `layout/` (shell, sidebar, topbar, command palette), `ui/` (PageHeader, StatCard, Avatar, Thumb, Tabs, ProgressBar, EmptyState, StatusBadge, ConfirmModal, ToastProvider), `charts/` (Recharts: ChartCard, AreaTrend, Bars, Donut, Sparkline), `data/` (DataTable, Pagination, FilterBar, SearchInput, BulkActions, TableSkeleton), `forms/` (ActionForm, ActionField, FormSection, FormActions), plus per-domain folders
 - `src/lib/sections.ts` — the section map behind nav, breadcrumbs and per-section accent colours
 - `sql/` — `001_admin_tables.sql`, `002_admin_next_id.sql`, `003_admin_rls.sql`, `004_atomic_writes.sql`, `005_positional_collection_products.sql`
 - `docs/` — full technical spec (start at `docs/README.md`); the UI system is `docs/06-ui-system.md`

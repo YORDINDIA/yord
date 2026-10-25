@@ -1,44 +1,26 @@
-# `@yord/supabase-clients` — dedup plan (STUB, not yet wired)
+# `@yord/supabase-clients`
 
-## What is duplicated today
+Shared Supabase client factories for the YORD monorepo. Both `frontend` and
+`admin-dashboard` import these instead of re-implementing the same clients.
 
-- `frontend/src/lib/supabase/server.ts` — `createServerClient` (cookie-aware),
-  `createServiceClient` (secret key, no cookies), `createStaticClient`
-  (publishable key, no cookies). Typed with `<Database>` from `@/types/database`.
-- `admin-dashboard/src/lib/supabase/server.ts` — near-identical
-  `createServerClient` + `createServiceClient`, but untyped (no `<Database>`
-  generic) and **no** `createStaticClient`.
-- `packages/auth/src/index.ts` already ships generic equivalents
-  (`createServerSupabase`, `createStaticSupabase`, `createBrowserSupabase`)
-  that take URL/keys/cookies as arguments instead of reading `process.env`.
+## Entries
 
-## Target shape
+- `.` (`src/index.ts`) — four generic factories: `createServerSupabase`
+  (cookie-aware SSR), `createServiceSupabase` (secret key), `createStaticSupabase`
+  (publishable key, no cookies), `createBrowserSupabase`. All take URL/keys as
+  **arguments**, never `process.env`, so a secret key cannot leak into a client
+  bundle through this module. The `Database` generic comes from the caller
+  (`@yord/db-types`), so the package depends on no app's schema types.
+- `./server` (`src/server.ts`) — the env-bound convenience layer that reads
+  `NEXT_PUBLIC_SUPABASE_URL` / keys and wraps the factories. Starts with
+  `import 'server-only'`, so importing it from `'use client'` code is a build
+  error rather than a leaked-key risk.
 
-One typed package exporting three factories:
+## History
 
-- `createServerClient<Database>(cookies)` — cookie-aware SSR client
-- `createServiceClient<Database>()` — secret-key client, no cookies
-- `createStaticClient<Database>()` — publishable-key client for static generation
-
-`Database` stays in the consuming app (`frontend/src/types/database.ts`)
-and is passed as a generic, so this package takes no dependency on it.
-
-## Cutover steps (tracked: https://github.com/YORDINDIA/yord/issues — "supabase-clients cutover")
-
-1. Move the three factories here, generic over `Database`, reading keys
-   from arguments (same style as `packages/auth`).
-2. Point `@/*` `Database` imports at the call sites, not inside the package.
-3. Rewire `frontend` imports, then `admin-dashboard` imports; keep both
-   green with `npx tsc --noEmit` after each app.
-4. Delete the two `lib/supabase/server.ts` files only when both apps pass
-   typecheck + build on the package import.
-
-Known drift (same issue): `frontend/src/types/database.ts` is the byte-copy
-of `@yord/db-types`; `admin-dashboard/src/types/database.ts` is a
-hand-maintained superset (extra admin/ai tables). Port the admin tables into
-`packages/db-types` when convenient.
-
-## Status
-
-Stub only: `src/index.ts` exports a `SUPABASE_CLIENTS_CUTOVER_PENDING`
-flag so the workspace resolves. No existing import has been rewired.
+This package began as a dedup plan (frontend and admin each carried
+near-identical `lib/supabase/server.ts` client sets, plus an unused
+`@yord/auth` experiment that duplicated the same factories); the cutover
+completed and the duplicate per-app client code was deleted. The apps now keep
+only thin wrappers here: `frontend/src/lib/supabase/{client,server}.ts` and
+`admin-dashboard/src/lib/supabase/{client,server}.ts`.
