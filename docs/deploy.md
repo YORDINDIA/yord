@@ -338,6 +338,18 @@ are inlined at build time. Keep server credentials as Worker runtime secrets;
 do not put them in build logs or non-secret build variables. See root
 `CLAUDE.md` for the environment-variable inventory and command references.
 
+**Preview builds are a separate environment (2026-10-26 incident).** Workers
+Builds runs a build for PR branches too, and those builds read the *preview*
+variable set, not the production trigger's — `yord-admin` preview builds
+failed with `Missing NEXT_PUBLIC_SUPABASE_URL` while every main build passed,
+because only the production trigger carried the variables. The admin no longer
+depends on this: `(admin)/layout.tsx` exports `force-dynamic`, so the build
+never prerenders admin routes and never constructs a Supabase client at build
+time (verified: the admin builds clean with no Supabase env at all). Keep it
+that way — a new admin page that needs build-time env is a regression. If you
+*want* preview builds to produce a working admin, mirror the `NEXT_PUBLIC_*`
+values into the dashboard's preview environment as well.
+
 Rules learned getting here:
 
 - The storefront keeps its auth gate in `frontend/src/middleware.ts` rather
@@ -499,7 +511,7 @@ The frontend's security headers live in three sources that must stay in step
 eye):
 
 - `frontend/next.config.ts` `headers()` — the HTML document on Workers.
-- `frontend/netlify.toml` `[[headers]]` — HTML + assets on the Netlify fallback.
+- the repo-root `netlify.toml` `[[headers]]` — HTML + assets on the Netlify fallback.
 - `frontend/public/_headers` — static assets on Workers (and a Netlify fallback
   for anything `netlify.toml` does not name).
 
@@ -524,8 +536,24 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
 
 1. Commit the deployable state and push to `main` (or use "Trigger deploy" in
    Netlify with the desired commit).
-2. Netlify reads each app's `netlify.toml`: build from the repo root,
-   `npm run build --workspace=<app>`, Node `20.19.4`, `--legacy-peer-deps`.
+2. Netlify reads one `netlify.toml` per site, **from that site's configured
+   base directory** — so the storefront's config is the repo-root
+   `netlify.toml` (its base directory is the repo root, because npm workspaces
+   need the root install) and the admin's is
+   `admin-dashboard/netlify.toml` (base directory `admin-dashboard/`; npm
+   walks up and installs the whole workspace anyway). Both pin
+   `@netlify/plugin-nextjs@5.16.4` and Node `20.19.4` with
+   `--legacy-peer-deps`.
+   **2026-10-26 incident, for the next time previews fail:** the storefront's
+   config used to live at `frontend/netlify.toml`, a file Netlify can never
+   read in the only mode its paths were correct for — the site ran on stale
+   dashboard settings instead, every deploy preview failed while local
+   reproductions passed, and nothing in the repo could fix it silently. If
+   previews fail again with the repo building clean locally, diff the
+   dashboard's base directory / build command / publish directory against the
+   toml above before touching code, and remember Netlify keeps **separate
+   variable sets for "Production" and "Deploy previews"** — a preview failing
+   while production builds is an empty preview set, not a code bug.
 3. Deploy the admin first, then the storefront — the admin is where you will
    confirm uploads work.
 4. Canonical URLs are hardcoded to `https://yordindia.com` in
