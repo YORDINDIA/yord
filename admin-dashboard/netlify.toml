@@ -1,26 +1,16 @@
-# Netlify fallback for the admin panel (Cloudflare Workers is primary — see
-# docs/deploy.md §6b). Unlike the storefront's root-level netlify.toml, this
-# file assumes the site's Netlify "Base directory" is admin-dashboard/ itself:
-# every path below resolves against it, so the config is self-consistent in
-# the mode that actually reads it. npm still installs the whole workspace
-# (it walks up to the root package.json), so no root install step is needed.
 [build]
+  # For a Netlify admin site: "Package directory" `admin-dashboard/`, base
+  # directory the repo root (paths resolve against the base). The admin
+  # prerenders nothing ((admin)/layout.tsx is force-dynamic), so the build
+  # needs no Supabase variables — set the NEXT_PUBLIC_* values in BOTH the
+  # "Production" and "Deploy previews" environments for a working build.
   command = "npm run build --workspace=admin-dashboard"
-  publish = ".next"
+  publish = "admin-dashboard/.next"
 
 [build.environment]
   NODE_VERSION = "20.19.4"
   NPM_FLAGS = "--legacy-peer-deps"
 
-# The admin prerenders nothing ((admin)/layout.tsx is force-dynamic), so the
-# build itself needs no Supabase variables. Anything the app inlines at build
-# time (NEXT_PUBLIC_APP_NAME, the Supabase URL/publishable key when you want a
-# working admin rather than a build check) must be set for BOTH the
-# "Production" and "Deploy previews" environments in the dashboard — Netlify,
-# like Cloudflare, keeps the two variable sets separate, and a preview with
-# an empty set is exactly how CI builds used to fail.
-
 [[plugins]]
-  # Pinned for the same reason as the storefront's: verify against this app's
-  # pinned Next before taking a new runtime.
+  # Pinned — see frontend/netlify.toml for the reason.
   package = "@netlify/plugin-nextjs@5.16.4"

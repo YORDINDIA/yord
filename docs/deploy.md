@@ -511,7 +511,7 @@ The frontend's security headers live in three sources that must stay in step
 eye):
 
 - `frontend/next.config.ts` `headers()` — the HTML document on Workers.
-- the repo-root `netlify.toml` `[[headers]]` — HTML + assets on the Netlify fallback.
+- `frontend/netlify.toml` `[[headers]]` — HTML + assets on the Netlify fallback.
 - `frontend/public/_headers` — static assets on Workers (and a Netlify fallback
   for anything `netlify.toml` does not name).
 
@@ -536,24 +536,27 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
 
 1. Commit the deployable state and push to `main` (or use "Trigger deploy" in
    Netlify with the desired commit).
-2. Netlify reads one `netlify.toml` per site, **from that site's configured
-   base directory** — so the storefront's config is the repo-root
-   `netlify.toml` (its base directory is the repo root, because npm workspaces
-   need the root install) and the admin's is
-   `admin-dashboard/netlify.toml` (base directory `admin-dashboard/`; npm
-   walks up and installs the whole workspace anyway). Both pin
+2. Netlify reads one `netlify.toml` per site. Discovery order is **package
+   directory → base directory → repo root**, and every path inside the file
+   resolves against the **base** directory — so the intended shape is
+   "Package directory" `frontend/` (storefront) / `admin-dashboard/` (admin)
+   with the base directory left at the repo root (npm workspaces need the
+   root install), reading each app's own toml. Both tomls pin
    `@netlify/plugin-nextjs@5.16.4` and Node `20.19.4` with
-   `--legacy-peer-deps`.
-   **2026-10-26 incident, for the next time previews fail:** the storefront's
-   config used to live at `frontend/netlify.toml`, a file Netlify can never
-   read in the only mode its paths were correct for — the site ran on stale
-   dashboard settings instead, every deploy preview failed while local
-   reproductions passed, and nothing in the repo could fix it silently. If
-   previews fail again with the repo building clean locally, diff the
-   dashboard's base directory / build command / publish directory against the
-   toml above before touching code, and remember Netlify keeps **separate
-   variable sets for "Production" and "Deploy previews"** — a preview failing
-   while production builds is an empty preview set, not a code bug.
+   `--legacy-peer-deps`; the documented pipeline was re-verified end to end
+   locally on 2026-10-26 (build + plugin, 858 static pages).
+   **2026-10-26 incident, for the next time previews fail:** the `yordindia`
+   site's deploy previews have been failing since before that date while the
+   repo built clean under this exact pipeline locally — the failure lives in
+   the site's dashboard configuration, which is not in the repository. Two
+   settings are **UI-only** and prime suspects: **Package directory** (a
+   missing selection makes builds abort in seconds with "Projects detected:
+   frontend, admin-dashboard, …") and the **separate variable sets for
+   "Production" vs "Deploy previews"** (a preview failing while production
+   builds is an empty preview set, not a code bug). Diff both against the
+   tomls above before touching code. The site was also still serving a
+   pre-theming build, so production deploys have been failing or stale for
+   just as long — same checklist.
 3. Deploy the admin first, then the storefront — the admin is where you will
    confirm uploads work.
 4. Canonical URLs are hardcoded to `https://yordindia.com` in

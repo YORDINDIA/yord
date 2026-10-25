@@ -1,11 +1,10 @@
-# Netlify fallback for the storefront (Cloudflare Workers is primary — see
-# docs/deploy.md §6b). This file lives at the REPO ROOT on purpose: the site's
-# Netlify "Base directory" setting is the repo root (npm workspaces need the
-# root install), and Netlify only reads a netlify.toml from the base
-# directory — a toml inside frontend/ is never discovered in that mode, which
-# is how this site's config silently went stale and deploy previews started
-# failing while every local reproduction passed.
 [build]
+  # Requires the dashboard's "Package directory" to be `frontend/` (base
+  directory stays the repo root: npm workspaces need the root install).
+  # Netlify discovers this file via package dir -> base dir -> repo root, and
+  # paths below resolve against the BASE directory. Package directory is a
+  # UI-only setting — if previews fail in seconds with "Projects detected",
+  # that setting is what is missing. See docs/deploy.md §7.
   command = "npm run build --workspace=frontend"
   publish = "frontend/.next"
 
@@ -14,9 +13,9 @@
   NPM_FLAGS = "--legacy-peer-deps"
 
 [[plugins]]
-  # Pinned: toml plugin specs install from npm at build time, and an unpinned
-  # spec means every build silently tests the newest runtime against this
-  # app's pinned Next. Verified working against Next 16.1.4.
+  # Pinned: toml plugin specs install from npm at build time, so an unpinned
+  # spec silently tests the newest runtime against this app's pinned Next.
+  # 5.16.4 verified against Next 16.1.4 (2026-10-26).
   package = "@netlify/plugin-nextjs@5.16.4"
 
 # Cache static assets for 1 year (immutable hashed files)
