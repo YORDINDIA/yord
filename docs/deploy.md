@@ -324,16 +324,23 @@ deploy on pushes to `main`. First authorize/install the Cloudflare GitHub App
 for the `YORDINDIA` organization from **Workers & Pages → Worker → Settings →
 Builds → Connect**. This authorization is separate from
 `CLOUDFLARE_API_TOKEN`; it cannot be completed by the account token alone.
-After authorization, configure one production trigger per app with the
-repository root **set to the app's directory** (`frontend` /
-`admin-dashboard` — not `/`), production branch `main`, and build caching
-enabled. The app directory is required because Workers Builds' injected
-*preview* step (non-`main` branches) runs bare `npx wrangler preview` in the
-root directory, and wrangler only finds its config there. `npm ci` from the
-app directory still installs the whole workspace (npm walks up to the root
-lockfile), and the root `package.json` declares the same pinned `wrangler`
-(4.86.0) so the injected step resolves the binary from the repo root's
-`node_modules/.bin`:
+After authorization, configure one production trigger per app with repository
+root `/`, production branch `main`, and build caching enabled. Two repo-side
+pieces exist specifically for Workers Builds' injected *preview* step (every
+non-`main` branch), which runs a fixed `npm run build` and then bare
+`npx wrangler preview` at the repo root — it ignores the trigger's build
+command and root directory:
+
+- the root `package.json` declares the same pinned `wrangler` (4.86.0), so
+  the injected step resolves the binary from the repo root's
+  `node_modules/.bin` (workspace deps only bin into their own app's `.bin`);
+- the root `wrangler.toml` describes the admin worker from the root (the one
+  worker whose previews are enabled; `yord-frontend` runs none) so the step
+  finds a config in its working directory. Production deploys never read it —
+  `deploy:worker` runs from the app directory, where wrangler reads that
+  app's own `wrangler.toml`. Keep the root file's name/entrypoint/assets/vars
+  in sync with `admin-dashboard/wrangler.toml`; it deliberately carries no
+  routes, so a preview deployment can never attach to admin.yordindia.com.
 
 | Worker | Build command | Deploy command |
 |---|---|---|
