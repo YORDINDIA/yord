@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PHProvider } from '@/providers/PostHogProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { QuizPromo } from '@/features/quiz/QuizPromo';
 
 const PostHogPageView = dynamic(
   () => import('@/providers/PostHogPageView'),
@@ -66,6 +67,10 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
           <PostHogPageView />
           {finePointer && <CustomCursor />}
           {children}
+          {/* The Aura quiz pop-up. It decides for itself whether to appear —
+              route, dwell, dismissal history — so this is the only line the rest
+              of the app needs. See `features/quiz/useQuizGate.ts`. */}
+          <QuizPromo />
         </QueryClientProvider>
       </ThemeProvider>
     </PHProvider>

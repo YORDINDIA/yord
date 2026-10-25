@@ -64,7 +64,24 @@ function propsFor(event: AnalyticsEvent): Record<string, unknown> {
         ...(event.code !== undefined ? { code: event.code } : {}),
       };
     case 'order_completed':
-      return { order_id: event.orderId, value: event.value, items: event.items };
+      return {
+        order_id: event.orderId,
+        value: event.value,
+        items: event.items,
+        ...(event.discount !== undefined ? { discount: event.discount } : {}),
+      };
+    case 'quiz_viewed':
+      return { trigger: event.trigger };
+    case 'quiz_started':
+      return {};
+    case 'quiz_completed':
+      return { correct: event.correct, total: event.total, percent: event.percent };
+    case 'quiz_dismissed':
+      return { phase: event.phase };
+    case 'promo_applied':
+      return { percent: event.percent, surface: event.surface };
+    case 'promo_rejected':
+      return { reason: event.reason, surface: event.surface };
   }
 }
 

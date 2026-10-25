@@ -127,6 +127,7 @@ export const config = {
     '/media/:path*',
     '/orders/:path*',
     '/products/:path*',
+    '/quiz/:path*',
     '/settings/:path*',
   ],
 };

@@ -5,29 +5,14 @@ import { twMerge } from 'tailwind-merge';
  * Shared UI primitives for the YORD monorepo. Client-safe: every export is a
  * pure function with no server or browser dependencies.
  *
- * `cn` is the single class-merging implementation. `formatINR` formats a
- * paise amount; `formatPrice` formats a rupee amount (the storefront's
- * default unit). Both render whole rupees (`maximumFractionDigits: 0`) to
- * match the existing storefront display.
+ * `cn` is the single class-merging implementation; `formatPrice` formats a
+ * rupee amount (the storefront's default unit). Both render whole rupees
+ * (`maximumFractionDigits: 0`) to match the existing storefront display.
  */
 
 /** Merge Tailwind classes with clsx + tailwind-merge. */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-/** Join class fragments, dropping falsy values (no Tailwind conflict resolution). */
-export function cx(...parts: (string | false | null | undefined)[]): string {
-  return parts.filter(Boolean).join(' ');
-}
-
-/** Format a paise amount as INR (whole rupees, en-IN grouping). */
-export function formatINR(paise: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(paise);
 }
 
 /** Format a rupee price in INR (whole rupees, en-IN grouping). */

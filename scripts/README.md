@@ -42,7 +42,6 @@ scripts/
 ├── schema.sql                 # Main database schema
 ├── schema_patches/            # Incremental schema updates
 │   └── 001_fix_collects.sql
-├── archive/                   # Deprecated scripts (kept for reference)
 └── [active scripts]
 ```
 
@@ -170,7 +169,7 @@ python blog_media.py --execute        # map blogs to substitute OG or placeholde
 python ingest_clean.py --execute      # offline ingest rehearsal, writes ingest_rehearsal.json
 ```
 
-The live ingest itself is not implemented here. `docs/deploy.md` records the
+The live ingest itself is not implemented here. `../docs/deploy.md` records the
 database order, the R2 key conventions and the decisions for
 loading `data/clean/` (products live as `active`, article bodies cleaned and
 converted to HTML, generated images for articles whose originals were lost).
@@ -253,15 +252,6 @@ python verify_migration.py --quick
 python verify_migration.py --full
 ```
 
-### `audit_shopify.py`
-Pre-migration audit - inventories Shopify data before migration.
-
-```bash
-python audit_shopify.py
-```
-
-Outputs: `audit_results.json`
-
 ### `comprehensive_audit.py`
 Full database audit with relationship validation.
 
@@ -272,20 +262,6 @@ python comprehensive_audit.py
 Outputs: `comprehensive_audit_results.json`
 
 ## Image Optimization
-
-### `download_media_local.py`
-Downloads product images to local disk for processing.
-
-```bash
-python download_media_local.py
-```
-
-### `compress_media_local.py`
-Compresses images locally before upload.
-
-```bash
-python compress_media_local.py
-```
 
 ### `optimize_images.py`
 Re-runs the variant policy over stored media: images that are not yet a
@@ -330,18 +306,6 @@ Lists all collections in Supabase.
 ```bash
 python list_collections.py
 ```
-
-## Archived Scripts
-
-Scripts in `archive/` are deprecated but kept for reference:
-- `fix_artist_collections.py` - Superseded by `populate_collections.py`
-- `populate_collects.py` - Superseded by `populate_collections.py`
-- `populate_smart_collection_collects.py` - Superseded by `populate_collections.py`
-- `final_verification.py` - Merged into `verify_migration.py`
-- `verify_images.py` - Merged into `verify_migration.py`
-- `verify_order_addresses.py` - Merged into `comprehensive_audit.py`
-- Debug scripts (check_*, debug_*)
-- Legacy schema scripts (apply_schema_*, setup_supabase.sql)
 
 ## Shared Utilities (`utils/`)
 
@@ -404,8 +368,8 @@ Error details are written to JSON files:
 
 For a fresh migration, run in this order:
 
-1. Apply schema: `schema.sql`, then `supabase/migrations/` 001-005 in order
-   (005 adds blogs/articles tables + product SEO columns)
+1. Apply schema: `schema.sql`, then the numbered `supabase/migrations/` files in
+   ascending order (see `../docs/deploy.md` for the current list)
 0b. For archive-recovered data: run the Archive Recovery Pipeline above first,
     then rehearse with `ingest_clean.py --execute` (validation only — it
     writes `ingest_rehearsal.json`, it does not upload). No command ingests

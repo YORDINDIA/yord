@@ -1,0 +1,31 @@
+# Cloudflare Workers Builds *preview* config for the admin panel.
+#
+# Workers Builds' injected preview step (every non-`main` branch) runs bare
+# `npx wrangler preview` at the REPO ROOT with its own fixed `npm run build`
+# — it ignores the trigger's build command and root directory — and wrangler
+# only reads a config from its working directory. This file is what that step
+# finds: the admin worker described from the root, because yord-admin is the
+# one worker whose previews are enabled. (yord-frontend runs no preview
+# builds; if that ever changes, this single-file trick no longer fits and the
+# step needs Cloudflare-side monorepo support instead.)
+#
+# Production deploys NEVER use this file: `deploy:worker` runs from
+# admin-dashboard/ (npm sets a workspace script's cwd to the workspace), where
+# wrangler reads admin-dashboard/wrangler.toml — the authoritative config.
+# Keep the essentials below in sync with it: worker name, entrypoint,
+# compatibility, assets and vars. Deliberately NO routes: a preview deployment
+# must never attach itself to admin.yordindia.com, and preview builds carry no
+# secrets (the admin no longer needs Supabase variables at build time — see
+# (admin)/layout.tsx), so a preview URL serves the login shell only.
+name = "yord-admin"
+main = "admin-dashboard/.open-next/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "admin-dashboard/.open-next/assets"
+binding = "ASSETS"
+
+[vars]
+NEXT_PUBLIC_APP_NAME = "YORD Admin"
+NEXT_PUBLIC_POSTHOG_HOST = "https://us.i.posthog.com"

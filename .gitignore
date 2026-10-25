@@ -71,6 +71,7 @@ Thumbs.db
 # Agents
 .agents/
 .commandcode/
+.zcode/
 
 /data
 
@@ -97,6 +98,9 @@ agnes-out/
 .wrangler/
 */.open-next/
 */.wrangler/
+# Stale local wrangler-state backups (e.g. .wrangler.stale-bak-*)
+.wrangler.stale-*/
+*/.wrangler.stale-*/
 
 # Visual QA screenshots (generated)
 .screenshots/
@@ -111,3 +115,5 @@ scripts/import_orders_customers_errors.json
 # Run artifacts of scripts/punjabi_tee_listings pipeline + meta-description tooling (product rows only)
 scripts/punjabi_tee_merge_snapshot*.json
 scripts/product_meta_description_snapshot*.json
+# Run artifacts of the Diljit listings pipeline (product rows only, one per publish/retire run)
+scripts/diljit_listings_snapshot*.json

@@ -96,17 +96,3 @@ export function createRazorpayCheckout(options: RazorpayCheckoutOptions) {
 
   return new window.Razorpay(options);
 }
-
-/**
- * Format amount for Razorpay (convert to paise)
- */
-export function formatAmountForRazorpay(amount: number): number {
-  return Math.round(amount * 100);
-}
-
-/**
- * Format amount from Razorpay (convert from paise to INR)
- */
-export function formatAmountFromRazorpay(amount: number): number {
-  return amount / 100;
-}

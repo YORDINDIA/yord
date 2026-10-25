@@ -3,6 +3,15 @@
 **Date:** 2026-01-20
 **Store:** YORD India (5217cc-15)
 
+> **Historical record (2026-10):** both issues below were resolved long after
+> this report — the collects schema fix survives as
+> `schema_patches/001_fix_collects.sql`, and customer data was later imported
+> via `import_customers_from_csv.py` / `import_orders_customers.py`. The one-off
+> helper scripts this report references (`fix_collects_schema.sql`,
+> `remigrate_collects.py`, `remigrate_customers.py`, `check_supabase_pii.py`,
+> `debug_collects_schema.py`) have since been deleted; only
+> `comprehensive_audit.py` and `audit_data_integrity.sql` remain.
+
 ---
 
 ## Executive Summary

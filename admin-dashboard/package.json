@@ -24,7 +24,6 @@
     "@sentry/nextjs": "^11.4.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
-    "@yord/auth": "*",
     "@yord/db-types": "*",
     "@yord/supabase-clients": "*",
     "@yord/ui": "*",

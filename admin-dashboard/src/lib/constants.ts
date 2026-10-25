@@ -173,6 +173,7 @@ export const ADMIN_ROUTE_PREFIXES = [
   'media',
   'orders',
   'products',
+  'quiz',
   'settings',
 ] as const;
 

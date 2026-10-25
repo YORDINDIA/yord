@@ -5,7 +5,7 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Workspace packages export raw TS; Next must transpile them.
-  transpilePackages: ['@yord/ui', '@yord/db-types', '@yord/auth', '@yord/supabase-clients'],
+  transpilePackages: ['@yord/ui', '@yord/db-types', '@yord/supabase-clients'],
   // Monorepo: trace files from the repo root so packages/* are included.
   outputFileTracingRoot: path.join(__dirname, '../'),
   // Media uploads ride a Server Action (see media/uploader.tsx). The 1 MB

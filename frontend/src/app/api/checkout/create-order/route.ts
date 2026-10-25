@@ -6,6 +6,9 @@ import { MAX_ORDER_LINES, MAX_QTY_PER_LINE } from '@/lib/pricing';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
 import { logDbError, logWarn } from '@/lib/logger';
 import { isRateLimited, clientIp, rateLimitResponse } from '@/lib/rate-limit';
+import { isValidCodeFormat, normalizeCode } from '@/features/quiz/codes';
+import { CODE_REJECTION_MESSAGE, peekCode } from '@/features/quiz/server/codes';
+import { CAMPAIGN } from '@/features/quiz/config';
 
 // Server-side pricing: never trust client-supplied amounts.
 // Clients are created lazily per request so a missing env var returns
@@ -37,7 +40,11 @@ export async function POST(request: NextRequest) {
     const { supabase, razorpay } = clients;
 
     const body = await request.json();
-    const { currency = 'INR', items } = body as { currency?: string; items?: CartLine[] };
+    const { currency = 'INR', items, code } = body as {
+      currency?: string;
+      items?: CartLine[];
+      code?: string;
+    };
 
     if (currency !== 'INR') {
       return NextResponse.json({ error: 'Unsupported currency' }, { status: 400 });
@@ -65,8 +72,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve the promo code before pricing, so the Razorpay order is created
+    // for the amount the shopper was shown.
+    //
+    // A code that definitively no longer works is a 409 `CODE_INVALID` rather
+    // than a silent full-price charge: the shopper applied a code and the price
+    // on their screen includes it, so charging more than that without saying so
+    // is the one outcome worth blocking — and the client drops the stored code
+    // on that token, which is why it must never mean "try again later".
+    //
+    // `held` (another checkout holds it inside the 15-minute lease) and
+    // `unavailable` (the lookup itself failed) are the opposite: transient, so
+    // they answer 503 `CODE_UNAVAILABLE` and the shopper keeps their code for
+    // the retry. `peek` here is read-only — the code is not reserved until
+    // `verify-payment`, because reserving now would let an abandoned Razorpay
+    // modal hold the shopper's own code against a stale order id.
+    const TRANSIENT_REASONS = new Set(['held', 'unavailable']);
+    let discountPercent = 0;
+    let appliedCode: string | null = null;
+    if (typeof code === 'string' && code.trim().length > 0) {
+      if (!isValidCodeFormat(code)) {
+        return NextResponse.json(
+          { error: CODE_REJECTION_MESSAGE.not_found, code: 'CODE_INVALID' },
+          { status: 409 }
+        );
+      }
+      const lookup = await peekCode(supabase, normalizeCode(code));
+      if (!lookup.ok) {
+        logWarn('create-order', `CODE_${lookup.reason.toUpperCase()}`, normalizeCode(code));
+        return NextResponse.json(
+          {
+            error: CODE_REJECTION_MESSAGE[lookup.reason],
+            code: TRANSIENT_REASONS.has(lookup.reason) ? 'CODE_UNAVAILABLE' : 'CODE_INVALID',
+          },
+          { status: TRANSIENT_REASONS.has(lookup.reason) ? 503 : 409 }
+        );
+      }
+      discountPercent = lookup.percent;
+      appliedCode = normalizeCode(code);
+    }
+
     // Authoritative price + stock lookup (shared helper; pricing math in lib/pricing).
-    const validated = await validateCartLines(supabase, items);
+    const validated = await validateCartLines(supabase, items, discountPercent);
     if (!validated.ok) {
       logWarn('create-order', validated.code, validated.error);
       return NextResponse.json(
@@ -74,7 +121,28 @@ export async function POST(request: NextRequest) {
         { status: validated.status }
       );
     }
-    const { subtotal, gstAmount, total, totalPaise: amountPaise } = validated;
+    const {
+      subtotal,
+      discountAmount,
+      gstAmount,
+      total,
+      totalPaise: amountPaise,
+    } = validated;
+
+    // A usable code whose cart has nothing it may discount. Charging full
+    // price here would strand the code in verify-payment's 15-minute
+    // reservation for an order that never used it; refusing with the reason
+    // lets the shopper add an eligible item or drop the code. Not transient:
+    // the cart, not the code, is what has to change.
+    if (appliedCode && discountAmount === 0) {
+      return NextResponse.json(
+        {
+          error: 'This code only discounts Diljit Dosanjh styles — add one to your bag to use it.',
+          code: 'CODE_NOT_APPLICABLE',
+        },
+        { status: 409 }
+      );
+    }
 
     let order;
     try {
@@ -82,7 +150,20 @@ export async function POST(request: NextRequest) {
         amount: amountPaise,
         currency,
         receipt: `yord_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        notes: { source: 'yord-india-website' },
+        // The code rides in the gateway notes so a dispute or a manual
+        // reconciliation can see which discount a captured amount included,
+        // without reading our database. The scope names the collection the
+        // percent applied to, because it is no longer the whole order.
+        notes: {
+          source: 'yord-india-website',
+          ...(appliedCode
+            ? {
+                promo_code: appliedCode,
+                discount_percent: String(discountPercent),
+                promo_scope: CAMPAIGN.discountCollectionHandle,
+              }
+            : {}),
+        },
       });
     } catch (razorpayError) {
       logDbError('create-order:razorpay', razorpayError);
@@ -95,6 +176,8 @@ export async function POST(request: NextRequest) {
       currency: order.currency,
       receipt: order.receipt,
       subtotal,
+      discountAmount,
+      discountPercent,
       gstAmount,
       total,
     });

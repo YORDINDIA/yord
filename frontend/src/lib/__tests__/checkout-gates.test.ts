@@ -85,7 +85,13 @@ describe('checkout gates', () => {
     expect(gstAmount).toBe(95);
     expect(total).toBe(1999);
     expect(totalPaise).toBe(199900);
-    expect(computeTotals([])).toEqual({ subtotal: 0, gstAmount: 0, total: 0, totalPaise: 0 });
+    expect(computeTotals([])).toEqual({
+      subtotal: 0,
+      discountAmount: 0,
+      gstAmount: 0,
+      total: 0,
+      totalPaise: 0,
+    });
   });
 
   it('reads the GST slab per piece, not per line total', () => {

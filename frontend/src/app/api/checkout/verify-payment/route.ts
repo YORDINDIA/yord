@@ -6,6 +6,8 @@ import { MAX_ORDER_LINES, MAX_QTY_PER_LINE } from '@/lib/pricing';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
 import { logDbError, logWarn } from '@/lib/logger';
 import { EMAIL_RE, clientIp, isRateLimited, rateLimitResponse } from '@/lib/rate-limit';
+import { isValidCodeFormat, normalizeCode } from '@/features/quiz/codes';
+import { redeemCode, releaseCode, reserveCode } from '@/features/quiz/server/codes';
 
 function getClients() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -393,6 +395,199 @@ function successBody(
   });
 }
 
+// Give back a promo hold once the payment that took it is definitively
+// refunded, so the shopper's next attempt is not told the code is in use for
+// the rest of the 15-minute lease. `release_quiz_code` is a CAS keyed on the
+// reservation, so a speculative call from any refund path is a no-op for a
+// code already redeemed or now held by a different payment.
+async function releaseReservedCode(
+  supabase: CheckoutSupabase,
+  code: string | null,
+  reservation: string
+): Promise<void> {
+  if (!code) return;
+  try {
+    if (await releaseCode(supabase, code, reservation)) {
+      logWarn('verify-payment', 'CODE_RELEASED', `code=${code} reservation=${reservation}`);
+    }
+  } catch (releaseError) {
+    logDbError('verify-payment:code-release', releaseError);
+  }
+}
+
+// Write the discount bookkeeping for a completed order and spend the code.
+//
+// Every step is idempotent — the two inserts check-then-insert, and
+// `redeemCode` is a CAS on `reserved_for` + `redeemed_at is null` — so this is
+// safe to re-run on a replay of a completed order, which is exactly what
+// `reconcileQuizDiscount` does when the first attempt died between committing
+// the order and writing these rows. Best-effort on purpose: the order is
+// committed and the money is taken, so a failed bookkeeping row must never
+// cost the shopper their confirmation. The writes are independent — a failed
+// `order_discount_codes` insert must not stop the code being marked spent, or
+// a redeemed code would look unused and could be spent a second time.
+async function finalizeQuizDiscount(args: {
+  supabase: CheckoutSupabase;
+  orderId: number;
+  razorpayOrderId: string;
+  code: string;
+  percent: number;
+  amount: number;
+  email: string;
+}): Promise<void> {
+  const { supabase, orderId, razorpayOrderId, code, percent, amount, email } = args;
+
+  // The order summary in the admin reads `total_discounts`. The claim RPC does
+  // not write it, so without this the row shows a subtotal, zero discounts and
+  // a smaller total — arithmetic that does not add up for whoever reconciles
+  // it. Derived from the amount the order was actually charged, so the rows
+  // can never disagree.
+  const { error: orderDiscountError } = await supabase
+    .from('orders')
+    .update({ total_discounts: amount })
+    .eq('id', orderId);
+  if (orderDiscountError) {
+    logDbError('verify-payment:order-discount', orderDiscountError);
+  }
+
+  const { data: existingCodeRow } = await supabase
+    .from('order_discount_codes')
+    .select('order_id')
+    .eq('order_id', orderId)
+    .eq('code', code)
+    .maybeSingle();
+  if (!existingCodeRow) {
+    const { error: codeRowError } = await supabase.from('order_discount_codes').insert({
+      order_id: orderId,
+      code,
+      type: 'percentage',
+      amount,
+    });
+    if (codeRowError) {
+      logDbError('verify-payment:discount-code-row', codeRowError);
+    }
+  }
+
+  const { data: existingApplication } = await supabase
+    .from('discount_applications')
+    .select('order_id')
+    .eq('order_id', orderId)
+    .eq('index', 0)
+    .maybeSingle();
+  if (!existingApplication) {
+    const { error: applicationError } = await supabase.from('discount_applications').insert({
+      order_id: orderId,
+      index: 0,
+      type: 'discount_code',
+      code,
+      title: 'Aura quiz reward',
+      description: `${percent}% off Diljit Dosanjh styles from the Aura quiz`,
+      // Shopify's shape: `value` is a string and `value_type` says how to read
+      // it, so a percentage code and a fixed-amount code share one column set.
+      value: String(percent),
+      value_type: 'percentage',
+      allocation_method: 'across',
+      // `entitled`, not `all`: the code discounts only the campaign
+      // collection's lines, and this row is what says which lines a
+      // reconciliation should attribute the amount to.
+      target_selection: 'entitled',
+      target_type: 'line_item',
+    });
+    if (applicationError) {
+      logDbError('verify-payment:discount-application', applicationError);
+    }
+  }
+
+  const redeemed = await redeemCode(supabase, code, razorpayOrderId, orderId, email);
+  if (!redeemed) {
+    // A `false` from the CAS usually means a concurrent replay redeemed it a
+    // moment ago. Only a code that is *still* unredeemed is the loud failure
+    // worth reconciling — the shopper had the discount without the code being
+    // consumed, so a second use is possible until a retry re-runs this.
+    const { data: codeRow } = await supabase
+      .from('quiz_codes')
+      .select('redeemed_at')
+      .eq('code', code)
+      .maybeSingle();
+    if (!codeRow?.redeemed_at) {
+      logWarn(
+        'verify-payment',
+        'CODE_NOT_REDEEMED',
+        `code=${code} order=${orderId} reservation=${razorpayOrderId}`
+      );
+    }
+  }
+}
+
+// Reconcile the discount bookkeeping for an order that completed with a
+// discount, on a path that did not run the completion writes: the idempotent
+// replay of a completed payment. If the first attempt crashed after
+// `complete_checkout_order` but before the bookkeeping, this records the
+// discount and spends the code; if everything already ran, every step no-ops.
+//
+// The payment — not the request body — says which code to reconcile: the body
+// of a replay is client input, while `reserved_for` was written by the CAS
+// that actually held the code for this Razorpay order. One indexed lookup
+// decides whether there is anything to do, so undiscounted orders pay for a
+// single maybeSingle.
+async function reconcileQuizDiscount(
+  supabase: CheckoutSupabase,
+  orderId: number,
+  razorpayOrderId: string
+): Promise<void> {
+  let codeRow: { code: string; percent: number; redeemed_at: string | null } | null = null;
+  try {
+    const { data, error: codeError } = await supabase
+      .from('quiz_codes')
+      .select('code, percent, redeemed_at')
+      .eq('reserved_for', razorpayOrderId)
+      .maybeSingle();
+    if (codeError) {
+      logDbError('verify-payment:promo-reconcile-read', codeError);
+      return;
+    }
+    codeRow = data;
+  } catch (codeReadError) {
+    logDbError('verify-payment:promo-reconcile-read', codeReadError);
+    return;
+  }
+  if (!codeRow) return; // this payment never held a code — nothing to reconcile
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('email, subtotal_price, total_price')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (orderError || !order) {
+    logDbError('verify-payment:promo-reconcile-read', orderError ?? 'order row missing');
+    return;
+  }
+
+  // The claim stored the authoritative subtotal/total pair with the discount
+  // applied, so their difference *is* the amount the shopper was charged
+  // under the code — recomputed here without re-pricing the cart.
+  const amount = Math.round(
+    Number(order.subtotal_price ?? 0) - Number(order.total_price ?? 0)
+  );
+  if (!(amount > 0)) {
+    // The order completed at full price while this payment somehow still holds
+    // the code. The order stands; the hold is stray, so free it rather than
+    // telling the shopper their code is in use.
+    await releaseReservedCode(supabase, codeRow.code, razorpayOrderId);
+    return;
+  }
+
+  await finalizeQuizDiscount({
+    supabase,
+    orderId,
+    razorpayOrderId,
+    code: codeRow.code,
+    percent: codeRow.percent,
+    amount,
+    email: order.email ?? '',
+  });
+}
+
 // Line items committed for an order, or null when the count could not be
 // read (treated as "not complete" by readOrderCompletion, so an unreadable
 // count never turns into a success answer).
@@ -540,6 +735,10 @@ async function answerPolledState(
     return answerCompensatedReplay(supabase, razorpay, order.id, paymentId);
   }
   if (state === 'complete') {
+    // The winner committed the order, but it may have died before the promo
+    // bookkeeping — reconcile before answering so a discounted replay always
+    // records and spends its code.
+    await reconcileQuizDiscount(supabase, order.id, razorpayOrderId);
     return successBody(paymentId, razorpayOrderId, order, {
       message: 'Payment already recorded',
     });
@@ -549,6 +748,7 @@ async function answerPolledState(
     orderData &&
     (await backfillShippingAddress(supabase, order.id, orderData))
   ) {
+    await reconcileQuizDiscount(supabase, order.id, razorpayOrderId);
     return successBody(paymentId, razorpayOrderId, order, {
       message: 'Payment already recorded',
     });
@@ -576,6 +776,12 @@ export async function POST(request: NextRequest) {
       typeof body.analyticsSid === 'string' && ANALYTICS_SID_SHAPE.test(body.analyticsSid)
         ? body.analyticsSid
         : null;
+    // A promo code is only ever a hint here: the discount this attempt charges
+    // comes from the reservation below, and a code that is spent, expired or
+    // unknown simply means the undiscounted total is recomputed and the
+    // captured amount no longer matches — which refunds, as it must.
+    const requestedCode =
+      typeof body.code === 'string' && isValidCodeFormat(body.code) ? normalizeCode(body.code) : null;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: 'Missing payment details' }, { status: 400 });
@@ -646,6 +852,13 @@ export async function POST(request: NextRequest) {
     let order: ClaimOrder | null = null;
     let persistedLineItems: CheckoutLineSnapshot[] | null = null;
     let persistedShipping: CheckoutShippingSnapshot | null = null;
+    // Promo state for THIS attempt. Only a brand-new claim sets these: a
+    // recovered claim keeps its stored `total_price`, which already carries the
+    // discount the first attempt applied, so re-deriving it here would either
+    // double-apply or fight the snapshot.
+    let reservedCode: string | null = null;
+    let discountAmount = 0;
+    let discountPercent = 0;
 
     if (found) {
       // Existing claims use their immutable server snapshot. Do not validate
@@ -659,6 +872,7 @@ export async function POST(request: NextRequest) {
       }
       const claim = await acquireExistingCheckoutClaim(supabase, found.id, ownerToken, validOrderData);
       if (claim.status === 'completed') {
+        await reconcileQuizDiscount(supabase, found.id, razorpay_order_id);
         return successBody(razorpay_payment_id, razorpay_order_id, found, {
           message: 'Payment already recorded',
         });
@@ -710,6 +924,9 @@ export async function POST(request: NextRequest) {
           razorpay_payment_id,
           'stored order amount mismatch after capture'
         );
+        if (refunded) {
+          await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+        }
         return NextResponse.json(
           {
             error: refunded
@@ -728,6 +945,9 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         'invalid order data after capture'
       );
+      if (refunded) {
+        await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+      }
       return NextResponse.json(
         {
           error: refunded ? 'Invalid order data. Payment refunded.' : 'Invalid order data',
@@ -739,15 +959,42 @@ export async function POST(request: NextRequest) {
     const orderData = validOrderData;
 
     if (!order) {
+      // Reserve the promo code BEFORE pricing, because the reservation is what
+      // decides whether this attempt may charge the discounted amount at all.
+      // `reserve_quiz_code` is a compare-and-swap: it succeeds for a free code
+      // and for one this same Razorpay order already holds (so a retry is
+      // idempotent) and fails for a code someone else has spent or is spending.
+      //
+      // A failure is not an error response. The code is dropped, the cart is
+      // priced at full price, and the amount comparison below sees the
+      // discounted capture and refunds it — the shopper is told the code could
+      // not be used instead of being charged less than the order records.
+      if (requestedCode) {
+        const reservation = await reserveCode(supabase, requestedCode, razorpay_order_id);
+        if (reservation.ok) {
+          reservedCode = requestedCode;
+          discountPercent = reservation.percent;
+        } else {
+          logWarn(
+            'verify-payment',
+            'CODE_NOT_RESERVED',
+            `code=${requestedCode} reason=${reservation.reason}`
+          );
+        }
+      }
+
       // New claims validate against current catalog data. Recovered claims
       // instead use their immutable database snapshots above; current stock
       // has already been decremented for any ledger entries marked applied.
       // Authoritative pricing comes from the DB, never the client payload.
-      const validated = await validateCartLines(supabase, orderData.cartItems);
+      const validated = await validateCartLines(supabase, orderData.cartItems, discountPercent);
       if (!validated.ok) {
         logWarn('verify-payment', validated.code, validated.error);
         const reason = `cart validation failed after capture: ${validated.code}`;
         const refunded = await refundCapturedPayment(razorpay, razorpay_payment_id, reason);
+        if (refunded) {
+          await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+        }
         return NextResponse.json(
           {
             error: refunded ? `${validated.error}. Payment refunded.` : validated.error,
@@ -756,18 +1003,28 @@ export async function POST(request: NextRequest) {
           { status: refunded ? validated.status : 500 }
         );
       }
-      const { subtotal, gstAmount, total, totalPaise, byId } = validated;
+      const { subtotal, discountAmount: appliedDiscount, gstAmount, total, totalPaise, byId } =
+        validated;
+      discountAmount = appliedDiscount;
 
+      // The captured amount must equal what this attempt just priced. When a
+      // code failed to reserve, this is where the discounted capture is caught:
+      // the message names the code so the shopper knows what went wrong rather
+      // than reading a bare amount mismatch.
       if (paymentCurrency !== 'INR' || paymentAmount !== totalPaise) {
-        const refunded = await refundCapturedPayment(
-          razorpay,
-          razorpay_payment_id,
-          `amount mismatch: paid ${paymentAmount} ${paymentCurrency}, expected ${totalPaise} INR`
-        );
+        const reason = requestedCode
+          ? `amount mismatch after code ${requestedCode} could not be applied: paid ${paymentAmount} ${paymentCurrency}, expected ${totalPaise} INR`
+          : `amount mismatch: paid ${paymentAmount} ${paymentCurrency}, expected ${totalPaise} INR`;
+        const refunded = await refundCapturedPayment(razorpay, razorpay_payment_id, reason);
+        if (refunded) {
+          await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+        }
         return NextResponse.json(
           {
             error: refunded
-              ? 'Paid amount does not match order total. Payment refunded.'
+              ? requestedCode
+                ? 'That code could not be applied, so the price changed. Payment refunded — please try again.'
+                : 'Paid amount does not match order total. Payment refunded.'
               : 'Paid amount does not match order total',
             code: refunded ? 'AMOUNT_MISMATCH' : 'REFUND_FAILED',
           },
@@ -785,6 +1042,9 @@ export async function POST(request: NextRequest) {
           razorpay_payment_id,
           `order number unsafe: ${identity.reason}`
         );
+        if (refunded) {
+          await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+        }
         return NextResponse.json(
           {
             error: refunded
@@ -869,6 +1129,7 @@ export async function POST(request: NextRequest) {
           orderData
         );
         if (claim.status === 'completed') {
+          await reconcileQuizDiscount(supabase, winner.id, razorpay_order_id);
           return successBody(razorpay_payment_id, razorpay_order_id, winner, {
             message: 'Payment already recorded',
           });
@@ -975,6 +1236,9 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         'insufficient stock after capture'
       );
+      if (refunded) {
+        await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+      }
       return NextResponse.json(
         {
           error: refunded
@@ -1032,6 +1296,9 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         'transactional order finalization failed'
       );
+      if (refunded) {
+        await releaseReservedCode(supabase, requestedCode, razorpay_order_id);
+      }
       return NextResponse.json(
         {
           error: refunded
@@ -1048,6 +1315,28 @@ export async function POST(request: NextRequest) {
         { error: 'This payment is still being processed. Please retry shortly.', code: 'ORDER_INCOMPLETE' },
         { status: 409 }
       );
+    }
+
+    // Record the promo discount on the order, then spend the code. The steps
+    // are idempotent (see `finalizeQuizDiscount`) so the replay paths above can
+    // re-run them for a first attempt that died between committing the order
+    // and writing the bookkeeping. Gated on `reservedCode`, which only the
+    // new-claim path sets; `already_completed` here means a concurrent verify
+    // finished first and ran the same idempotent writes.
+    if (
+      (completionStatus === 'completed' || completionStatus === 'already_completed') &&
+      reservedCode &&
+      discountAmount > 0
+    ) {
+      await finalizeQuizDiscount({
+        supabase,
+        orderId,
+        razorpayOrderId: razorpay_order_id,
+        code: reservedCode,
+        percent: discountPercent,
+        amount: discountAmount,
+        email: orderData.email,
+      });
     }
 
     // Behavioral analytics: the revenue end of the checkout funnel, recorded
@@ -1073,6 +1362,9 @@ export async function POST(request: NextRequest) {
             (sum: number, line: CartLine) => sum + line.quantity,
             0
           ),
+          // Absent rather than 0 on an order with no code: a zero here would
+          // read as "a promo was applied and it was worth nothing".
+          ...(discountAmount > 0 ? { discount: discountAmount } : {}),
         },
         });
         if (analyticsError) {

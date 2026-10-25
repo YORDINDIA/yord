@@ -1,5 +1,10 @@
 [build]
-  # Netlify site base directory: repo root (npm workspaces need the root install).
+  # Requires the dashboard's "Package directory" to be `frontend/` (base
+  directory stays the repo root: npm workspaces need the root install).
+  # Netlify discovers this file via package dir -> base dir -> repo root, and
+  # paths below resolve against the BASE directory. Package directory is a
+  # UI-only setting — if previews fail in seconds with "Projects detected",
+  # that setting is what is missing. See docs/deploy.md §7.
   command = "npm run build --workspace=frontend"
   publish = "frontend/.next"
 
@@ -8,7 +13,10 @@
   NPM_FLAGS = "--legacy-peer-deps"
 
 [[plugins]]
-  package = "@netlify/plugin-nextjs"
+  # Pinned: toml plugin specs install from npm at build time, so an unpinned
+  # spec silently tests the newest runtime against this app's pinned Next.
+  # 5.16.4 verified against Next 16.1.4 (2026-10-26).
+  package = "@netlify/plugin-nextjs@5.16.4"
 
 # Cache static assets for 1 year (immutable hashed files)
 [[headers]]

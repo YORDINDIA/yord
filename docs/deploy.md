@@ -80,7 +80,7 @@ prefix.
 ```bash
 export DATABASE_URL='postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres'
 
-# Core tables, then every migration in numeric order (001-017 today; the glob
+# Core tables, then every migration in numeric order (001-019 today; the glob
 # picks up new ones automatically, so keep the range in this comment current).
 psql "$DATABASE_URL" -f scripts/schema.sql
 for f in supabase/migrations/0*.sql; do
@@ -325,7 +325,25 @@ for the `YORDINDIA` organization from **Workers & Pages → Worker → Settings 
 Builds → Connect**. This authorization is separate from
 `CLOUDFLARE_API_TOKEN`; it cannot be completed by the account token alone.
 After authorization, configure one production trigger per app with repository
-root `/`, production branch `main`, and build caching enabled:
+root `/`, production branch `main`, and build caching enabled. Two repo-side
+pieces exist specifically for Workers Builds' injected *preview* step (every
+non-`main` branch), which runs a fixed `npm run build` and then bare
+`npx wrangler preview` at the repo root — it ignores the trigger's build
+command and root directory:
+
+- the root `package.json` declares the same pinned `wrangler` (4.86.0), so
+  the injected step resolves the binary from the repo root's
+  `node_modules/.bin` (workspace deps only bin into their own app's `.bin`),
+  and its `build` script is `turbo build:worker` (not `turbo build`), so the
+  plain `npm run build` the step runs produces the `.open-next/` bundles —
+  `next build` alone never does;
+- the root `wrangler.toml` describes the admin worker from the root (the one
+  worker whose previews are enabled; `yord-frontend` runs none) so the step
+  finds a config in its working directory. Production deploys never read it —
+  `deploy:worker` runs from the app directory, where wrangler reads that
+  app's own `wrangler.toml`. Keep the root file's name/entrypoint/assets/vars
+  in sync with `admin-dashboard/wrangler.toml`; it deliberately carries no
+  routes, so a preview deployment can never attach to admin.yordindia.com.
 
 | Worker | Build command | Deploy command |
 |---|---|---|
@@ -337,6 +355,18 @@ values needed by each app as build-trigger environment variables because they
 are inlined at build time. Keep server credentials as Worker runtime secrets;
 do not put them in build logs or non-secret build variables. See root
 `CLAUDE.md` for the environment-variable inventory and command references.
+
+**Preview builds are a separate environment (2026-10-26 incident).** Workers
+Builds runs a build for PR branches too, and those builds read the *preview*
+variable set, not the production trigger's — `yord-admin` preview builds
+failed with `Missing NEXT_PUBLIC_SUPABASE_URL` while every main build passed,
+because only the production trigger carried the variables. The admin no longer
+depends on this: `(admin)/layout.tsx` exports `force-dynamic`, so the build
+never prerenders admin routes and never constructs a Supabase client at build
+time (verified: the admin builds clean with no Supabase env at all). Keep it
+that way — a new admin page that needs build-time env is a regression. If you
+*want* preview builds to produce a working admin, mirror the `NEXT_PUBLIC_*`
+values into the dashboard's preview environment as well.
 
 Rules learned getting here:
 
@@ -401,6 +431,56 @@ Rules learned getting here:
   cutover, pause checkout from the storefront until both steps are complete:
   the migration makes the old `decrement_variant_stock` RPC fail closed, so an
   old route binary refunds rather than mutating stock outside the ledger.
+- `018_quiz_codes.sql` adds `quiz_codes` — the single-use discount codes the
+  Diljit Aura quiz pop-up mints — plus `peek_quiz_code` (read-only "is this code
+  usable, and what is it worth?"), `reserve_quiz_code` (a compare-and-swap
+  reservation keyed on the Razorpay order id; a hold whose payment vanished goes
+  stale after the 15-minute lease and is reclaimable) and `release_quiz_code`
+  (verify-payment clears a hold early after a definitive refund, so a refunded
+  shopper is not locked out of their own code for the rest of the lease). RLS is
+  on with **no policies**, like `analytics_events`: every read and write goes
+  through the secret key. `id` is a real identity column, for the reason 015
+  documents. The three percentages are **not** rows in `price_rules`: that
+  table's `id` has no default and the admin mints ids from `admin_next_id`,
+  which this document applies *after* the migration glob, so a seeding migration
+  would have to invent ids and could collide with the admin's counter. They are
+  a constant in `frontend/src/features/quiz/config.ts` instead — changing a tier
+  is a deploy, not an admin edit — and each minted row stores the `percent` it
+  was issued with, so a code already in a shopper's hands keeps the value it was
+  promised. Discount bookkeeping on completion is best-effort (the money has
+  already moved), so every replay of a completed order re-runs the same
+  idempotent finalizer in `verify-payment` (`reconcileQuizDiscount`, indexed by
+  `quiz_codes.reserved_for`) — a discounted payment always records and spends
+  its code.
+  **Apply 018 before deploying the storefront change.** A storefront newer than
+  the database finds the RPCs missing: `create-order` answers
+  `CODE_UNAVAILABLE` for a checkout **with** a code in the field (the shopper
+  keeps the code; never a wrong discount) and a checkout without one sells at
+  full price. The reverse order (new database, old storefront) changes nothing,
+  because nothing reads the table.
+  Verify after applying: `select to_regclass('public.quiz_codes')`, then
+  `select public.peek_quiz_code('AURA-AAAAAA', now() + interval '1 day')`,
+  which must return `{"ok": false, "reason": "not_found"}` — a *row*, not an
+  empty result (the function right-joins a one-row anchor for exactly that).
+- `019_analytics_event_types.sql` widens the `analytics_events.type` CHECK
+  constraint to admit the quiz funnel and the promo field. It exists because
+  `010` wrote the event vocabulary as a CHECK **whitelist** and nothing joined it
+  to the zod schema the client and the ingest route share — so the quiz shipped
+  six event types that the schema accepted, the route validated, and the
+  database then rejected. Every insert failed the CHECK, the route answered 502
+  `Could not record events`, and `flushAnalytics` drops a failed batch by
+  design: the funnel recorded **nothing**, with no error anywhere a human would
+  look. Found by posting each event type to the live ingest route and looking
+  for a 204 — a 400 would have meant the schema was wrong, and the schema was
+  the part that worked. Widening a CHECK is non-destructive (every existing row
+  satisfies the old list, a subset of the new one) and idempotent; the drop and
+  the add run in one transaction so a failed apply cannot leave the table
+  unconstrained. The drift cannot ship again:
+  `frontend/src/lib/__tests__/analytics-event-types.test.ts` derives the type
+  list from the zod schema and fails if any type is missing from these
+  migrations. The migration verifies itself on every apply: a rollback-protected
+  probe inserts all six new types and asserts an unknown type is still refused,
+  leaving no rows behind.
 - Unlike Netlify, Workers has no static-to-dynamic fallback: any `cookies()`
   read (cookie-bound Supabase server client) in a prerendered route's tree is
   a runtime 500. The `(main)` layout and all `generateStaticParams` pages
@@ -474,8 +554,27 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
 
 1. Commit the deployable state and push to `main` (or use "Trigger deploy" in
    Netlify with the desired commit).
-2. Netlify reads each app's `netlify.toml`: build from the repo root,
-   `npm run build --workspace=<app>`, Node `20.19.4`, `--legacy-peer-deps`.
+2. Netlify reads one `netlify.toml` per site. Discovery order is **package
+   directory → base directory → repo root**, and every path inside the file
+   resolves against the **base** directory — so the intended shape is
+   "Package directory" `frontend/` (storefront) / `admin-dashboard/` (admin)
+   with the base directory left at the repo root (npm workspaces need the
+   root install), reading each app's own toml. Both tomls pin
+   `@netlify/plugin-nextjs@5.16.4` and Node `20.19.4` with
+   `--legacy-peer-deps`; the documented pipeline was re-verified end to end
+   locally on 2026-10-26 (build + plugin, 858 static pages).
+   **2026-10-26 incident, for the next time previews fail:** the `yordindia`
+   site's deploy previews have been failing since before that date while the
+   repo built clean under this exact pipeline locally — the failure lives in
+   the site's dashboard configuration, which is not in the repository. Two
+   settings are **UI-only** and prime suspects: **Package directory** (a
+   missing selection makes builds abort in seconds with "Projects detected:
+   frontend, admin-dashboard, …") and the **separate variable sets for
+   "Production" vs "Deploy previews"** (a preview failing while production
+   builds is an empty preview set, not a code bug). Diff both against the
+   tomls above before touching code. The site was also still serving a
+   pre-theming build, so production deploys have been failing or stale for
+   just as long — same checklist.
 3. Deploy the admin first, then the storefront — the admin is where you will
    confirm uploads work.
 4. Canonical URLs are hardcoded to `https://yordindia.com` in
@@ -504,10 +603,44 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    in `scripts/` reports every sampled URL as accessible.
 5. **Empty states.** With no data yet, product/collection/blog pages render
    their empty states; once the ingest runs, they list rows.
-6. **Analytics.** After deploying the storefront, GA4 → Reports → Realtime
-   shows your visit, and PostHog → Activity → Live events shows the pageview.
-   In Search Console, the property verifies and accepts
-   `https://yordindia.com/sitemap.xml`.
+6. **Analytics.** PostHog → Activity → Live events shows the pageview (the
+   `NEXT_PUBLIC_POSTHOG_KEY` in `.env` is a real project key and is inlined at
+   build time; `posthog-sdk.ts` treats a missing or placeholder key as a
+   complete no-op, so a silent PostHog means the key did not reach the build).
+   GA4 loads the hardcoded `GT-KF6P3KGX` tag from `app/layout.tsx` —
+   `NEXT_PUBLIC_GA_MEASUREMENT_ID` in `.env` is read by no code. In Search
+   Console, the property verifies and accepts `https://yordindia.com/sitemap.xml`.
+
+   **Then check the first-party events actually *store*, which is a different
+   question from whether they validate.** A 204 from the ingest route is the only
+   answer that proves it: a 400 means the zod schema rejected the body, and a
+   **502 means the database rejected the row** — the `analytics_events.type`
+   CHECK is a whitelist that nothing joins to the schema, so a new event type can
+   validate, fail the constraint, and be dropped by `flushAnalytics` with no
+   visible error anywhere. That is exactly what happened to the quiz funnel; see
+   `019_analytics_event_types.sql`.
+
+   ```bash
+   SID=$(uuidgen | tr 'A-Z' 'a-z')
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST https://yordindia.com/api/analytics/events \
+     -H 'Content-Type: application/json' \
+     -d "{\"events\":[{\"type\":\"quiz_viewed\",\"trigger\":\"direct\",\"sid\":\"$SID\",\"path\":\"/quiz\"}]}"
+   # 204 = accepted. 502 = the CHECK constraint is missing this type.
+   ```
+
+   **A 204 alone does not prove storage.** The ingest route deliberately answers
+   204 *without inserting* when either Supabase env var is missing from the
+   deployed environment, so first confirm both are set on the host
+   (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`), or prove the row landed:
+
+   ```bash
+   psql "$DATABASE_URL" -c "select type, created_at from analytics_events where sid = '$SID';"
+   ```
+
+   Repeat for each new event type after any change to `eventsSchema.ts`. The
+   regression test (`analytics-event-types.test.ts`) catches the drift at review
+   time; this curl (plus the row check) is what proves the deployed database
+   agrees.
 7. **Sentry.** With `NEXT_PUBLIC_SENTRY_DSN` set and rebuilt, run
    `setTimeout(() => { throw new Error('sentry smoke test') })` in the browser
    console on both the storefront and the admin; the errors appear in Sentry
@@ -516,6 +649,23 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    tunnel route that keeps ad-blockers from dropping client events); a 404
    means deleting `tunnelRoute` from that app's `next.config.ts` and
    redeploying, which sends events straight to Sentry instead.
+8. **A quiz code, end to end, on Razorpay test keys.** The one check that
+   proves the money path rather than the UI. Play the pop-up on the home page,
+   note the code it mints, and buy something with it. Then confirm all five:
+   - Razorpay's payment shows the **discounted** amount, not the list price.
+   - `orders.total_price` equals what Razorpay captured, `orders.subtotal_price`
+     is the pre-discount sum, and `orders.total_discounts` is the difference.
+   - `order_discount_codes` has one row for the order with `amount` equal to
+     that difference, and `discount_applications` has its `40`/`20`/`10` row.
+   - `quiz_codes` for that code has `redeemed_at`, `order_id` and
+     `redeemed_email` set, and `reserved_for` equal to the Razorpay order id.
+   - Admin → Aura quiz lists the code as **Redeemed** and the discount is in the
+     order's own summary.
+   Then try the same code again: the cart refuses it (`That code has already
+   been used.`), and a hand-built checkout with it refunds rather than selling at
+   40% off. If a step fails, the storefront is safe to roll back first — an
+   older build simply ignores the table — but leave migration 018 in place: a
+   dropped `quiz_codes` while codes are in shoppers' hands is unrecoverable.
 
 ## 9. Rollback
 

@@ -61,6 +61,13 @@ export interface StoredOrder {
   billingAddress: AddressData;
   items: StoredOrderItem[];
   subtotal: number;
+  /**
+   * Rupees the promo code took off, and the code itself. Both optional: a
+   * payload written before this existed has neither, and the confirmation
+   * screen renders the discount line only when it is non-zero.
+   */
+  discount?: number;
+  promoCode?: string | null;
   gst: number;
   total: number;
   /** Epoch ms, when the payload was written. Diagnostic only. */

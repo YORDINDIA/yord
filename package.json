@@ -11,21 +11,19 @@
   ],
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build",
+    "build": "turbo build:worker",
     "lint": "turbo lint"
   },
   "dependencies": {
-    "@remotion/cli": "^4.0.271",
-    "@remotion/transitions": "^4.0.271",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "remotion": "^4.0.271",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "turbo": "^2.5.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "4.86.0"
   }
 }

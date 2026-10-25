@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useShallow } from 'zustand/react/shallow';
 import { track } from '@/lib/analytics/track';
 
 interface WishlistItem {
@@ -121,12 +120,3 @@ export const useWishlistStore = create<WishlistStore>()(
     }
   )
 );
-
-// Selector hooks (useShallow keeps the actions object identity stable)
-export const useWishlistItems = () => useWishlistStore((state) => state.items);
-export const useWishlistActions = () => useWishlistStore(useShallow((state) => ({
-  addItem: state.addItem,
-  removeItem: state.removeItem,
-  toggleItem: state.toggleItem,
-  clearWishlist: state.clearWishlist,
-})));

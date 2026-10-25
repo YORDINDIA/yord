@@ -1,18 +1,48 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env"],
+  "globalDependencies": [
+    ".env"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"],
-      "env": ["NEXT_PUBLIC_*", "SUPABASE_*", "RAZORPAY_*", "AGNES_*", "R2_*", "SENTRY_*"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**"
+      ],
+      "env": [
+        "NEXT_PUBLIC_*",
+        "SUPABASE_*",
+        "RAZORPAY_*",
+        "AGNES_*",
+        "R2_*",
+        "SENTRY_*"
+      ]
     },
-    "lint": {},
-    "typecheck": {},
-    "test": {},
+    "build:worker": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".open-next/**"
+      ],
+      "env": [
+        "NEXT_PUBLIC_*",
+        "SUPABASE_*",
+        "RAZORPAY_*",
+        "AGNES_*",
+        "R2_*",
+        "SENTRY_*"
+      ]
+    },
     "dev": {
       "cache": false,
       "persistent": true
-    }
+    },
+    "lint": {},
+    "test": {},
+    "typecheck": {}
   }
 }

@@ -28,6 +28,12 @@ const h = vi.hoisted(() => {
     id: number;
     price: number;
     inventory_quantity: number;
+    /**
+     * The parent product, which is what promo eligibility keys on. Absent
+     * means 7 — a member of the campaign collection, so the default fixtures
+     * behave like an all-Diljit cart.
+     */
+    product_id?: number;
   }
   interface Payment {
     status: string;
@@ -47,6 +53,24 @@ const h = vi.hoisted(() => {
     variants: new Map<number, Variant>(),
     payments: new Map<string, Payment>(),
     raceStock: new Set<number>(),
+    /**
+     * `quiz_codes` rows, keyed by code. The reservation rules live in the
+     * `reserve_quiz_code` fake below, mirroring the compare-and-swap in
+     * migration 018: free or held-by-this-same-payment reserves, anything else
+     * does not.
+     */
+    quizCodes: new Map<string, Row>(),
+    orderDiscountCodes: [] as Row[],
+    discountApplications: [] as Row[],
+    /** Every `reserve_quiz_code` call, so the tests can pin the arguments. */
+    reservations: [] as Row[],
+    /**
+     * Products in the campaign collection — the `collects` membership the real
+     * `validateCartLines` reads. Product 7 by default, so a fixture that never
+     * says otherwise is an all-eligible cart and the order-wide arithmetic the
+     * older assertions pinned still holds.
+     */
+    promoEligibleProductIds: new Set<number>([7]),
     nextOrderId: 1,
     hideNextLookup: false,
     races: 0,
@@ -64,6 +88,7 @@ const h = vi.hoisted(() => {
       restore: false,
       restoreEmpty: false,
       refund: false,
+      discountCodeRow: false,
     },
   };
 
@@ -98,6 +123,21 @@ const h = vi.hoisted(() => {
       // maybeSingle.
       const rows = state.shipping.filter((s) => s.order_id === filters[0]?.[1]);
       return { count: rows.length, data: rows[0] ? pick(rows[0], cols) : null, error: null };
+    }
+    if (table === 'quiz_codes') {
+      // `reconcileQuizDiscount` looks a code up by the payment holding it;
+      // `finalizeQuizDiscount` re-reads `redeemed_at` to tell "already spent"
+      // from "failed to spend".
+      const row = [...state.quizCodes.values()].find((r) =>
+        filters.every(([col, value]) => (r[col] ?? null) === value)
+      );
+      return { data: row ? pick(row, cols) : null, error: null };
+    }
+    if (table === 'order_discount_codes' || table === 'discount_applications') {
+      const source =
+        table === 'order_discount_codes' ? state.orderDiscountCodes : state.discountApplications;
+      const row = source.find((r) => filters.every(([col, value]) => (r[col] ?? null) === value));
+      return { data: row ? pick(row, cols) : null, error: null };
     }
     throw new Error(`unexpected select on ${table}`);
   }
@@ -146,23 +186,45 @@ const h = vi.hoisted(() => {
       state.analytics.push(...list);
       return { data: null, error: null };
     }
+    if (table === 'order_discount_codes') {
+      if (state.fail.discountCodeRow) {
+        // The first attempt's bookkeeping write dies after the order and the
+        // money are committed — the exact hole the replay reconciler fills.
+        return { data: null, error: { code: '23503', message: 'discount code row insert failed' } };
+      }
+      state.orderDiscountCodes.push(...list);
+      return { data: null, error: null };
+    }
+    if (table === 'discount_applications') {
+      state.discountApplications.push(...list);
+      return { data: null, error: null };
+    }
     throw new Error(`unexpected insert on ${table}`);
   }
 
   const chain = {
     from(table: string) {
       return {
-        select: (cols: string) => ({
-          eq: (col: string, value: unknown) => {
-            const result = selectResult(table, cols, [[col, value]]);
-            const run = () => Promise.resolve(result);
-            return {
-              then: (onFulfilled?: (v: unknown) => unknown) => run().then(onFulfilled),
-              maybeSingle: run,
-              single: run,
-            };
-          },
-        }),
+        select: (cols: string) => {
+          // Filters accumulate like the update builder below: the discount
+          // finalizer probes `order_discount_codes` by order_id *and* code.
+          const filters: [string, unknown][] = [];
+          const run = () => Promise.resolve(selectResult(table, cols, filters));
+          const builder = {
+            eq: (col: string, value: unknown) => {
+              filters.push([col, value]);
+              return builder;
+            },
+            is: (col: string, value: unknown) => {
+              filters.push([col, value]);
+              return builder;
+            },
+            maybeSingle: run,
+            single: run,
+            then: (onFulfilled?: (v: unknown) => unknown) => run().then(onFulfilled),
+          };
+          return builder;
+        },
         insert: (rows: Row | Row[]) => {
           const outcome = insertResult(table, rows) as { data: Row | null; error: unknown };
           const run = () => Promise.resolve(outcome);
@@ -174,21 +236,46 @@ const h = vi.hoisted(() => {
           };
         },
         update: (patch: Row) => {
-          if (table !== 'orders') throw new Error(`unexpected update on ${table}`);
+          if (table !== 'orders' && table !== 'quiz_codes') {
+            throw new Error(`unexpected update on ${table}`);
+          }
           const filters: [string, unknown][] = [];
+          // `redeemCode` ends in `.select('id')` and reads an array; the route's
+          // `orders` update awaits the builder directly and reads an object.
+          let projected = false;
           const run = () => {
-            const row = state.orders.find((candidate) =>
-              filters.every(([column, value]) => candidate[column] === value)
-            );
-            if (row) Object.assign(row, patch);
-            return Promise.resolve({ data: row ? { id: row.id } : null, error: null });
+            const row =
+              table === 'quiz_codes'
+                ? state.quizCodes.get(String(filters.find(([column]) => column === 'code')?.[1] ?? ''))
+                : state.orders.find((candidate) =>
+                    filters.every(([column, value]) => candidate[column] === value)
+                  );
+            // A miss is SQL NULL in every shape. Returning `[]` for a projected
+            // miss would be a *truthy* empty array, and `claimRefundLease` reads
+            // falsiness to mean "another attempt took the lease" — so the fake
+            // would hand two concurrent replays the same lease.
+            if (!row) return Promise.resolve({ data: null, error: null });
+            const matches = filters.every(([column, value]) => (row[column] ?? null) === value);
+            if (!matches) return Promise.resolve({ data: null, error: null });
+            Object.assign(row, patch);
+            return Promise.resolve({
+              data: projected ? [{ id: row.id }] : { id: row.id },
+              error: null,
+            });
           };
           const builder = {
             eq: (col: string, value: unknown) => {
               filters.push([col, value]);
               return builder;
             },
-            select: () => builder,
+            is: (col: string, value: unknown) => {
+              filters.push([col, value]);
+              return builder;
+            },
+            select: () => {
+              projected = true;
+              return builder;
+            },
             maybeSingle: run,
             then: (onFulfilled?: (v: unknown) => unknown) => run().then(onFulfilled),
           };
@@ -208,6 +295,10 @@ const h = vi.hoisted(() => {
           id,
           name: args.p_name,
           total_price: args.p_total,
+          // `reconcileQuizDiscount` re-derives the discount from the stored
+          // subtotal/total pair and stamps the redeemed email from the order.
+          subtotal_price: args.p_subtotal,
+          email: args.p_email,
           financial_status: 'paid',
           cancelled_at: null,
           confirmation_number: confirmation,
@@ -383,6 +474,47 @@ const h = vi.hoisted(() => {
       if (name === 'decrement_variant_stock') {
         return Promise.resolve({ data: [], error: null });
       }
+      if (name === 'reserve_quiz_code') {
+        // Mirrors the compare-and-swap in `018_quiz_codes.sql`, lease and
+        // campaign window included: a hold by another payment is only `held`
+        // inside the 15-minute lease (a stale one is reclaimable), and the
+        // reservation stops at `p_ends_at` no matter what the row says.
+        // `reserved_for = p_reservation` is the arm that lets a retry re-take
+        // its own hold, which is what makes a verify replay idempotent.
+        const code = String(args.p_code);
+        const reservation = String(args.p_reservation);
+        state.reservations.push({ code, reservation, endsAt: args.p_ends_at });
+        const row = state.quizCodes.get(code);
+        if (!row) return Promise.resolve({ data: { ok: false, reason: 'not_found' }, error: null });
+        if (row.redeemed_at) {
+          return Promise.resolve({ data: { ok: false, reason: 'redeemed' }, error: null });
+        }
+        if (Date.now() > Date.parse(String(args.p_ends_at))) {
+          return Promise.resolve({ data: { ok: false, reason: 'expired' }, error: null });
+        }
+        const heldUntil = row.reserved_at ? Date.parse(String(row.reserved_at)) + 15 * 60 * 1000 : 0;
+        const liveHold = row.reserved_for && row.reserved_for !== reservation && Date.now() < heldUntil;
+        if (liveHold) {
+          return Promise.resolve({ data: { ok: false, reason: 'held' }, error: null });
+        }
+        row.reserved_for = reservation;
+        row.reserved_at = new Date().toISOString();
+        return Promise.resolve({
+          data: { ok: true, percent: row.percent, correct: row.correct, total: row.total },
+          error: null,
+        });
+      }
+      if (name === 'release_quiz_code') {
+        // Same CAS as the SQL: only the payment that owns the hold can clear
+        // it, and a redeemed code is never un-spent.
+        const row = state.quizCodes.get(String(args.p_code));
+        if (row && row.reserved_for === args.p_reservation && !row.redeemed_at) {
+          row.reserved_for = null;
+          row.reserved_at = null;
+          return Promise.resolve({ data: { ok: true }, error: null });
+        }
+        return Promise.resolve({ data: { ok: false }, error: null });
+      }
       throw new Error(`unexpected rpc ${name}`);
     },
   };
@@ -431,9 +563,13 @@ vi.mock('@/lib/validate-cart', async () => {
   return {
     // Contract-compatible stub: the fields the route consumes, computed with
     // the real money math. Cart-rule behaviour lives in checkout-gates.test.ts.
+    // `discountPercent` is the value the route resolved from the promo code, so
+    // it is passed straight through — the discount arithmetic itself is
+    // `computeTotals`, and its own suite pins the rounding.
     validateCartLines: async (
       _supabase: unknown,
-      items: { variantId: number; quantity: number }[]
+      items: { variantId: number; quantity: number }[],
+      discountPercent = 0
     ) => {
       const variantFor = (id: number) => h.state.variants.get(id);
       if (items.some((line) => !variantFor(line.variantId))) {
@@ -450,11 +586,24 @@ vi.mock('@/lib/validate-cart', async () => {
           return { ok: false, code: 'OUT_OF_STOCK', error: 'Insufficient stock', status: 409 };
         }
       }
-      const priced = items.map((line) => ({
-        price: variantFor(line.variantId)!.price,
-        quantity: line.quantity,
-      }));
-      const { subtotal, gstAmount, total, totalPaise } = computeTotals(priced);
+      const priced = items.map((line) => {
+        const variant = variantFor(line.variantId)!;
+        return {
+          price: variant.price,
+          quantity: line.quantity,
+          // Mirrors the real helper: eligibility is marked per line only when
+          // a code is pricing the cart, from the campaign collection's
+          // membership.
+          eligible:
+            discountPercent > 0
+              ? h.state.promoEligibleProductIds.has(variant.product_id ?? 7)
+              : undefined,
+        };
+      });
+      const { subtotal, discountAmount, gstAmount, total, totalPaise } = computeTotals(
+        priced,
+        discountPercent
+      );
       if (subtotal <= 0) {
         return { ok: false, code: 'BAD_AMOUNT', error: 'Invalid cart items', status: 400 };
       }
@@ -468,13 +617,13 @@ vi.mock('@/lib/validate-cart', async () => {
               price: variant.price,
               inventory_quantity: variant.inventory_quantity,
               title: 'M',
-              product_id: 7,
+              product_id: variant.product_id ?? 7,
               productTitle: 'Tee',
             },
           ];
         })
       );
-      return { ok: true, subtotal, gstAmount, total, totalPaise, byId };
+      return { ok: true, subtotal, discountAmount, gstAmount, total, totalPaise, byId };
     },
   };
 });
@@ -548,6 +697,11 @@ beforeEach(() => {
   h.state.shipping.length = 0;
   h.state.analytics.length = 0;
   h.state.refunds.length = 0;
+  h.state.orderDiscountCodes.length = 0;
+  h.state.discountApplications.length = 0;
+  h.state.reservations.length = 0;
+  h.state.quizCodes.clear();
+  h.state.promoEligibleProductIds = new Set([7]);
   h.state.claims.clear();
   h.state.stockOperations.clear();
   h.state.raceStock.clear();
@@ -563,6 +717,7 @@ beforeEach(() => {
     restore: false,
     restoreEmpty: false,
     refund: false,
+    discountCodeRow: false,
   };
   h.state.variants.clear();
   h.state.variants.set(VARIANT_ID, { id: VARIANT_ID, price: 1000, inventory_quantity: 5 });
@@ -1214,5 +1369,331 @@ describe('verify-payment: restore integrity', () => {
       p_reason: 'replayed compensation',
     });
     expect(h.state.variants.get(VARIANT_ID)!.inventory_quantity).toBe(beforeRetry);
+  });
+});
+
+// The promo-code half of the money path. Everything here turns on one rule: the
+// discount this attempt charges comes from the *reservation*, never from the
+// code the client sent. A code the client claims but cannot reserve means the
+// cart is priced at full price, and a capture that was taken at the discounted
+// amount then fails the amount check and refunds — the shopper is told the code
+// could not be used rather than being charged less than the order records.
+describe('verify-payment: promo codes', () => {
+  const CODE = 'AURA-ABCDEF';
+  // 2 x 1000 = 2000, 40% off = 800 off, so 1200 charged = 120000 paise.
+  const DISCOUNTED_PAISE = 120000;
+
+  function seedCode(overrides: Row = {}) {
+    h.state.quizCodes.set(CODE, {
+      id: 1,
+      code: CODE,
+      percent: 40,
+      correct: 9,
+      total: 10,
+      reserved_for: null,
+      reserved_at: null,
+      redeemed_at: null,
+      order_id: null,
+      redeemed_email: null,
+      ...overrides,
+    });
+  }
+
+  function payDiscounted() {
+    h.state.payments.set(PAYMENT_ID, {
+      status: 'captured',
+      amount: DISCOUNTED_PAISE,
+      currency: 'INR',
+      order_id: RAZORPAY_ORDER_ID,
+    });
+  }
+
+  it('charges the discounted amount and spends the code', async () => {
+    seedCode();
+    payDiscounted();
+
+    const result = await post(signedBody({ code: CODE }));
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ success: true });
+
+    // The order records the money that actually moved, and the discount that
+    // explains the gap between the line items and the total.
+    expect(h.state.orders).toHaveLength(1);
+    expect(h.state.orders[0]).toMatchObject({ total_price: 1200, total_discounts: 800 });
+    expect(h.state.refunds).toEqual([]);
+
+    // The Shopify-shaped rows the admin reads.
+    expect(h.state.orderDiscountCodes).toHaveLength(1);
+    expect(h.state.orderDiscountCodes[0]).toMatchObject({
+      order_id: 1,
+      code: CODE,
+      amount: 800,
+    });
+    expect(h.state.discountApplications).toHaveLength(1);
+    expect(h.state.discountApplications[0]).toMatchObject({
+      code: CODE,
+      value: '40',
+      // `entitled`, not `all`: the code touches the campaign collection's
+      // lines only, and this row is what says so.
+      target_selection: 'entitled',
+    });
+
+    // Spent, against this order and this email.
+    const row = h.state.quizCodes.get(CODE)!;
+    expect(row.redeemed_at).toBeTruthy();
+    expect(row.order_id).toBe(1);
+    expect(row.redeemed_email).toBe('buyer@example.in');
+
+    // The funnel event carries the discount, so the campaign's revenue is
+    // readable without joining anything.
+    expect(h.state.analytics[0]).toMatchObject({ type: 'order_completed', props: { discount: 800 } });
+  });
+
+  it('discounts only the campaign collection\'s lines in a mixed cart', async () => {
+    // One eligible line (₹1,000, product 7) and one not (2 × ₹500, product 8):
+    // the 40% code takes ₹400 off ₹2,000 and the capture that agrees is
+    // 160000 paise. A shopper-paying implementation detail worth pinning: the
+    // ineligible lines contribute nothing to the discount and are charged —
+    // and taxed — at list price.
+    seedCode();
+    h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5, product_id: 8 });
+    h.state.payments.set(PAYMENT_ID, {
+      status: 'captured',
+      amount: 160_000,
+      currency: 'INR',
+      order_id: RAZORPAY_ORDER_ID,
+    });
+
+    const result = await post(
+      signedBody({
+        code: CODE,
+        orderData: {
+          ...ORDER_DATA,
+          cartItems: [
+            { variantId: VARIANT_ID, quantity: 1 },
+            { variantId: 12, quantity: 2 },
+          ],
+        },
+      })
+    );
+    expect(result.status).toBe(200);
+    expect(h.state.orders[0]).toMatchObject({ total_price: 1_600, total_discounts: 400 });
+    expect(h.state.refunds).toEqual([]);
+    expect(h.state.quizCodes.get(CODE)!.redeemed_at).toBeTruthy();
+  });
+
+  it('refunds a mixed capture priced as if the whole cart were eligible', async () => {
+    // The inverse guard: an amount-check that treated the cart as order-wide
+    // (₹800 off ₹2,000, 120000 paise) would have accepted this capture while
+    // the scoped price says 160000 — the direction that charges too little and
+    // writes an order row the reconciler cannot explain.
+    seedCode();
+    h.state.variants.set(12, { id: 12, price: 500, inventory_quantity: 5, product_id: 8 });
+    h.state.payments.set(PAYMENT_ID, {
+      status: 'captured',
+      amount: DISCOUNTED_PAISE,
+      currency: 'INR',
+      order_id: RAZORPAY_ORDER_ID,
+    });
+
+    const result = await post(
+      signedBody({
+        code: CODE,
+        orderData: {
+          ...ORDER_DATA,
+          cartItems: [
+            { variantId: VARIANT_ID, quantity: 1 },
+            { variantId: 12, quantity: 2 },
+          ],
+        },
+      })
+    );
+    expect(result.status).toBe(402);
+    expect(result.body).toMatchObject({ code: 'AMOUNT_MISMATCH' });
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    expect(h.state.orders).toHaveLength(0);
+    // Unredeemed, and the definitive refund released the hold — the code is
+    // free to retry against a capture for the scoped amount.
+    const row = h.state.quizCodes.get(CODE)!;
+    expect(row.redeemed_at).toBeNull();
+    expect(row.reserved_for).toBeNull();
+  });
+
+  it('reserves against the Razorpay order id, which is what makes a retry idempotent', async () => {
+    seedCode();
+    payDiscounted();
+
+    const first = await post(signedBody({ code: CODE }));
+    expect(first.status).toBe(200);
+
+    // The retry the name promises: the identical body, re-POSTed. The replay
+    // is answered from the existing order before the reservation block runs,
+    // so it can neither add a second reservation nor a second order.
+    const replay = await post(signedBody({ code: CODE }));
+    expect(replay.status).toBe(200);
+    expect(replay.body).toMatchObject({ success: true });
+    expect(h.state.reservations).toHaveLength(1);
+    expect(h.state.orders).toHaveLength(1);
+    expect(h.state.reservations[0]).toMatchObject({
+      code: CODE,
+      reservation: RAZORPAY_ORDER_ID,
+    });
+    // The window is passed in, so the campaign's end date lives in one
+    // TypeScript constant rather than in the database.
+    expect(String(h.state.reservations[0].endsAt)).toMatch(/^2026-11-30/);
+  });
+
+  it('reclaims a code whose hold went stale with another payment', async () => {
+    // A payment abandoned mid-verify holds the code past the 15-minute lease.
+    // `reserve_quiz_code`'s free arm must take the code over — a hold nothing
+    // can reclaim would strand every code whose shopper's checkout died.
+    seedCode({
+      reserved_for: 'order_ABANDONED',
+      reserved_at: new Date(Date.now() - 16 * 60 * 1000).toISOString(),
+    });
+    payDiscounted();
+
+    const result = await post(signedBody({ code: CODE }));
+
+    expect(result.status).toBe(200);
+    expect(h.state.refunds).toEqual([]);
+    const row = h.state.quizCodes.get(CODE)!;
+    expect(row.reserved_for).toBe(RAZORPAY_ORDER_ID);
+    expect(row.redeemed_at).toBeTruthy();
+  });
+
+  it('refuses the reservation once the campaign window has closed', async () => {
+    seedCode();
+    payDiscounted();
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-12-01T00:00:00.000Z'));
+    try {
+      const result = await post(signedBody({ code: CODE }));
+      // The campaign check lives in the SQL, so a closed window reads as an
+      // unreservable code: full price is recomputed, the discounted capture
+      // mismatches, and the money goes back.
+      expect(result.status).toBe(402);
+      expect(result.body).toMatchObject({ code: 'AMOUNT_MISMATCH' });
+      expect(h.state.quizCodes.get(CODE)!.redeemed_at).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('releases the code after a definitive refund so the shopper can retry', async () => {
+    // Cart validation fails after the capture; the refund is definitive, so
+    // the hold must go back immediately rather than sitting out the lease —
+    // the shopper's very next attempt would otherwise be told the code is in
+    // use by the payment that just failed.
+    seedCode();
+    payDiscounted();
+    h.state.variants.delete(VARIANT_ID);
+
+    const result = await post(signedBody({ code: CODE }));
+
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ code: 'UNKNOWN_VARIANT' });
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+    const row = h.state.quizCodes.get(CODE)!;
+    expect(row.reserved_for).toBeNull();
+    expect(row.reserved_at).toBeNull();
+    expect(row.redeemed_at).toBeNull();
+  });
+
+  it('reconciles the discount rows a completed order failed to write', async () => {
+    // The first attempt commits the order and spends the code, but the
+    // `order_discount_codes` insert dies — best-effort by design, because the
+    // money has already moved. The replay must finish the bookkeeping: it is
+    // the only thing standing between a redeemed code and an order the admin
+    // reads as "no discount".
+    seedCode();
+    payDiscounted();
+    h.state.fail.discountCodeRow = true;
+
+    const first = await post(signedBody({ code: CODE }));
+    expect(first.status).toBe(200);
+    expect(h.state.orderDiscountCodes).toHaveLength(0);
+    expect(h.state.quizCodes.get(CODE)!.redeemed_at).toBeTruthy();
+
+    h.state.fail.discountCodeRow = false;
+    const replay = await post(signedBody({ code: CODE }));
+
+    expect(replay.status).toBe(200);
+    expect(h.state.orders).toHaveLength(1);
+    expect(h.state.orderDiscountCodes).toHaveLength(1);
+    expect(h.state.orderDiscountCodes[0]).toMatchObject({ order_id: 1, code: CODE, amount: 800 });
+    expect(h.state.discountApplications).toHaveLength(1);
+    // The reconciler re-derives the amount from the stored subtotal/total
+    // pair, so it matches what the first attempt charged.
+    expect(h.state.orders[0]).toMatchObject({ total_discounts: 800, total_price: 1200 });
+  });
+
+  it.each(['redeemed', 'held', 'not_found'] as const)(
+    'refunds a discounted capture when the code cannot be reserved (%s)',
+    async (reason) => {
+      if (reason === 'redeemed') seedCode({ redeemed_at: new Date().toISOString() });
+      else if (reason === 'held') seedCode({ reserved_for: 'order_OTHER', reserved_at: new Date().toISOString() });
+      payDiscounted();
+
+      const result = await post(signedBody({ code: CODE }));
+
+      // 402: the shopper's money came back, so the message names the code
+      // rather than reading as a bare amount mismatch.
+      expect(result.status).toBe(402);
+      expect(result.body).toMatchObject({ code: 'AMOUNT_MISMATCH' });
+      expect(String(result.body.error)).toContain('code');
+      expect(h.state.refunds).toEqual([PAYMENT_ID]);
+      // Nothing was written: the reservation precedes the order claim, so a
+      // code that could not be held never gets an order row.
+      expect(h.state.orders).toHaveLength(0);
+      expect(h.state.orderDiscountCodes).toHaveLength(0);
+    }
+  );
+
+  it('sells at full price when the code fails but full price is what was captured', async () => {
+    // The degraded path, and the only one where a failed code is not a refund:
+    // the shopper was charged the undiscounted amount (a create-order that
+    // priced without the code, say), so the order stands at full price with no
+    // discount recorded.
+    seedCode({ redeemed_at: new Date().toISOString() });
+
+    const result = await post(signedBody({ code: CODE }));
+    expect(result.status).toBe(200);
+    expect(h.state.orders[0]).toMatchObject({ total_price: 2000 });
+    // Never written, rather than written as zero: the order row has no discount
+    // column value at all, which is what the admin reads as "no discount".
+    expect(h.state.orders[0].total_discounts).toBeUndefined();
+    expect(h.state.orderDiscountCodes).toHaveLength(0);
+    expect(h.state.discountApplications).toHaveLength(0);
+    expect(h.state.refunds).toEqual([]);
+    // And the code stays spent for whoever already had it.
+    expect(h.state.quizCodes.get(CODE)!.order_id).toBeNull();
+  });
+
+  it('ignores a code that is not even the right shape', async () => {
+    // Shape is checked before any lookup: a malformed code never reaches the
+    // database, so the promo field's own validator and the route agree.
+    seedCode();
+    payDiscounted();
+
+    const result = await post(signedBody({ code: 'nope' }));
+
+    expect(h.state.reservations).toHaveLength(0);
+    // Full price was recomputed, so the discounted capture mismatched and the
+    // shopper was refunded — the same outcome as an unreservable code.
+    expect(result.status).toBe(402);
+    expect(h.state.refunds).toEqual([PAYMENT_ID]);
+  });
+
+  it('leaves a no-code order completely untouched', async () => {
+    seedCode();
+    const result = await post(signedBody());
+    expect(result.status).toBe(200);
+    expect(h.state.orders[0]).toMatchObject({ total_price: 2000 });
+    expect(h.state.orders[0].total_discounts).toBeUndefined();
+    expect(h.state.reservations).toHaveLength(0);
+    expect(h.state.quizCodes.get(CODE)!.reserved_for).toBeNull();
+    expect(h.state.analytics[0].props).not.toHaveProperty('discount');
   });
 });
