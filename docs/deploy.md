@@ -333,7 +333,10 @@ command and root directory:
 
 - the root `package.json` declares the same pinned `wrangler` (4.86.0), so
   the injected step resolves the binary from the repo root's
-  `node_modules/.bin` (workspace deps only bin into their own app's `.bin`);
+  `node_modules/.bin` (workspace deps only bin into their own app's `.bin`),
+  and its `build` script is `turbo build:worker` (not `turbo build`), so the
+  plain `npm run build` the step runs produces the `.open-next/` bundles —
+  `next build` alone never does;
 - the root `wrangler.toml` describes the admin worker from the root (the one
   worker whose previews are enabled; `yord-frontend` runs none) so the step
   finds a config in its working directory. Production deploys never read it —
