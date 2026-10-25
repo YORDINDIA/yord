@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/lib/stores/cartStore';
+import { usePromoPercent, usePromoStore } from '@/lib/stores/promoStore';
 import { useCartHydrated } from '@/hooks/useHydrated';
 import { useRazorpay } from '@/hooks/useRazorpay';
 import { computeTotals } from '@/lib/pricing';
@@ -27,10 +28,16 @@ export function useCheckout() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const { initiatePayment, error: paymentError } = useRazorpay();
 
+  const promoCode = usePromoStore((state) => state.code);
+  const promoPercent = usePromoPercent();
+  const clearPromo = usePromoStore((state) => state.clear);
+
   // Client-side display totals only. Both checkout routes recompute from DB
-  // prices; nothing here is ever trusted as an amount to charge. Prices are
-  // GST-inclusive, so `total` is the cart subtotal itself.
-  const { subtotal, gstAmount, total } = computeTotals(items);
+  // prices and resolve the code themselves; nothing here is ever trusted as an
+  // amount to charge. The percent shown is what the last code check returned,
+  // so the rail and the gateway agree in every case except a code that expired
+  // mid-checkout — where the server refuses and says so.
+  const { subtotal, discountAmount, gstAmount, total } = computeTotals(items, promoPercent);
 
   const placeOrder = useCallback(
     async (data: CheckoutData) => {
@@ -97,6 +104,8 @@ export function useCheckout() {
             image: item.image,
           })),
           subtotal,
+          discount: discountAmount,
+          promoCode,
           gst: gstAmount,
           total,
         });
@@ -107,6 +116,9 @@ export function useCheckout() {
         // succeeded. A throwing `push` lands in the catch below and resets it,
         // so a failed navigation cannot strand the button on PROCESSING.
         clearCart();
+        // The code is spent server-side. Dropping it here keeps the cart from
+        // showing a discount that no longer exists on the next visit.
+        clearPromo();
         router.push(`/checkout/success?order_name=${encodeURIComponent(paymentResponse.order_name)}`);
       } catch (error) {
         console.error('Order failed:', error);
@@ -114,13 +126,26 @@ export function useCheckout() {
         setIsProcessing(false);
       }
     },
-    [clearCart, gstAmount, initiatePayment, items, router, subtotal, total]
+    [
+      clearCart,
+      clearPromo,
+      discountAmount,
+      gstAmount,
+      initiatePayment,
+      items,
+      promoCode,
+      router,
+      subtotal,
+      total,
+    ]
   );
 
   return {
     items,
     hydrated,
     subtotal,
+    discountAmount,
+    promoCode,
     gstAmount,
     total,
     isProcessing,

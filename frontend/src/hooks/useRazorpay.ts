@@ -8,6 +8,7 @@ import {
   RazorpayCheckoutOptions,
 } from '@/lib/razorpay/client';
 import { analyticsSessionId, track } from '@/lib/analytics/track';
+import { usePromoStore } from '@/lib/stores/promoStore';
 import {
   clearPendingVerify,
   isSettledVerifyFailure,
@@ -82,6 +83,11 @@ async function postVerify(body: string, timeoutMs: number) {
 export function useRazorpay(): UseRazorpayReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Read straight from the store rather than through `CreateOrderData`: the
+  // code is global cart state, and `useCheckout` would otherwise have to thread
+  // it through a parameter that only this hook reads.
+  const promoCode = usePromoStore((state) => state.code);
+  const clearPromo = usePromoStore((state) => state.clear);
 
   const initiatePayment = useCallback(async (data: CreateOrderData): Promise<VerifiedPaymentResponse | null> => {
     setIsLoading(true);
@@ -145,7 +151,8 @@ export function useRazorpay(): UseRazorpayReturn {
         throw new Error('Failed to load Razorpay. Please try again.');
       }
 
-      // Create order on server (server computes totals from DB prices)
+      // Create order on server (server computes totals from DB prices, and
+      // resolves `code` itself — the client never sends a percent or an amount).
       const orderResponse = await fetch('/api/checkout/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,11 +162,22 @@ export function useRazorpay(): UseRazorpayReturn {
             variantId: item.variantId,
             quantity: item.quantity,
           })),
+          ...(promoCode ? { code: promoCode } : {}),
         }),
       });
 
       if (!orderResponse.ok) {
-        const errorData = await orderResponse.json();
+        const errorData = (await orderResponse.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        // A code that stopped working between the promo field and this request
+        // is a 409 CODE_INVALID. Drop it from the store so the cart stops
+        // showing a discount the shopper cannot get, and surface the server's
+        // own message rather than a generic failure.
+        if (errorData.code === 'CODE_INVALID') {
+          clearPromo();
+        }
         throw new Error(errorData.error || 'Failed to create order');
       }
 
@@ -206,6 +224,11 @@ export function useRazorpay(): UseRazorpayReturn {
               // Joins the server-recorded order_completed event to this
               // browser's behavioral session (random uuid, no PII).
               analyticsSid: analyticsSessionId(),
+              // The code is re-sent so verify can re-reserve it. A retry takes
+              // its own hold back (idempotent); a code that was spent by someone
+              // else in the meantime makes the recomputed total miss the
+              // captured amount, and verify refunds instead of charging more.
+              ...(promoCode ? { code: promoCode } : {}),
               // Order data for Supabase (server recomputes prices/totals)
               orderData: {
                 email: data.customerEmail,
@@ -347,7 +370,7 @@ export function useRazorpay(): UseRazorpayReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [clearPromo, promoCode]);
 
   return { isLoading, error, initiatePayment };
 }

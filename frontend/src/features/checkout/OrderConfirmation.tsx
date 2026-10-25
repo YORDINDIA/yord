@@ -155,6 +155,21 @@ export function OrderConfirmation({
                 <dt className="text-text-muted">Subtotal</dt>
                 <dd className="text-text-secondary">{formatPrice(order.subtotal)}</dd>
               </div>
+              {/* Only when a promo actually came off. `discount` is optional on
+                  the stored payload: an order placed before the quiz campaign
+                  has no such field, and `?? 0` keeps that from rendering a
+                  meaningless "−₹0" row. */}
+              {(order.discount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-text-muted">
+                    Promo
+                    {order.promoCode ? (
+                      <span className="ml-1 font-mono text-xs">{order.promoCode}</span>
+                    ) : null}
+                  </dt>
+                  <dd className="text-accent">-{formatPrice(order.discount ?? 0)}</dd>
+                </div>
+              )}
               <div className="flex justify-between pt-2 border-t border-border-default">
                 <dt className="font-display text-base text-text-primary">Total paid</dt>
                 <dd className="font-display text-base text-accent">{formatPrice(order.total)}</dd>

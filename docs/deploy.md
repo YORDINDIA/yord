@@ -80,7 +80,7 @@ prefix.
 ```bash
 export DATABASE_URL='postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres'
 
-# Core tables, then every migration in numeric order (001-017 today; the glob
+# Core tables, then every migration in numeric order (001-019 today; the glob
 # picks up new ones automatically, so keep the range in this comment current).
 psql "$DATABASE_URL" -f scripts/schema.sql
 for f in supabase/migrations/0*.sql; do
@@ -401,6 +401,43 @@ Rules learned getting here:
   cutover, pause checkout from the storefront until both steps are complete:
   the migration makes the old `decrement_variant_stock` RPC fail closed, so an
   old route binary refunds rather than mutating stock outside the ledger.
+- `018_quiz_codes.sql` adds `quiz_codes` — the single-use discount codes the
+  Diljit Aura quiz pop-up mints — plus `peek_quiz_code` (read-only "is this code
+  usable, and what is it worth?") and `reserve_quiz_code` (a compare-and-swap
+  reservation keyed on the Razorpay order id). RLS is on with **no policies**,
+  like `analytics_events`: every read and write goes through the secret key.
+  `id` is a real identity column, for the reason 015 documents. The three
+  percentages are **not** rows in `price_rules`: that table's `id` has no default
+  and the admin mints ids from `admin_next_id`, which this document applies
+  *after* the migration glob, so a seeding migration would have to invent ids and
+  could collide with the admin's counter. They are a constant in
+  `frontend/src/features/quiz/config.ts` instead — changing a tier is a deploy,
+  not an admin edit — and each minted row stores the `percent` it was issued
+  with, so a code already in a shopper's hands keeps the value it was promised.
+  **Apply 018 before deploying the storefront change.** A storefront newer than
+  the database finds the functions missing and answers `CODE_UNAVAILABLE`, then
+  sells at full price: degraded, never a wrong discount. The reverse order (new
+  database, old storefront) changes nothing, because nothing reads the table.
+  Verify after applying: `select to_regclass('public.quiz_codes')`, then
+  `select public.peek_quiz_code('AURA-AAAAAA', now() + interval '1 day')`,
+  which must return `{"ok": false, "reason": "not_found"}` — a *row*, not an
+  empty result (the function right-joins a one-row anchor for exactly that).
+- `019_analytics_event_types.sql` widens the `analytics_events.type` CHECK
+  constraint to admit the quiz funnel and the promo field. It exists because
+  `010` wrote the event vocabulary as a CHECK **whitelist** and nothing joined it
+  to the zod schema the client and the ingest route share — so the quiz shipped
+  six event types that the schema accepted, the route validated, and the
+  database then rejected. Every insert failed the CHECK, the route answered 502
+  `Could not record events`, and `flushAnalytics` drops a failed batch by
+  design: the funnel recorded **nothing**, with no error anywhere a human would
+  look. Found by posting each event type to the live ingest route and looking
+  for a 204 — a 400 would have meant the schema was wrong, and the schema was
+  the part that worked. Widening a CHECK is non-destructive (every existing row
+  satisfies the old list, a subset of the new one) and idempotent. The drift
+  cannot ship again: `frontend/src/lib/__tests__/analytics-event-types.test.ts`
+  derives the type list from the zod schema and fails if any type is missing from
+  these migrations. Verify after applying: all six types insert, and an unknown
+  type is still refused.
 - Unlike Netlify, Workers has no static-to-dynamic fallback: any `cookies()`
   read (cookie-bound Supabase server client) in a prerendered route's tree is
   a runtime 500. The `(main)` layout and all `generateStaticParams` pages
@@ -504,10 +541,34 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    in `scripts/` reports every sampled URL as accessible.
 5. **Empty states.** With no data yet, product/collection/blog pages render
    their empty states; once the ingest runs, they list rows.
-6. **Analytics.** After deploying the storefront, GA4 → Reports → Realtime
-   shows your visit, and PostHog → Activity → Live events shows the pageview.
-   In Search Console, the property verifies and accepts
-   `https://yordindia.com/sitemap.xml`.
+6. **Analytics.** PostHog → Activity → Live events shows the pageview (the
+   `NEXT_PUBLIC_POSTHOG_KEY` in `.env` is a real project key and is inlined at
+   build time; `posthog-sdk.ts` treats a missing or placeholder key as a
+   complete no-op, so a silent PostHog means the key did not reach the build).
+   GA4 loads the hardcoded `GT-KF6P3KGX` tag from `app/layout.tsx` —
+   `NEXT_PUBLIC_GA_MEASUREMENT_ID` in `.env` is read by no code. In Search
+   Console, the property verifies and accepts `https://yordindia.com/sitemap.xml`.
+
+   **Then check the first-party events actually *store*, which is a different
+   question from whether they validate.** A 204 from the ingest route is the only
+   answer that proves it: a 400 means the zod schema rejected the body, and a
+   **502 means the database rejected the row** — the `analytics_events.type`
+   CHECK is a whitelist that nothing joins to the schema, so a new event type can
+   validate, fail the constraint, and be dropped by `flushAnalytics` with no
+   visible error anywhere. That is exactly what happened to the quiz funnel; see
+   `019_analytics_event_types.sql`.
+
+   ```bash
+   SID=$(uuidgen | tr 'A-Z' 'a-z')
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST https://yordindia.com/api/analytics/events \
+     -H 'Content-Type: application/json' \
+     -d "{\"events\":[{\"type\":\"quiz_viewed\",\"trigger\":\"direct\",\"sid\":\"$SID\",\"path\":\"/quiz\"}]}"
+   # 204 = stored. 502 = the CHECK constraint is missing this type.
+   ```
+
+   Repeat for each new event type after any change to `eventsSchema.ts`. The
+   regression test (`analytics-event-types.test.ts`) catches the drift at review
+   time; this curl is what proves the deployed database agrees.
 7. **Sentry.** With `NEXT_PUBLIC_SENTRY_DSN` set and rebuilt, run
    `setTimeout(() => { throw new Error('sentry smoke test') })` in the browser
    console on both the storefront and the admin; the errors appear in Sentry
@@ -516,6 +577,23 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    tunnel route that keeps ad-blockers from dropping client events); a 404
    means deleting `tunnelRoute` from that app's `next.config.ts` and
    redeploying, which sends events straight to Sentry instead.
+8. **A quiz code, end to end, on Razorpay test keys.** The one check that
+   proves the money path rather than the UI. Play the pop-up on the home page,
+   note the code it mints, and buy something with it. Then confirm all five:
+   - Razorpay's payment shows the **discounted** amount, not the list price.
+   - `orders.total_price` equals what Razorpay captured, `orders.subtotal_price`
+     is the pre-discount sum, and `orders.total_discounts` is the difference.
+   - `order_discount_codes` has one row for the order with `amount` equal to
+     that difference, and `discount_applications` has its `40`/`20`/`10` row.
+   - `quiz_codes` for that code has `redeemed_at`, `order_id` and
+     `redeemed_email` set, and `reserved_for` equal to the Razorpay order id.
+   - Admin → Aura quiz lists the code as **Redeemed** and the discount is in the
+     order's own summary.
+   Then try the same code again: the cart refuses it (`That code has already
+   been used.`), and a hand-built checkout with it refunds rather than selling at
+   40% off. If a step fails, the storefront is safe to roll back first — an
+   older build simply ignores the table — but leave migration 018 in place: a
+   dropped `quiz_codes` while codes are in shoppers' hands is unrecoverable.
 
 ## 9. Rollback
 

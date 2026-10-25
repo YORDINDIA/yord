@@ -4,6 +4,7 @@ import { isSupabaseUnconfigured } from '@/lib/result';
 import { logDbError } from '@/lib/logger';
 import { CONCERTS } from '@/lib/data/concerts';
 import { CITIES } from '@/lib/data/cities';
+import { campaignIsOpen } from '@/features/quiz/config';
 
 const BASE_URL = 'https://yordindia.com';
 
@@ -44,6 +45,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE_URL}/concert-merchandise-india`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
   ];
+
+  // The quiz is listed only while its codes work. The page carries its own
+  // `noindex` once the window closes (see `app/(main)/quiz/page.tsx`), but a
+  // sitemap entry pointing at a closed offer is still a wasted crawl — and the
+  // sitemap is rebuilt on every deploy, so the next one after 30 November 2026
+  // simply drops it.
+  if (campaignIsOpen()) {
+    staticPages.push({
+      url: `${BASE_URL}/quiz`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    });
+  }
 
   // Backend-less builds emit the static URL set only; dynamic URLs reappear
   // at the next build once Supabase is configured.

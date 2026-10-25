@@ -6,6 +6,8 @@ import { MAX_ORDER_LINES, MAX_QTY_PER_LINE } from '@/lib/pricing';
 import { validateCartLines, type CartLine } from '@/lib/validate-cart';
 import { logDbError, logWarn } from '@/lib/logger';
 import { isRateLimited, clientIp, rateLimitResponse } from '@/lib/rate-limit';
+import { isValidCodeFormat, normalizeCode } from '@/features/quiz/codes';
+import { CODE_REJECTION_MESSAGE, peekCode } from '@/features/quiz/server/codes';
 
 // Server-side pricing: never trust client-supplied amounts.
 // Clients are created lazily per request so a missing env var returns
@@ -37,7 +39,11 @@ export async function POST(request: NextRequest) {
     const { supabase, razorpay } = clients;
 
     const body = await request.json();
-    const { currency = 'INR', items } = body as { currency?: string; items?: CartLine[] };
+    const { currency = 'INR', items, code } = body as {
+      currency?: string;
+      items?: CartLine[];
+      code?: string;
+    };
 
     if (currency !== 'INR') {
       return NextResponse.json({ error: 'Unsupported currency' }, { status: 400 });
@@ -65,8 +71,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve the promo code before pricing, so the Razorpay order is created
+    // for the amount the shopper was shown.
+    //
+    // A code that no longer works is a 409 rather than a silent full-price
+    // charge: the shopper applied a code and the price on their screen includes
+    // it, so charging more than that without saying so is the one outcome worth
+    // blocking. `peek` here is read-only — the code is not reserved until
+    // `verify-payment`, because reserving now would let an abandoned Razorpay
+    // modal hold the shopper's own code against a stale order id.
+    let discountPercent = 0;
+    let appliedCode: string | null = null;
+    if (typeof code === 'string' && code.trim().length > 0) {
+      if (!isValidCodeFormat(code)) {
+        return NextResponse.json(
+          { error: CODE_REJECTION_MESSAGE.not_found, code: 'CODE_INVALID' },
+          { status: 409 }
+        );
+      }
+      const lookup = await peekCode(supabase, normalizeCode(code));
+      if (!lookup.ok) {
+        logWarn('create-order', `CODE_${lookup.reason.toUpperCase()}`, normalizeCode(code));
+        return NextResponse.json(
+          { error: CODE_REJECTION_MESSAGE[lookup.reason], code: 'CODE_INVALID' },
+          { status: 409 }
+        );
+      }
+      discountPercent = lookup.percent;
+      appliedCode = normalizeCode(code);
+    }
+
     // Authoritative price + stock lookup (shared helper; pricing math in lib/pricing).
-    const validated = await validateCartLines(supabase, items);
+    const validated = await validateCartLines(supabase, items, discountPercent);
     if (!validated.ok) {
       logWarn('create-order', validated.code, validated.error);
       return NextResponse.json(
@@ -74,7 +110,13 @@ export async function POST(request: NextRequest) {
         { status: validated.status }
       );
     }
-    const { subtotal, gstAmount, total, totalPaise: amountPaise } = validated;
+    const {
+      subtotal,
+      discountAmount,
+      gstAmount,
+      total,
+      totalPaise: amountPaise,
+    } = validated;
 
     let order;
     try {
@@ -82,7 +124,13 @@ export async function POST(request: NextRequest) {
         amount: amountPaise,
         currency,
         receipt: `yord_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        notes: { source: 'yord-india-website' },
+        // The code rides in the gateway notes so a dispute or a manual
+        // reconciliation can see which discount a captured amount included,
+        // without reading our database.
+        notes: {
+          source: 'yord-india-website',
+          ...(appliedCode ? { promo_code: appliedCode, discount_percent: String(discountPercent) } : {}),
+        },
       });
     } catch (razorpayError) {
       logDbError('create-order:razorpay', razorpayError);
@@ -95,6 +143,8 @@ export async function POST(request: NextRequest) {
       currency: order.currency,
       receipt: order.receipt,
       subtotal,
+      discountAmount,
+      discountPercent,
       gstAmount,
       total,
     });

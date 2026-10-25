@@ -4,7 +4,7 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   // Workspace packages export raw TS; Next must transpile them.
-  transpilePackages: ["@yord/ui", "@yord/db-types", "@yord/auth", "@yord/supabase-clients"],
+  transpilePackages: ["@yord/ui", "@yord/db-types", "@yord/supabase-clients"],
   // Monorepo: trace files from the repo root so packages/* are included.
   outputFileTracingRoot: path.join(__dirname, "../"),
   images: {
@@ -23,6 +23,20 @@ const nextConfig: NextConfig = {
     // `mediaLoader` maps each of these straight onto a stored sibling file.
     deviceSizes: [640, 960, 1280, 1600],
     imageSizes: [96, 160, 256, 384],
+  },
+  /**
+   * The Delhi show moved from 1 November to 30 October 2026, so its slug lost
+   * the month. Anything already indexed or shared under the old name still
+   * resolves. Permanent (308) because the show is fixed, not provisional.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/concerts/diljit-dosanjh-aura-delhi-november-2026',
+        destination: '/concerts/diljit-dosanjh-aura-delhi-2026',
+        permanent: true,
+      },
+    ];
   },
   /**
    * Concept D (`/concepts/rail`) draws product photos as WebGL textures, and

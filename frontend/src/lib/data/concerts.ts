@@ -66,14 +66,14 @@ export const TOURS: ConcertTour[] = [
         ticketPriceFrom: 999,
       },
       {
-        slug: 'diljit-dosanjh-aura-delhi-november-2026',
+        slug: 'diljit-dosanjh-aura-delhi-2026',
         venue: 'Jawaharlal Nehru Stadium',
         city: 'Delhi',
-        date: '2026-11-01',
+        date: '2026-10-30',
         status: 'upcoming',
         description:
-          'Diljit Dosanjh opens the India leg of his Aura World Tour at Jawaharlal Nehru Stadium in Delhi. Expect Born to Shine, Lover, and 5 Taara in a full stadium production.',
-        image: '/concert-art/diljit-dosanjh-aura-delhi-november-2026.webp',
+          'Diljit Dosanjh opens the India leg of his Aura World Tour at Jawaharlal Nehru Stadium in Delhi on 30 October 2026. Expect Born to Shine, Lover, and 5 Taara in a full stadium production.',
+        image: '/concert-art/diljit-dosanjh-aura-delhi-2026.webp',
         imageCredit: 'AI-generated artwork',
       },
       {
@@ -576,16 +576,6 @@ export function getConcertsByArtist(artistHandle: string): Concert[] {
   return CONCERTS.filter((c) => c.artistHandle === artistHandle);
 }
 
-// Helper to get concerts by city
-export function getConcertsByCity(city: string): Concert[] {
-  return CONCERTS.filter((c) => c.city.toLowerCase() === city.toLowerCase());
-}
-
-// Helper to get concerts by year
-export function getConcertsByYear(year: number): Concert[] {
-  return CONCERTS.filter((c) => c.year === year);
-}
-
 // Helper to get upcoming concerts
 export function getUpcomingConcerts(): Concert[] {
   return CONCERTS.filter((c) => c.status === 'upcoming' || c.status === 'announced');
@@ -594,16 +584,6 @@ export function getUpcomingConcerts(): Concert[] {
 // Helper to get a single concert by slug
 export function getConcertBySlug(slug: string): Concert | undefined {
   return CONCERTS.find((c) => c.slug === slug);
-}
-
-// Get unique cities from concerts
-export function getConcertCities(): string[] {
-  return [...new Set(CONCERTS.map((c) => c.city))].sort();
-}
-
-// Get unique artists from concerts
-export function getConcertArtists(): string[] {
-  return [...new Set(CONCERTS.map((c) => c.artist))].sort();
 }
 
 // Upcoming shows grouped by artist: featured first, then soonest date.

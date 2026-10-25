@@ -1,6 +1,7 @@
 import {
   BarChart3,
   FolderKanban,
+  Gift,
   Image as ImageIcon,
   LayoutDashboard,
   NotebookPen,
@@ -36,6 +37,7 @@ export type SectionKey =
   | 'media'
   | 'blogs'
   | 'ai'
+  | 'quiz'
   | 'analytics'
   | 'settings';
 
@@ -131,6 +133,14 @@ export const SECTIONS: Record<SectionKey, SectionMeta> = {
     icon: Sparkles,
     description: 'Listing, blog, and campaign generation.',
   },
+  quiz: {
+    key: 'quiz',
+    label: 'Aura quiz',
+    short: 'Quiz',
+    href: '/quiz',
+    icon: Gift,
+    description: 'Single-use reward codes from the quiz pop-up.',
+  },
   analytics: {
     key: 'analytics',
     label: 'Analytics',
@@ -151,7 +161,9 @@ export const SECTIONS: Record<SectionKey, SectionMeta> = {
 
 /** Sidebar order, grouped the way the work flows. */
 export const SECTION_GROUPS: { label: string; keys: SectionKey[] }[] = [
-  { label: 'Sell', keys: ['dashboard', 'orders', 'customers', 'discounts'] },
+  // `quiz` sits beside `discounts`: its codes are discounts, just ones the
+  // storefront hands out as a game instead of an admin creating them by hand.
+  { label: 'Sell', keys: ['dashboard', 'orders', 'customers', 'discounts', 'quiz'] },
   { label: 'Catalog', keys: ['products', 'collections', 'inventory', 'media'] },
   { label: 'Create', keys: ['blogs', 'ai'] },
   { label: 'System', keys: ['analytics', 'settings'] },

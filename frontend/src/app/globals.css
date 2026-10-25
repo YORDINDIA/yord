@@ -606,6 +606,25 @@ body {
   );
 }
 
+/* One quiz question replacing the last: the card remounts per question (the
+   parent keys it by question id precisely so per-question state cannot leak),
+   so a plain mount animation gives every question the same quiet entrance.
+   Transform/opacity only, so it composites like the hero entrances above. */
+@keyframes quizCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quiz-card-in {
+  animation: quizCardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Reduced motion: every hero animation resolves to its finished state. This
    block is declared after the rules above (and after the min-width gates), so
    it wins on order rather than on specificity. */
@@ -615,6 +634,7 @@ body {
   .hero-bounce,
   .hero-float,
   .hero-sparkle,
+  .quiz-card-in,
   .stats-premium-border::before {
     animation: none;
   }

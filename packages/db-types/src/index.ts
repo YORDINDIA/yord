@@ -140,6 +140,17 @@ export interface Database {
         Update: Partial<NewsletterSubscriber>;
         Relationships: NoRelations;
       };
+      /**
+       * Single-use codes minted by the Diljit Aura quiz pop-up
+       * (supabase/migrations/018_quiz_codes.sql). RLS is on with no policies:
+       * only the service key reaches this table.
+       */
+      quiz_codes: {
+        Row: QuizCode;
+        Insert: Partial<QuizCode> & Pick<QuizCode, 'code' | 'sid' | 'percent' | 'correct' | 'total'>;
+        Update: Partial<QuizCode>;
+        Relationships: NoRelations;
+      };
       // ── Admin-app tables. Row interfaces live further down in this file so
       // there is exactly one schema definition for the whole monorepo.
       smart_collection_rules: {
@@ -319,20 +330,32 @@ export interface Database {
           revenue: number;
         }[];
       };
+      /**
+       * Is a quiz code usable right now, and what is it worth? Read-only; shared
+       * by the promo field, `create-order` and `verify-payment` so the three
+       * agree on what "usable" means. Returns
+       * `{ ok: true, percent, correct, total }` or `{ ok: false, reason }`.
+       * (supabase/migrations/018_quiz_codes.sql)
+       */
+      peek_quiz_code: {
+        Args: { p_code: string; p_ends_at: string };
+        Returns: JsonValue;
+      };
+      /**
+       * Compare-and-swap reservation of a quiz code against one Razorpay order
+       * id. The `or reserved_for = p_reservation` arm is what makes a verify
+       * retry idempotent without letting a second payment take a spent code.
+       * Same return shape as `peek_quiz_code`.
+       * (supabase/migrations/018_quiz_codes.sql)
+       */
+      reserve_quiz_code: {
+        Args: { p_code: string; p_reservation: string; p_ends_at: string };
+        Returns: JsonValue;
+      };
     };
     Enums: Record<string, never>;
   };
 }
-
-// ── Table helpers ─────────────────────────────────────────────────────────────
-// Row/Insert/Update aliases so consumers never hand-write row shapes.
-
-export type TableRow<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Row'];
-export type TableInsert<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Insert'];
-export type TableUpdate<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Update'];
 
 /** Any value Postgres `jsonb` columns accept. */
 export type JsonValue =
@@ -343,7 +366,7 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-// The table helpers above are erased at runtime; this module stays type-only
+// Everything above is erased at runtime; this module stays type-only
 // except for the artist/collection helpers further down, which the storefront
 // and admin both import.
 
@@ -510,10 +533,6 @@ export interface ProductWithDetails extends Product {
   product_variants: ProductVariant[];
   product_images: ProductImage[];
   product_options?: ProductOption[];
-}
-
-export interface ProductWithRelations extends ProductWithDetails {
-  collections?: Collection[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1391,24 +1410,6 @@ export interface CartItem {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// API RESPONSE TYPES
-// ═══════════════════════════════════════════════════════════════════════════
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  count: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-export interface ApiError {
-  message: string;
-  code?: string;
-  details?: unknown;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // BLOG TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1685,4 +1686,25 @@ export type NewsletterSubscriber = {
   id: number;
   email: string;
   subscribed_at: string;
+}
+
+/**
+ * One code minted by the Aura quiz. `sid` is the player's analytics session id
+ * (a random per-browser uuid, never joined to a customer), unique so a refresh
+ * returns the same code rather than minting another.
+ */
+export type QuizCode = {
+  id: number;
+  code: string;
+  sid: string;
+  percent: number;
+  correct: number;
+  total: number;
+  /** Razorpay order id currently holding the code; NULL when free. */
+  reserved_for: string | null;
+  reserved_at: string | null;
+  redeemed_at: string | null;
+  order_id: number | null;
+  redeemed_email: string | null;
+  created_at: string;
 }

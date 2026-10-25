@@ -36,15 +36,15 @@ npm run test     # Run vitest suites (src/lib/__tests__/ + src/**/*.test.ts)
 ```
 src/
 ├── app/                 # Next.js App Router routes and API handlers
-│   ├── api/             # API routes (checkout, contact, newsletter, products, search, health)
+│   ├── api/             # API routes (checkout, contact, newsletter, products, search, quiz, health)
 │   └── (main)/          # product/[handle], collection/[handle], artist/[handle], catalog, blog, account, …
 ├── features/            # feature slices (catalog, product, artist, collection, cart,
-│                        # checkout, home, layout, ui, auth, support, concerts, blog)
+│                        # checkout, home, layout, ui, auth, support, concerts, blog, quiz)
 ├── hooks/               # useAuth, useRazorpay, useProductsInfinite, useHydrated, useReportError
 ├── lib/
 │   ├── data/            # autoCollections.ts (computed collections)
 │   ├── supabase/        # client.ts / server.ts (regular, service, static) + queries.ts
-│   └── stores/          # Zustand stores (cartStore, wishlistStore)
+│   └── stores/          # Zustand stores (cartStore, wishlistStore, promoStore)
 ├── providers/           # ThemeProvider, PostHog/React Query providers
 └── middleware.ts        # Edge middleware: guards /account/*
 ```
@@ -58,6 +58,76 @@ Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/u
 - Server Components are the default for data fetching via `lib/supabase/queries.ts`
 - Client Components (`'use client'`) are used for interactivity (cart, forms, modals)
 - Zustand stores are client-side only with localStorage persistence
+
+### The quiz pop-up, the `/quiz` URL, and promo codes
+`features/quiz/` is the Diljit Aura campaign: ten questions (easy to hard) that
+mint one single-use discount code per browser — 8+ correct is 40% off, 5+ is
+20%, else 10%.
+
+It has **two front doors and one machine**. The pop-up is mounted once in
+`providers/ClientProviders.tsx` via `QuizPromo`, which decides *whether* to show
+it (`useQuizGate`: dwell or scroll trigger, route rules from `gateRules.ts`,
+never over another dialog, once per tab session) and loads it with
+`next/dynamic({ ssr: false })` so its copy never lands on a product page's
+critical path. `/quiz` (`app/(main)/quiz/`) is the shareable URL — for a link, a
+caption, or anyone the gate refused — and renders the same `QuizRunner.tsx`
+directly. Both mint through the same route, and `/api/quiz/complete` re-returns
+the code a `sid` already owns, so one browser still gets one code and a shared
+link cannot be farmed for a second.
+
+The parts worth knowing before editing it:
+
+- **`questions.ts` ships to the browser; `answers.ts` must not.** The answer key
+  starts with `import 'server-only'`, which turns a client-component import into
+  a build error, and each verdict comes from `POST /api/quiz/answer`. The score
+  that picks the tier is recomputed server-side by `POST /api/quiz/complete`
+  from the submitted choices, so a tampered tally changes the screen, not the
+  reward.
+- **`/quiz` must stay `force-dynamic`.** Reading the clock in `generateMetadata`
+  does not make Next render a route per request; it will prerender the page and
+  evaluate the campaign window once, at build. Without the export the page keeps
+  advertising 40% off, and keeps telling Google to index it, for as long as that
+  build stays deployed. The visible copy takes the AND of the server's answer and
+  the browser's, so a stale prerender errs toward "closed" rather than toward an
+  offer that no longer exists.
+- **`gateRules.ts` owns which routes carry the pop-up.** Pure and unit-tested,
+  because a mistake here fails silently: a modal over the payment form costs a
+  conversion and throws no error. Both `/artist` and `/artists` (and both
+  `/collection` and `/collections`) must be listed — the singular detail page is
+  the most relevant surface for an artist quiz, and omitting it looks exactly
+  like a campaign nobody triggers.
+- **The code is priced by the server, never the client.** `lib/stores/promoStore.ts`
+  keeps the applied code and the percent the last check returned; that percent is
+  for the discount *line* only. `create-order` and `verify-payment` resolve the
+  code through `features/quiz/server/codes.ts` → the `peek_quiz_code` /
+  `reserve_quiz_code` RPCs in `supabase/migrations/018_quiz_codes.sql`, and
+  `verify-payment` reserves before pricing because the reservation is what
+  decides whether the attempt may charge the discounted amount at all. A code
+  that cannot be reserved means the cart is priced at full price, and a capture
+  taken at the discounted amount then fails the amount check and refunds.
+- **`mint.ts` parses the mint reply, and it is a separate module on purpose.** The
+  frontend suite is node-only — no jsdom, no testing library — so logic left
+  inside a component cannot be tested at all. The runner's one branch with
+  consequences (a code, "this is over", or "try again") lives in a pure function
+  instead. It enforces a single rule: a body that is not a code is never treated
+  as one. Two traps it guards: `typeof NaN === 'number'`, and `Number()` *coerces*
+  rather than validates (`Number(null)` and `Number('')` are `0`, `Number('40')`
+  is `40`), so a percent is checked with `Number.isInteger` on the **raw** value.
+  A `CAMPAIGN_CLOSED` body carries no `code` field, so it is recognised *before*
+  the code check — otherwise a closed campaign reads as a retryable failure and
+  the player is sent back to question ten to retry something that cannot succeed.
+- **`lib/pricing.ts` remains the only money math.** `computeTotals(lines, discountPercent)`
+  takes a rounded percentage off the subtotal and extracts GST from what is
+  actually charged, so an order never claims tax on money it did not receive.
+- **Tiers are a constant, not admin data.** `features/quiz/config.ts` holds the
+  percentages, the campaign window and the concert it rides; changing a tier is
+  a deploy. Each minted row stores the `percent` it was issued with, so codes
+  already in shoppers' hands keep the value they were promised. The campaign
+  window is passed into every SQL call from that one constant, so the date never
+  lives in the database.
+- **Apply migration 018 before deploying storefront code that uses it.** A
+  storefront newer than the database finds the functions missing and sells at
+  full price — degraded, never a wrong discount.
 
 ### Authentication Flow
 - Edge middleware (`src/middleware.ts`) protects `/account/*` routes. It uses

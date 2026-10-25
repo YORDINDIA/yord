@@ -5,7 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cartStore';
+import { usePromoPercent, usePromoStore } from '@/lib/stores/promoStore';
 import { track } from '@/lib/analytics/track';
+import { computeTotals } from '@/lib/pricing';
 import { formatPrice, cn } from '@yord/ui';
 import { isPriceOnSale } from '@/lib/product';
 import { FREE_FAST_SHIPPING_THRESHOLD } from '@/lib/shipping';
@@ -13,6 +15,7 @@ import { Button } from '@/features/ui/Button';
 import { CtaLink } from '@/features/ui/CtaLink';
 import { IconButton } from '@/features/ui/IconButton';
 import { Overlay } from '@/features/ui/Overlay';
+import { PromoCode } from '@/features/checkout/PromoCode';
 
 const TITLE_ID = 'cart-drawer-title';
 
@@ -38,6 +41,15 @@ export function CartDrawer() {
   const subtotal = useCartStore((state) => state.subtotal());
   const totalSavings = useCartStore((state) => state.totalSavings());
   const itemCount = useCartStore((state) => state.itemCount());
+
+  // The promo discount, from the same store the checkout rail reads. The cart
+  // drawer previously showed a subtotal only; now it shows what the code takes
+  // off and a total, so the number on PROCEED TO CHECKOUT matches what the
+  // checkout page will say. The percent is the last *checked* value — the
+  // server prices the order itself.
+  const promoCode = usePromoStore((state) => state.code);
+  const promoPercent = usePromoPercent();
+  const { discountAmount, total } = computeTotals(items, promoPercent);
 
   // Shipping is free at every cart value; only the speed is conditional, so
   // the bar tracks the fast threshold alone.
@@ -227,6 +239,10 @@ export function CartDrawer() {
       {/* Footer */}
       {items.length > 0 && (
         <div className="border-t border-border-default p-6 space-y-4">
+          {/* Promo code. Above the totals because it changes them, and it
+              closes the drawer before following its link to the quiz. */}
+          <PromoCode surface="cart" onNavigate={closeCart} />
+
           {/* Savings */}
           {totalSavings > 0 && (
             <div className="flex items-center justify-between text-sm">
@@ -240,6 +256,24 @@ export function CartDrawer() {
             <span className="font-accent text-sm tracking-[0.1em] text-text-muted">SUBTOTAL</span>
             <span className="font-heading text-2xl text-text-primary">{formatPrice(subtotal)}</span>
           </div>
+
+          {/* The discount, shown against the subtotal it came off. Only when a
+              code is actually applied — an empty "−₹0" row is noise. */}
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted">
+                Promo {promoCode ? <span className="font-mono">{promoCode}</span> : null}
+              </span>
+              <span className="text-accent font-medium">−{formatPrice(discountAmount)}</span>
+            </div>
+          )}
+
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between border-t border-border-default pt-3">
+              <span className="font-accent text-sm tracking-[0.1em] text-text-primary">TOTAL</span>
+              <span className="font-heading text-2xl text-text-primary">{formatPrice(total)}</span>
+            </div>
+          )}
 
           <p className="text-xs text-text-muted text-center">
             Free shipping · GST calculated at checkout

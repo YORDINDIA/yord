@@ -25,6 +25,7 @@ export type CartValidationResult =
   | {
       ok: true;
       subtotal: number;
+      discountAmount: number;
       gstAmount: number;
       total: number;
       totalPaise: number;
@@ -39,10 +40,17 @@ type SupabaseLike = SupabaseClient;
  * Fetches authoritative variant prices, parses/validates amounts, checks
  * stock, and computes totals via `@/lib/pricing` (sole money-math source).
  * Client-supplied amounts are never trusted.
+ *
+ * `discountPercent` is the value the *caller* resolved from a promo code — this
+ * helper never looks a code up, because the same code has to be resolved once
+ * per request and the three checkout routes each need the answer before they
+ * need the totals. It is clamped inside `computeTotals`, so a bad value from a
+ * caller under-charges rather than over-charges.
  */
 export async function validateCartLines(
   supabase: SupabaseLike,
-  items: CartLine[]
+  items: CartLine[],
+  discountPercent = 0
 ): Promise<CartValidationResult> {
   const variantIds = [...new Set(items.map((l) => l.variantId))];
 
@@ -156,7 +164,10 @@ export async function validateCartLines(
     priced.push({ price: variant.price, quantity: line.quantity });
   }
 
-  const { subtotal, gstAmount, total, totalPaise } = computeTotals(priced);
+  const { subtotal, discountAmount, gstAmount, total, totalPaise } = computeTotals(
+    priced,
+    discountPercent
+  );
 
   if (subtotal <= 0) {
     return {
@@ -167,5 +178,13 @@ export async function validateCartLines(
     };
   }
 
-  return { ok: true, subtotal, gstAmount, total, totalPaise, byId };
+  return {
+    ok: true,
+    subtotal,
+    discountAmount,
+    gstAmount,
+    total,
+    totalPaise,
+    byId,
+  };
 }
