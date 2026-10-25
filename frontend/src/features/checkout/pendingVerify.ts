@@ -71,6 +71,13 @@ export interface PendingVerify {
   at: number;
   /** The order the body describes, or null when it carries no usable one. */
   snapshot: PendingOrderSnapshot | null;
+  /**
+   * The promo code the body carried, or null. A recovered payment spent this
+   * code server-side (verify redeems on completion), so the checkout uses it
+   * to clear the store — and only when the store still holds *this* code, so
+   * a code applied after the payment got stuck survives the recovery.
+   */
+  code: string | null;
 }
 
 /**
@@ -174,11 +181,20 @@ export function readPendingVerify(storage: PendingVerifyStorage | null): Pending
     const body = typeof parsed?.body === 'string' ? parsed.body : null;
     const ids = body ? parseVerifyBody(body) : null;
     if (!body || !ids) throw new Error('unusable pending verify record');
+    let code: string | null = null;
+    try {
+      const carried = (JSON.parse(body) as { code?: unknown }).code;
+      if (typeof carried === 'string' && carried.length > 0) code = carried;
+    } catch {
+      // `parseVerifyBody` already proved the body parses; this is unreachable
+      // in practice and the code is optional either way.
+    }
     return {
       ids,
       body,
       at: typeof parsed.at === 'number' ? parsed.at : 0,
       snapshot: parseOrderSnapshot(body),
+      code,
     };
   } catch {
     clearPendingVerify(storage, null);
@@ -240,6 +256,8 @@ export type PendingVerifyOutcome =
        * of clearing whatever is in it.
        */
       snapshot: PendingOrderSnapshot | null;
+      /** The promo code that body carried and the recovered order spent. */
+      code: string | null;
     }
   | { kind: 'settled' }
   | { kind: 'blocked'; message: string };
@@ -310,6 +328,7 @@ export async function reconcilePendingVerify(deps: {
       ids: pending.ids,
       orderName: attempt.orderName ?? '',
       snapshot: pending.snapshot,
+      code: pending.code,
     };
   }
   if (isSettledVerifyFailure(attempt)) {

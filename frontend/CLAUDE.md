@@ -61,19 +61,21 @@ Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/u
 
 ### The quiz pop-up, the `/quiz` URL, and promo codes
 `features/quiz/` is the Diljit Aura campaign: ten questions (easy to hard) that
-mint one single-use discount code per browser — 8+ correct is 40% off, 5+ is
-20%, else 10%.
+mint one single-use discount code per **persisted `sid`** — 8+ correct is 40%
+off, 5+ is 20%, else 10%. Clearing localStorage mints a fresh `sid` and a fresh
+code; the 5/hour/IP mint limit is what bounds that farming.
 
 It has **two front doors and one machine**. The pop-up is mounted once in
 `providers/ClientProviders.tsx` via `QuizPromo`, which decides *whether* to show
 it (`useQuizGate`: dwell or scroll trigger, route rules from `gateRules.ts`,
 never over another dialog, once per tab session) and loads it with
-`next/dynamic({ ssr: false })` so its copy never lands on a product page's
-critical path. `/quiz` (`app/(main)/quiz/`) is the shareable URL — for a link, a
-caption, or anyone the gate refused — and renders the same `QuizRunner.tsx`
-directly. Both mint through the same route, and `/api/quiz/complete` re-returns
-the code a `sid` already owns, so one browser still gets one code and a shared
-link cannot be farmed for a second.
+`next/dynamic({ ssr: false })` once the gate first says show — so the quiz
+bundle is fetched for players, not for every visitor. `/quiz`
+(`app/(main)/quiz/`) is the shareable URL — for a link, a caption, or anyone
+the gate refused — and renders the same `QuizRunner.tsx` directly. Both mint
+through the same route, and `/api/quiz/complete` re-returns the code a `sid`
+already owns, so a shared link cannot mint a second code for a `sid` that
+already has one.
 
 The parts worth knowing before editing it:
 
@@ -87,8 +89,10 @@ The parts worth knowing before editing it:
   does not make Next render a route per request; it will prerender the page and
   evaluate the campaign window once, at build. Without the export the page keeps
   advertising 40% off, and keeps telling Google to index it, for as long as that
-  build stays deployed. The visible copy takes the AND of the server's answer and
-  the browser's, so a stale prerender errs toward "closed" rather than toward an
+  build stays deployed. The visible copy is judged from the **server's** clock:
+  the render hands down `serverNowMs` and the client counts only elapsed time
+  from there, so a device with a fast clock cannot close an offer the server
+  still honours, and a stale render errs toward "closed" rather than toward an
   offer that no longer exists.
 - **`gateRules.ts` owns which routes carry the pop-up.** Pure and unit-tested,
   because a mistake here fails silently: a modal over the payment form costs a
@@ -126,8 +130,11 @@ The parts worth knowing before editing it:
   window is passed into every SQL call from that one constant, so the date never
   lives in the database.
 - **Apply migration 018 before deploying storefront code that uses it.** A
-  storefront newer than the database finds the functions missing and sells at
-  full price — degraded, never a wrong discount.
+  storefront newer than the database finds the RPCs missing: a checkout **with**
+  a code in the field is refused (`CODE_UNAVAILABLE` — the shopper keeps the
+  code and retries after the migration; never a wrong discount), and a checkout
+  without one sells at full price. Enabling promo checkout before applying 018
+  means every code-bearing cart fails at `create-order`.
 
 ### Authentication Flow
 - Edge middleware (`src/middleware.ts`) protects `/account/*` routes. It uses

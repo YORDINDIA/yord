@@ -1,13 +1,15 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { Check, Loader2, Tag, X } from 'lucide-react';
 import { cn } from '@yord/ui';
 import { usePromoHydrated, usePromoStore } from '@/lib/stores/promoStore';
+import { useCartStore } from '@/lib/stores/cartStore';
 import { track } from '@/lib/analytics/track';
 import { campaignEndsLabel } from '@/features/quiz/config';
 import { useCampaignOpen } from '@/features/quiz/useCountdown';
+import { useEligibleProductIds } from '@/features/quiz/useEligibleProductIds';
 
 /**
  * The promo field. Lives in the cart drawer and on the checkout rail — the two
@@ -41,7 +43,17 @@ export function PromoCode({
   const status = usePromoStore((state) => state.status);
   const message = usePromoStore((state) => state.message);
   const apply = usePromoStore((state) => state.apply);
+  const revalidate = usePromoStore((state) => state.revalidate);
   const clear = usePromoStore((state) => state.clear);
+  const items = useCartStore((state) => state.items);
+  // Only read once a code is on show, and only warn on a *known* empty scope —
+  // while it loads the honest line is nothing, not a false "nothing eligible".
+  const eligibleIds = useEligibleProductIds();
+  const noEligibleItems =
+    code !== null &&
+    items.length > 0 &&
+    eligibleIds !== null &&
+    !items.some((item) => eligibleIds.has(item.productId));
 
   const [draft, setDraft] = useState('');
   const inputId = useId();
@@ -49,11 +61,23 @@ export function PromoCode({
 
   const checking = status === 'checking';
 
+  // A persisted code is a claim from an earlier session, and the world may have
+  // moved since: the code could have been spent on another device or the window
+  // may have closed. Re-check it once per hydration and again when the campaign
+  // closes under a still-open tab, so the shopper sees the truth in this field
+  // rather than at the payment step, where finding out costs a refund. The
+  // server's answer is the only thing that clears it — a local clock running
+  // fast must not delete a code the server still honours.
+  useEffect(() => {
+    if (!hydrated || !code) return;
+    void revalidate();
+  }, [hydrated, code, campaignOpen, revalidate]);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (checking || draft.trim().length === 0) return;
-    const ok = await apply(draft);
-    if (ok) {
+    const outcome = await apply(draft);
+    if (outcome.applied) {
       // Read the store rather than the response: `apply` normalises the code and
       // is the only place that knows the percent the server returned. A percent
       // outside the three campaign tiers is not an event worth recording, so it
@@ -63,7 +87,10 @@ export function PromoCode({
         track({ type: 'promo_applied', percent: applied, surface });
       }
       setDraft('');
-    } else {
+    } else if (!outcome.transient) {
+      // Only a definitive server rejection is a funnel event: `transient` marks
+      // a network drop or a check superseded by a newer one, and counting those
+      // as rejections would blame working codes for train tunnels.
       // The reason is server copy. It is bounded and contains no user input, so
       // it is safe to store and is what makes the rejection reasons sortable.
       const reason = usePromoStore.getState().message ?? 'unknown';
@@ -96,7 +123,15 @@ export function PromoCode({
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <p className="mt-1.5 text-xs text-text-muted">Use it by {campaignEndsLabel()}.</p>
+        <p className="mt-1.5 text-xs text-text-muted">
+          {noEligibleItems ? (
+            <span className="text-danger">
+              Your bag has no Diljit Dosanjh styles — this code will not change this order.
+            </span>
+          ) : (
+            <>Diljit Dosanjh styles only · use it by {campaignEndsLabel()}.</>
+          )}
+        </p>
       </div>
     );
   }
@@ -173,7 +208,7 @@ export function PromoCode({
           >
             Take the Diljit quiz
           </Link>{' '}
-          and win up to 40% off.
+          and win up to 40% off Diljit styles.
         </p>
       ) : null}
     </form>

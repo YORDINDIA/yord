@@ -51,6 +51,7 @@ type OrderRelations = [
   Fk<'refunds', 'order_id'>,
 ];
 type PriceRuleRelations = [Fk<'discount_codes', 'price_rule_id'>];
+type QuizCodeRelations = [Fk<'orders', 'order_id'>];
 type NoRelations = [];
 
 export interface Database {
@@ -149,7 +150,9 @@ export interface Database {
         Row: QuizCode;
         Insert: Partial<QuizCode> & Pick<QuizCode, 'code' | 'sid' | 'percent' | 'correct' | 'total'>;
         Update: Partial<QuizCode>;
-        Relationships: NoRelations;
+        // `order_id` has a real FK to `orders` (018), so typed embeds like
+        // `.select('*, orders(*)')` resolve.
+        Relationships: QuizCodeRelations;
       };
       // ── Admin-app tables. Row interfaces live further down in this file so
       // there is exactly one schema definition for the whole monorepo.
@@ -350,6 +353,17 @@ export interface Database {
        */
       reserve_quiz_code: {
         Args: { p_code: string; p_reservation: string; p_ends_at: string };
+        Returns: JsonValue;
+      };
+      /**
+       * Clear a quiz-code hold early. verify-payment calls it after a definitive
+       * refund of the payment that held the code; the CAS guards (same
+       * reservation, not yet redeemed) make a speculative call a no-op.
+       * Returns `{ ok: true }` or `{ ok: false }`.
+       * (supabase/migrations/018_quiz_codes.sql)
+       */
+      release_quiz_code: {
+        Args: { p_code: string; p_reservation: string };
         Returns: JsonValue;
       };
     };

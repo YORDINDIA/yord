@@ -64,29 +64,84 @@ function stripSqlComments(sql: string): string {
     .replace(/--[^\n]*/g, ' '); // line comments
 }
 
-/**
- * Every event type named by an `analytics_events` type CHECK, across every
- * migration — so a later migration that redefines the constraint is read as the
- * new authority and the older one stops mattering.
- *
- * It scans for `check (type in ( ... ))` blocks rather than matching one known
- * constraint name, because the constraint is dropped and re-added by name and a
- * future migration may rename it.
- */
-function typesAllowedByMigrations(): Set<string> {
-  const allowed = new Set<string>();
-  const files = readdirSync(MIGRATIONS_DIR).filter((name) => name.endsWith('.sql'));
+interface TypeCheck {
+  /**
+   * The constraint this check belongs to (`constraint <name> check (type in
+   * (...))`), or null for an anonymous column check in a CREATE TABLE.
+   */
+  name: string | null;
+  types: string[];
+}
 
-  for (const file of files) {
-    const sql = stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'));
-    const blocks = sql.matchAll(/check\s*\(\s*type\s+in\s*\(([^)]*)\)/gi);
-    for (const [, list] of blocks) {
-      for (const [, literal] of list.matchAll(/'([a-z_]+)'/g)) {
-        allowed.add(literal);
-      }
+/** Every `check (type in (...))` in one piece of SQL, with its name if it has one. */
+function typeChecksInSql(sql: string): TypeCheck[] {
+  const stripped = stripSqlComments(sql);
+  const checks: TypeCheck[] = [];
+  for (const match of stripped.matchAll(/check\s*\(\s*type\s+in\s*\(([^)]*)\)/gi)) {
+    const list = match[1];
+    // A named constraint puts its name immediately before `check`. Look back
+    // over the (comment-free) text in front of this match to find it.
+    const before = stripped.slice(Math.max(0, (match.index ?? 0) - 120), match.index ?? 0);
+    const named = /constraint\s+([a-z0-9_]+)\s*$/i.exec(before);
+    checks.push({
+      name: named ? named[1].toLowerCase() : null,
+      types: [...list.matchAll(/'([a-z_]+)'/g)].map(([, literal]) => literal),
+    });
+  }
+  return checks;
+}
+
+/**
+ * The effective type whitelist across a set of migration files, replayed as
+ * the database would apply them.
+ *
+ * Three rules, and each is what makes a later *change* actually register:
+ *
+ * 1. A `drop constraint [if exists] <name>` removes that constraint's entry —
+ *    redefinitions drop by name before re-adding, so the drop is what retires
+ *    the previous list.
+ * 2. A named `constraint <name> check (type in (...))` becomes that name's
+ *    definition, so the **latest** definition of each name wins.
+ * 3. An anonymous column check (010's original inline `check` in the CREATE
+ *    TABLE) gets Postgres' default constraint name, `<table>_<column>_check` —
+ *    for this table and column that is `analytics_events_type_check`, which is
+ *    exactly the name 019's `drop constraint` refers to. Keying it the same
+ *    way is what lets a later named redefinition supersede it.
+ *
+ * Unioning history instead — the first version of this helper — would keep a
+ * removed type "allowed" forever and this suite green while the database
+ * rejected every insert of it. Files are processed in name order; the numeric
+ * prefixes make that the apply order.
+ */
+const DEFAULT_TYPE_CHECK_NAME = 'analytics_events_type_check';
+
+function effectiveAllowedTypes(
+  files: ReadonlyArray<{ name: string; sql: string }>
+): Set<string> {
+  const constraints = new Map<string, Set<string>>();
+  for (const file of [...files].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    const sql = stripSqlComments(file.sql);
+    for (const match of sql.matchAll(
+      /drop\s+constraint\s+(?:if\s+exists\s+)?([a-z0-9_]+)/gi
+    )) {
+      constraints.delete(match[1].toLowerCase());
+    }
+    for (const check of typeChecksInSql(sql)) {
+      constraints.set(check.name ?? DEFAULT_TYPE_CHECK_NAME, new Set(check.types));
     }
   }
+  const allowed = new Set<string>();
+  for (const types of constraints.values()) {
+    for (const type of types) allowed.add(type);
+  }
   return allowed;
+}
+
+function typesAllowedByMigrations(): Set<string> {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith('.sql'))
+    .map((name) => ({ name, sql: readFileSync(join(MIGRATIONS_DIR, name), 'utf8') }));
+  return effectiveAllowedTypes(files);
 }
 
 describe('analytics event vocabulary: schema vs database', () => {
@@ -148,5 +203,33 @@ describe('analytics event vocabulary: schema vs database', () => {
     // discriminated union's own member list.
     expect(ANALYTICS_EVENT_TYPES.length).toBeGreaterThan(10);
     expect(new Set(ANALYTICS_EVENT_TYPES).size).toBe(ANALYTICS_EVENT_TYPES.length);
+  });
+
+  it('reads the latest definition of a constraint as the only authority', () => {
+    // A later migration that *narrows* the constraint (dropping an event type)
+    // must actually remove it from the effective set. A union-of-history scan
+    // keeps the type "allowed" forever, and this suite stays green while the
+    // deployed database rejects every insert of it — the exact silent failure
+    // this file exists to prevent.
+    const allowed = effectiveAllowedTypes([
+      {
+        name: '010_analytics_events.sql',
+        sql: `create table public.analytics_events (
+                type text not null check (type in ('page_viewed', 'order_completed'))
+              );`,
+      },
+      {
+        name: '020_hypothetical_narrowing.sql',
+        sql: `alter table public.analytics_events
+                drop constraint if exists analytics_events_type_check;
+              alter table public.analytics_events
+                add constraint analytics_events_type_check check (type in ('page_viewed'));`,
+      },
+    ]);
+    expect(allowed.has('page_viewed')).toBe(true);
+    expect(
+      allowed.has('order_completed'),
+      'a later narrowing must remove the type, not keep it via the older definition'
+    ).toBe(false);
   });
 });

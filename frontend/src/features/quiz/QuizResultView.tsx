@@ -4,8 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Check, Copy } from 'lucide-react';
 import { CtaLink } from '@/features/ui/CtaLink';
-import { CAMPAIGN, campaignEndsLabel, tierForScore } from './config';
-import { QUIZ_QUESTION_COUNT } from './questions';
+import { CAMPAIGN, QUIZ_TIERS, campaignEndsLabel, tierForScore } from './config';
 import type { QuizResult } from './quizStore';
 
 /**
@@ -23,7 +22,11 @@ import type { QuizResult } from './quizStore';
  */
 export function QuizResultView({ result }: { result: QuizResult }) {
   const [copied, setCopied] = useState(false);
-  const tier = tierForScore(result.correct);
+  // The tier the mint awarded, not the one today's question count would give
+  // the same score: a stored result may predate a question-set change, and
+  // re-deriving from `correct` can then label a gold win "Bronze". `total`
+  // below is mint-time for the same reason.
+  const tier = QUIZ_TIERS.find((candidate) => candidate.id === result.tier) ?? tierForScore(result.correct);
 
   const copy = async () => {
     try {
@@ -39,7 +42,7 @@ export function QuizResultView({ result }: { result: QuizResult }) {
   return (
     <div className="px-6 pb-8 pt-8 sm:px-10">
       <p className="font-accent text-sm tracking-[0.2em] text-text-muted">
-        {result.correct} / {QUIZ_QUESTION_COUNT} CORRECT · {tier.label.toUpperCase()} TIER
+        {result.correct} / {result.total} CORRECT · {tier.label.toUpperCase()} TIER
       </p>
 
       <h2 className="mt-3 font-display text-3xl leading-tight text-text-primary sm:text-4xl">
@@ -52,7 +55,7 @@ export function QuizResultView({ result }: { result: QuizResult }) {
       <div className="mt-8 rounded-[2px] border border-accent bg-accent-tint px-5 py-6 text-center shadow-[var(--shadow-gold)]">
         <p className="font-display-alt text-6xl leading-none text-accent">{result.percent}%</p>
         <p className="mt-1.5 font-accent text-sm tracking-[0.25em] text-text-secondary">
-          OFF YOUR ORDER
+          OFF DILJIT STYLES
         </p>
 
         <p className="mt-6 font-accent text-[10px] tracking-[0.3em] text-text-muted">YOUR CODE</p>
@@ -83,7 +86,8 @@ export function QuizResultView({ result }: { result: QuizResult }) {
       </div>
 
       <p className="mt-5 text-sm text-text-muted">
-        Enter the code in the cart or at checkout. It works once, on one order.
+        Enter the code in the cart or at checkout. It works once, on one order, on{' '}
+        {CAMPAIGN.artistName} styles.
       </p>
 
       <div className="mt-6">

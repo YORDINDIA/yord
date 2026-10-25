@@ -35,6 +35,13 @@ const SCROLL_TRIGGER = 0.4;
 /** After this many dismissals, stop asking for a while. */
 const DISMISSAL_LIMIT = 2;
 const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+/**
+ * A trigger blocked by an open dialog retries at this interval, at most this
+ * many times — about half a minute of patience for the cart drawer to close
+ * before the session gives up on the pop-up (the scroll listener stays live).
+ */
+const DIALOG_RETRY_MS = 2_000;
+const DIALOG_RETRY_LIMIT = 15;
 /** sessionStorage marker: shown or dismissed at least once in this tab. */
 const SESSION_KEY = 'yord-quiz-shown';
 
@@ -60,6 +67,13 @@ function markSessionShown(): void {
 export interface QuizGate {
   /** Render the pop-up. False once it has been dismissed or finished. */
   shouldShow: boolean;
+  /**
+   * The trigger has fired at least once this mount. The mount point latches
+   * on it: the popup's dynamic chunk should load when the campaign first
+   * shows, but the component must STAY mounted afterwards so the dismissal's
+   * exit transition can run.
+   */
+  hasFired: boolean;
   /** The visitor closed it without playing. */
   dismiss: () => void;
   /** What surfaced it; 'timer' until a scroll fires first. */
@@ -77,6 +91,7 @@ export function useQuizGate(): QuizGate {
   const cartOpen = useCartOpen();
 
   const [armed, setArmed] = useState(false);
+  const [hasFired, setHasFired] = useState(false);
   const [trigger, setTrigger] = useState<QuizTrigger>('timer');
   const [dismissedNow, setDismissedNow] = useState(false);
   // The scroll listener and the timer both call this; the ref keeps a late
@@ -107,15 +122,33 @@ export function useQuizGate(): QuizGate {
 
     firedRef.current = false;
 
+    // A blocked trigger retries rather than disappearing: the 12-second timer
+    // is one-shot, so dropping its fire the moment a cart drawer happens to be
+    // open would silence the campaign for a visitor who simply had the cart
+    // open at second twelve. Bounded, so a dialog that never closes cannot
+    // spin this forever; the scroll listener stays live either way.
+    let dialogRetries = 0;
+    let retryTimer: number | null = null;
+
     const fire = (source: 'timer' | 'scroll') => {
       if (firedRef.current) return;
       // Never stack on another dialog. `Overlay` marks every panel it portals
       // with role="dialog", so this catches the cart, quick view and search.
-      if (document.querySelector('[role="dialog"]')) return;
+      if (document.querySelector('[role="dialog"]')) {
+        if (retryTimer === null && dialogRetries < DIALOG_RETRY_LIMIT) {
+          dialogRetries += 1;
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            fire(source);
+          }, DIALOG_RETRY_MS);
+        }
+        return;
+      }
       firedRef.current = true;
       markSessionShown();
       setTrigger(source);
       setArmed(true);
+      setHasFired(true);
     };
 
     const onScroll = () => {
@@ -140,6 +173,7 @@ export function useQuizGate(): QuizGate {
       if (window.cancelIdleCallback && typeof idle === 'number') window.cancelIdleCallback(idle);
       else window.clearTimeout(idle);
       window.clearTimeout(timer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       window.removeEventListener('scroll', onScroll);
     };
   }, [blocked, cooling, lastDismissedAt]);
@@ -150,5 +184,5 @@ export function useQuizGate(): QuizGate {
     setArmed(false);
   }, [markDismissed]);
 
-  return { shouldShow: armed && !blocked, dismiss, trigger };
+  return { shouldShow: armed && !blocked, hasFired, dismiss, trigger };
 }

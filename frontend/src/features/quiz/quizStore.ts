@@ -89,7 +89,15 @@ export const useQuizStore = create<QuizStore>()(
         dismissals: state.dismissals,
         lastDismissedAt: state.lastDismissedAt,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
+        // Unusable storage (private mode, locked-down browser) must not leave
+        // the store "unhydrated" forever — `useQuizGate` blocks on that flag,
+        // so the campaign would never appear at all. Treat it as a fresh
+        // visitor: no stored result, no dismissal history.
+        if (error) {
+          useQuizStore.getState().setHasHydrated(true);
+          return;
+        }
         state?.setHasHydrated(true);
       },
     }

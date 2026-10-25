@@ -35,6 +35,14 @@
 --
 -- Widening a CHECK is safe and non-destructive: every existing row satisfies
 -- the old list, which is a subset of the new one. No data is read or moved.
+--
+-- The drop and the add run inside one transaction: between them the table has
+-- no constraint at all, and a failed apply at exactly that point (under the
+-- documented `psql -v ON_ERROR_STOP=1 -f` deploy, where each statement
+-- auto-commits) would leave analytics accepting *any* type, silently. DDL is
+-- transactional in Postgres, so the block either lands whole or not at all.
+
+begin;
 
 alter table public.analytics_events
   drop constraint if exists analytics_events_type_check;
@@ -64,11 +72,43 @@ alter table public.analytics_events
     'promo_rejected'
   ));
 
--- Verify after applying — all six must be accepted, and an unknown type must
--- still be refused (proving the constraint is live, not merely absent):
---
---   insert into public.analytics_events (type, sid, path, props)
---   values ('quiz_viewed', gen_random_uuid(), '/quiz', '{}'::jsonb);  -- ok
---
---   insert into public.analytics_events (type, sid, path, props)
---   values ('not_a_real_event', gen_random_uuid(), '/', '{}'::jsonb); -- must fail
+commit;
+
+-- Verify on every apply (this re-runs with the migration glob, so the probe
+-- must leave nothing behind and must fail the file if either half is wrong):
+-- each of the six new types is inserted and an unknown type is still refused,
+-- all inside a transaction that rolls back, so the check proves the constraint
+-- is live — not merely absent — without polluting analytics with probe rows.
+-- The expected-violation halves are wrapped in nested BEGIN/EXCEPTION blocks
+-- (subtransactions) so a *passing* unknown-type insert raises, while a
+-- rejected one is absorbed and the check continues.
+
+begin;
+
+do $probe$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'quiz_viewed', 'quiz_started', 'quiz_completed',
+    'quiz_dismissed', 'promo_applied', 'promo_rejected'
+  ] loop
+    begin
+      insert into public.analytics_events (type, sid, path, props)
+      values (t, gen_random_uuid(), '/probe', '{}'::jsonb);
+    exception when check_violation then
+      raise exception 'analytics_events_type_check rejected % — the constraint was not widened', t;
+    end;
+  end loop;
+
+  begin
+    insert into public.analytics_events (type, sid, path, props)
+    values ('not_a_real_event', gen_random_uuid(), '/probe', '{}'::jsonb);
+    raise exception 'analytics_events_type_check accepted an unknown type — the constraint is absent, not live';
+  exception when check_violation then
+    null;  -- the expected outcome
+  end;
+end
+$probe$;
+
+rollback;

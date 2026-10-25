@@ -403,21 +403,31 @@ Rules learned getting here:
   old route binary refunds rather than mutating stock outside the ledger.
 - `018_quiz_codes.sql` adds `quiz_codes` — the single-use discount codes the
   Diljit Aura quiz pop-up mints — plus `peek_quiz_code` (read-only "is this code
-  usable, and what is it worth?") and `reserve_quiz_code` (a compare-and-swap
-  reservation keyed on the Razorpay order id). RLS is on with **no policies**,
-  like `analytics_events`: every read and write goes through the secret key.
-  `id` is a real identity column, for the reason 015 documents. The three
-  percentages are **not** rows in `price_rules`: that table's `id` has no default
-  and the admin mints ids from `admin_next_id`, which this document applies
-  *after* the migration glob, so a seeding migration would have to invent ids and
-  could collide with the admin's counter. They are a constant in
-  `frontend/src/features/quiz/config.ts` instead — changing a tier is a deploy,
-  not an admin edit — and each minted row stores the `percent` it was issued
-  with, so a code already in a shopper's hands keeps the value it was promised.
+  usable, and what is it worth?"), `reserve_quiz_code` (a compare-and-swap
+  reservation keyed on the Razorpay order id; a hold whose payment vanished goes
+  stale after the 15-minute lease and is reclaimable) and `release_quiz_code`
+  (verify-payment clears a hold early after a definitive refund, so a refunded
+  shopper is not locked out of their own code for the rest of the lease). RLS is
+  on with **no policies**, like `analytics_events`: every read and write goes
+  through the secret key. `id` is a real identity column, for the reason 015
+  documents. The three percentages are **not** rows in `price_rules`: that
+  table's `id` has no default and the admin mints ids from `admin_next_id`,
+  which this document applies *after* the migration glob, so a seeding migration
+  would have to invent ids and could collide with the admin's counter. They are
+  a constant in `frontend/src/features/quiz/config.ts` instead — changing a tier
+  is a deploy, not an admin edit — and each minted row stores the `percent` it
+  was issued with, so a code already in a shopper's hands keeps the value it was
+  promised. Discount bookkeeping on completion is best-effort (the money has
+  already moved), so every replay of a completed order re-runs the same
+  idempotent finalizer in `verify-payment` (`reconcileQuizDiscount`, indexed by
+  `quiz_codes.reserved_for`) — a discounted payment always records and spends
+  its code.
   **Apply 018 before deploying the storefront change.** A storefront newer than
-  the database finds the functions missing and answers `CODE_UNAVAILABLE`, then
-  sells at full price: degraded, never a wrong discount. The reverse order (new
-  database, old storefront) changes nothing, because nothing reads the table.
+  the database finds the RPCs missing: `create-order` answers
+  `CODE_UNAVAILABLE` for a checkout **with** a code in the field (the shopper
+  keeps the code; never a wrong discount) and a checkout without one sells at
+  full price. The reverse order (new database, old storefront) changes nothing,
+  because nothing reads the table.
   Verify after applying: `select to_regclass('public.quiz_codes')`, then
   `select public.peek_quiz_code('AURA-AAAAAA', now() + interval '1 day')`,
   which must return `{"ok": false, "reason": "not_found"}` — a *row*, not an
@@ -433,11 +443,14 @@ Rules learned getting here:
   look. Found by posting each event type to the live ingest route and looking
   for a 204 — a 400 would have meant the schema was wrong, and the schema was
   the part that worked. Widening a CHECK is non-destructive (every existing row
-  satisfies the old list, a subset of the new one) and idempotent. The drift
-  cannot ship again: `frontend/src/lib/__tests__/analytics-event-types.test.ts`
-  derives the type list from the zod schema and fails if any type is missing from
-  these migrations. Verify after applying: all six types insert, and an unknown
-  type is still refused.
+  satisfies the old list, a subset of the new one) and idempotent; the drop and
+  the add run in one transaction so a failed apply cannot leave the table
+  unconstrained. The drift cannot ship again:
+  `frontend/src/lib/__tests__/analytics-event-types.test.ts` derives the type
+  list from the zod schema and fails if any type is missing from these
+  migrations. The migration verifies itself on every apply: a rollback-protected
+  probe inserts all six new types and asserts an unknown type is still refused,
+  leaving no rows behind.
 - Unlike Netlify, Workers has no static-to-dynamic fallback: any `cookies()`
   read (cookie-bound Supabase server client) in a prerendered route's tree is
   a runtime 500. The `(main)` layout and all `generateStaticParams` pages
@@ -563,12 +576,22 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    curl -s -o /dev/null -w "%{http_code}\n" -X POST https://yordindia.com/api/analytics/events \
      -H 'Content-Type: application/json' \
      -d "{\"events\":[{\"type\":\"quiz_viewed\",\"trigger\":\"direct\",\"sid\":\"$SID\",\"path\":\"/quiz\"}]}"
-   # 204 = stored. 502 = the CHECK constraint is missing this type.
+   # 204 = accepted. 502 = the CHECK constraint is missing this type.
+   ```
+
+   **A 204 alone does not prove storage.** The ingest route deliberately answers
+   204 *without inserting* when either Supabase env var is missing from the
+   deployed environment, so first confirm both are set on the host
+   (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`), or prove the row landed:
+
+   ```bash
+   psql "$DATABASE_URL" -c "select type, created_at from analytics_events where sid = '$SID';"
    ```
 
    Repeat for each new event type after any change to `eventsSchema.ts`. The
    regression test (`analytics-event-types.test.ts`) catches the drift at review
-   time; this curl is what proves the deployed database agrees.
+   time; this curl (plus the row check) is what proves the deployed database
+   agrees.
 7. **Sentry.** With `NEXT_PUBLIC_SENTRY_DSN` set and rebuilt, run
    `setTimeout(() => { throw new Error('sentry smoke test') })` in the browser
    console on both the storefront and the admin; the errors appear in Sentry

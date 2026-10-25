@@ -27,6 +27,14 @@ export interface PricedLine {
   /** Unit price, GST-inclusive. */
   price: number;
   quantity: number;
+  /**
+   * Whether a promo code may discount this line. The quiz code is scoped to
+   * one collection, so only lines from that collection carry `true`. Absent
+   * means `true` (an order-wide discount) so callers with no scoping concept
+   * keep their meaning; the checkout paths always set it explicitly when a
+   * code is in play.
+   */
+  eligible?: boolean;
 }
 
 export interface OrderTotals {
@@ -70,27 +78,39 @@ export function gstFromInclusive(amount: number, rate: number): number {
  * every value. GST is computed per line (its own slab) and summed only for the
  * order record.
  *
- * The discount is a percentage of the subtotal, rounded to whole rupees, so the
- * charged amount is always an integer and `totalPaise` is exact. GST is then
+ * The discount is a percentage of the *eligible* subtotal — the lines a promo
+ * code may touch (see `PricedLine.eligible`) — rounded to whole rupees, so the
+ * charged amount is always an integer and `totalPaise` is exact, and
+ * `discountAmount + total === subtotal` whatever the cart's mix. GST is then
  * extracted from what is actually charged rather than from the pre-discount
  * subtotal: the invoice has to state the tax contained in the money received,
  * and an order that claimed tax on the undiscounted amount would overstate it.
- * Because the discount is a flat percentage, every line scales by the same
- * factor — so the discount is spread across the lines in proportion to their
- * totals and each line keeps its own slab.
+ * Because the discount is a flat percentage of the eligible subset, every
+ * eligible line scales by the same factor (so the discount spreads across them
+ * in proportion to their totals and each keeps its own slab), while ineligible
+ * lines are charged — and taxed — at exactly their list price.
  */
 export function computeTotals(lines: PricedLine[], discountPercent = 0): OrderTotals {
   const percent = clampDiscountPercent(discountPercent);
 
   let subtotal = 0;
-  for (const line of lines) subtotal += line.price * line.quantity;
+  let eligibleSubtotal = 0;
+  for (const line of lines) {
+    const lineTotal = line.price * line.quantity;
+    subtotal += lineTotal;
+    if (line.eligible !== false) eligibleSubtotal += lineTotal;
+  }
 
-  const discountAmount = percent > 0 ? Math.round((subtotal * percent) / 100) : 0;
+  const discountAmount = percent > 0 ? Math.round((eligibleSubtotal * percent) / 100) : 0;
   const total = subtotal - discountAmount;
 
-  const factor = subtotal > 0 ? total / subtotal : 1;
+  // The factor the eligible lines are charged at: their share of the discount,
+  // whole-rupee rounded once at the order level. Ineligible lines keep 1.
+  const eligibleFactor =
+    eligibleSubtotal > 0 ? (eligibleSubtotal - discountAmount) / eligibleSubtotal : 1;
   let gstAmount = 0;
   for (const line of lines) {
+    const factor = line.eligible !== false ? eligibleFactor : 1;
     const lineTotal = line.price * line.quantity * factor;
     gstAmount += gstFromInclusive(lineTotal, gstRateFor(line.price));
   }

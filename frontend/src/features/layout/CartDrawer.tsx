@@ -16,6 +16,7 @@ import { CtaLink } from '@/features/ui/CtaLink';
 import { IconButton } from '@/features/ui/IconButton';
 import { Overlay } from '@/features/ui/Overlay';
 import { PromoCode } from '@/features/checkout/PromoCode';
+import { promoLines, useEligibleProductIds } from '@/features/quiz/useEligibleProductIds';
 
 const TITLE_ID = 'cart-drawer-title';
 
@@ -46,10 +47,13 @@ export function CartDrawer() {
   // drawer previously showed a subtotal only; now it shows what the code takes
   // off and a total, so the number on PROCEED TO CHECKOUT matches what the
   // checkout page will say. The percent is the last *checked* value — the
-  // server prices the order itself.
+  // server prices the order itself. The code only discounts Diljit Dosanjh
+  // styles, so the lines are marked against the campaign collection's
+  // membership before pricing.
   const promoCode = usePromoStore((state) => state.code);
   const promoPercent = usePromoPercent();
-  const { discountAmount, total } = computeTotals(items, promoPercent);
+  const eligibleIds = useEligibleProductIds();
+  const { discountAmount, total } = computeTotals(promoLines(items, eligibleIds), promoPercent);
 
   // Shipping is free at every cart value; only the speed is conditional, so
   // the bar tracks the fast threshold alone.

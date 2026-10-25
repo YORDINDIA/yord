@@ -53,9 +53,12 @@ export interface VerifiedPaymentResponse extends RazorpayPaymentResponse {
    * Present only when this payment was recovered from a pending-verify
    * replay. `snapshot` is the order the stored body describes (null when it
    * could not be parsed); the checkout removes exactly those lines and never
-   * clears the cart. Absent on a fresh payment, where the cart is cleared.
+   * clears the cart. `code` is the promo code that body carried and the
+   * recovered order spent, so the checkout can clear it — only if the store
+   * still holds the same code. Absent on a fresh payment, where the cart is
+   * cleared.
    */
-  recovered?: { snapshot: PendingOrderSnapshot | null };
+  recovered?: { snapshot: PendingOrderSnapshot | null; code?: string | null };
 }
 
 /**
@@ -126,13 +129,15 @@ export function useRazorpay(): UseRazorpayReturn {
         // The order exists. Resolve as a success so the cart is reconciled and
         // the confirmation shown, without a second charge. The snapshot rides
         // along so the checkout can remove exactly what the recovered order
-        // consumed instead of wiping whatever the cart holds now.
+        // consumed instead of wiping whatever the cart holds now — and the
+        // code rides with it: the recovered order spent that code server-side
+        // (verify redeems on completion), so the checkout clears it there.
         return {
           razorpay_payment_id: pending.ids.razorpay_payment_id,
           razorpay_order_id: pending.ids.razorpay_order_id,
           razorpay_signature: pending.ids.razorpay_signature,
           order_name: pending.orderName,
-          recovered: { snapshot: pending.snapshot },
+          recovered: { snapshot: pending.snapshot, code: pending.code },
         };
       }
       if (pending.kind === 'blocked') {
@@ -171,12 +176,22 @@ export function useRazorpay(): UseRazorpayReturn {
           error?: string;
           code?: string;
         };
-        // A code that stopped working between the promo field and this request
-        // is a 409 CODE_INVALID. Drop it from the store so the cart stops
-        // showing a discount the shopper cannot get, and surface the server's
-        // own message rather than a generic failure.
-        if (errorData.code === 'CODE_INVALID') {
-          clearPromo();
+        // A 409 the shopper cannot fix by retrying: a code that stopped
+        // working between the promo field and this request (CODE_INVALID), or
+        // a usable code whose cart has nothing it discounts
+        // (CODE_NOT_APPLICABLE — the cart has to change, not the attempt).
+        // Drop it from the store so the cart stops showing a discount the
+        // shopper cannot get, and surface the server's own message rather
+        // than a generic failure. Only when the store still holds the code
+        // this request was priced with: a code applied while the request was
+        // in flight belongs to the next attempt and must survive this one.
+        if (
+          errorData.code === 'CODE_INVALID' ||
+          errorData.code === 'CODE_NOT_APPLICABLE'
+        ) {
+          if (promoCode && usePromoStore.getState().code === promoCode) {
+            clearPromo();
+          }
         }
         throw new Error(errorData.error || 'Failed to create order');
       }

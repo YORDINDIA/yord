@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CAMPAIGN,
   QUIZ_PERCENTAGES,
   QUIZ_TIERS,
+  QUIZ_TIME_LIMIT_SECONDS,
   campaignEndsLabel,
   campaignIsOpen,
   tierForScore,
@@ -14,9 +15,21 @@ import {
   QUIZ_QUESTIONS,
   promptParts,
 } from '../questions';
-import { QUIZ_ANSWER_KEY, answerFor, isCorrectChoice, scoreSubmission } from '../answers';
+import {
+  QUIZ_ANSWER_KEY,
+  answerFor,
+  isCorrectChoice,
+  scoreSubmission,
+  submissionCoversQuestionSet,
+} from '../answers';
 import { ALLOWED_PREFIXES, SUPPRESSED_PREFIXES, pathAllows } from '../gateRules';
 import { MINT_FAILURE_MESSAGE, readMintResponse } from '../mint';
+import {
+  URGENT_BELOW_SECONDS,
+  formatClock,
+  secondsLeft,
+  timerUrgency,
+} from '../timing';
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
@@ -136,6 +149,43 @@ describe('the answer key', () => {
   it('scores a partial submission from the answers it was given', () => {
     expect(scoreSubmission([{ questionId: 'q1', choice: answerFor('q1')!.correct }])).toBe(1);
     expect(scoreSubmission([])).toBe(0);
+  });
+
+  it('accepts a submission that is exactly one answer per question of the set', () => {
+    const answers = QUIZ_QUESTIONS.map((question, index) => ({
+      questionId: question.id,
+      choice: index,
+    }));
+    expect(submissionCoversQuestionSet(answers)).toBe(true);
+  });
+
+  it('rejects a repeated question id, so one easy question cannot be farmed for a tier', () => {
+    // `scoreSubmission` counts every matching entry, so the *gate* is what
+    // stands between ten copies of q1's correct choice and a 40% code. The
+    // route 400s anything this rejects before scoring.
+    const farmed = Array.from({ length: QUIZ_QUESTION_COUNT }, () => ({
+      questionId: 'q1',
+      choice: answerFor('q1')!.correct,
+    }));
+    expect(submissionCoversQuestionSet(farmed)).toBe(false);
+    // ...while the same farm still scores 10/10 when scored ungated, which is
+    // exactly why the gate has to exist.
+    expect(scoreSubmission(farmed)).toBe(QUIZ_QUESTION_COUNT);
+  });
+
+  it('rejects a partial set and an id the key does not know', () => {
+    const nine = QUIZ_QUESTIONS.slice(0, 9).map((question) => ({
+      questionId: question.id,
+      choice: 0,
+    }));
+    expect(submissionCoversQuestionSet(nine)).toBe(false);
+    expect(
+      submissionCoversQuestionSet([
+        ...nine,
+        { questionId: 'q11', choice: 0 },
+      ]),
+    ).toBe(false);
+    expect(submissionCoversQuestionSet([])).toBe(false);
   });
 
   it('spreads the correct option across all four positions', () => {
@@ -269,12 +319,42 @@ describe('the code format', () => {
   });
 
   it('does not repeat a code across a realistic campaign', () => {
-    // Not a collision proof — a birthday-bound smoke test. 5,000 codes out of
-    // 1.07e9 collides with probability ~1.2%; a duplicate here means the
-    // generator lost its entropy, which is the failure worth catching.
-    const codes = new Set<string>();
-    for (let i = 0; i < 5_000; i += 1) codes.add(generateCode());
-    expect(codes.size).toBe(5_000);
+    // Deterministic by design: at real randomness, 5,000 codes out of 1.07e9
+    // collide ~1.2% of runs, so the unmocked version of this test failed good
+    // builds by coin flip. A counter-driven byte source stands in instead —
+    // a correct generator turns 5,000 distinct draws into 5,000 distinct
+    // codes, while a generator that stopped varying its bytes (the failure
+    // worth catching) still collapses to a handful.
+    //
+    // The counter is spread across the low bits of the first three bytes
+    // because `generateCode` masks each byte with `& 31`: three five-bit
+    // lanes distinguish 32^3 = 32,768 codes, comfortably more than the 5,000
+    // drawn here.
+    let draw = 0;
+    const counterRandom = (target: Uint8Array): Uint8Array => {
+      if (target.length === CODE_LENGTH) {
+        target[0] = draw & 31;
+        target[1] = (draw >> 5) & 31;
+        target[2] = (draw >> 10) & 31;
+        for (let i = 3; i < target.length; i += 1) target[i] = i;
+        draw += 1;
+      } else {
+        for (let i = 0; i < target.length; i += 1) target[i] = (draw + i) & 255;
+      }
+      return target;
+    };
+    // The cast bridges the filler to the API's overloads (which also accept
+    // DataView and the other views this generator never asks for).
+    const random = vi
+      .spyOn(globalThis.crypto, 'getRandomValues')
+      .mockImplementation(counterRandom as unknown as typeof globalThis.crypto.getRandomValues);
+    try {
+      const codes = new Set<string>();
+      for (let i = 0; i < 5_000; i += 1) codes.add(generateCode());
+      expect(codes.size).toBe(5_000);
+    } finally {
+      random.mockRestore();
+    }
   });
 });
 
@@ -385,6 +465,52 @@ describe('pop-up route rules', () => {
  * one place a malformed response could put a wrong number in a shopper's cart —
  * so it is a pure function, and this is where it is pinned.
  */
+describe('the quiz clock', () => {
+  it('gives a round enough time to actually play it', () => {
+    // 2:30 for ten questions. The property worth pinning is the floor: a limit
+    // under roughly ten seconds a question stops being pressure and becomes a
+    // paywall nobody can clear honestly.
+    expect(QUIZ_TIME_LIMIT_SECONDS).toBeGreaterThanOrEqual(90);
+    expect(QUIZ_TIME_LIMIT_SECONDS).toBeLessThanOrEqual(600);
+    expect(Number.isInteger(QUIZ_TIME_LIMIT_SECONDS)).toBe(true);
+  });
+
+  it('counts down to zero and never below it', () => {
+    const startedAt = 1_000_000;
+    expect(secondsLeft(startedAt, startedAt, 150)).toBe(150);
+    // One millisecond in is still 150 seconds showing: the label rounds up so
+    // 0:00 means the round is over, not "the round is about to be over".
+    expect(secondsLeft(startedAt, startedAt + 1, 150)).toBe(150);
+    expect(secondsLeft(startedAt, startedAt + 150_000, 150)).toBe(0);
+    expect(secondsLeft(startedAt, startedAt + 999_999, 150)).toBe(0);
+  });
+
+  it('survives a non-finite clock reading by answering with the full limit', () => {
+    // The tick feeds `Date.now()` in; a NaN anywhere must not become a NaN
+    // countdown the label renders as "NaN:NaN".
+    expect(secondsLeft(Number.NaN, 0, 150)).toBe(150);
+    expect(secondsLeft(0, Number.NaN, 150)).toBe(150);
+  });
+
+  it('formats the label the intro promises', () => {
+    expect(formatClock(QUIZ_TIME_LIMIT_SECONDS)).toBe('2:30');
+    expect(formatClock(0)).toBe('0:00');
+    expect(formatClock(47)).toBe('0:47');
+    expect(formatClock(60)).toBe('1:00');
+    expect(formatClock(600)).toBe('10:00');
+    // Display-only, so a bad input is the quiet "0:00", never "NaN:NaN" or
+    // negative minutes.
+    expect(formatClock(-5)).toBe('0:00');
+    expect(formatClock(Number.NaN)).toBe('0:00');
+  });
+
+  it('turns urgent exactly inside the final window', () => {
+    expect(timerUrgency(URGENT_BELOW_SECONDS + 1)).toBe('steady');
+    expect(timerUrgency(URGENT_BELOW_SECONDS)).toBe('urgent');
+    expect(timerUrgency(0)).toBe('urgent');
+  });
+});
+
 describe('mint response', () => {
   const good = { code: 'AURA-7KQ2MZ', percent: 40, correct: 9, total: 10, tier: 'gold' };
 
@@ -443,6 +569,21 @@ describe('mint response', () => {
       kind: 'error',
       message: 'Rate limited. Try later.',
     });
+  });
+
+  it('rejects a code that is not in the AURA-XXXXXX shape', () => {
+    // The runner persists and displays whatever this returns, but `applyKnown`
+    // shape-checks before applying — so a non-empty string of the wrong shape
+    // would render as a reward that can never be used. Treat it as a failure
+    // with a retry, not as a code.
+    const outcomes = [
+      readMintResponse({ ...good, code: 'Congratulations!' }, 3),
+      readMintResponse({ ...good, code: 'AURA-ABCDE' }, 3),
+      readMintResponse({ ...good, code: 'AURA-ABCDE0' }, 3),
+    ];
+    for (const outcome of outcomes) {
+      expect(outcome.kind).toBe('error');
+    }
   });
 
   it('accepts a 0% code rather than locking the player out of a real row', () => {

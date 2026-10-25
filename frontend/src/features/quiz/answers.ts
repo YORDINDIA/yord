@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { QUIZ_QUESTIONS, type QuizQuestion } from './questions';
+import { QUIZ_QUESTION_COUNT, QUIZ_QUESTIONS, type QuizQuestion } from './questions';
 
 /**
  * The answer key, and the reason this module starts with `import 'server-only'`.
@@ -104,13 +104,37 @@ export function isCorrectChoice(questionId: string, choice: number): boolean | u
 }
 
 /**
+ * Whether a submission is *exactly one answer per question of the set* — every
+ * id known, no id repeated, nothing missing.
+ *
+ * `scoreSubmission` counts each matching entry, so without this gate a crafted
+ * body repeating one easy question's correct choice ten times would score
+ * 10/10 and mint the top tier. The route rejects anything this returns false
+ * for (a 400, not a bronze): the client always sends the full set, so anything
+ * else is not a slow player but a hand-built payload.
+ */
+export function submissionCoversQuestionSet(
+  answers: readonly { questionId: string }[]
+): boolean {
+  if (answers.length !== QUIZ_QUESTION_COUNT) return false;
+  const seen = new Set<string>();
+  for (const { questionId } of answers) {
+    if (seen.has(questionId)) return false;
+    if (!answerFor(questionId)) return false;
+    seen.add(questionId);
+  }
+  return seen.size === QUIZ_QUESTION_COUNT;
+}
+
+/**
  * Score a full submission. The server recomputes from this key rather than
  * trusting the tally the client sends back: the client's running count is a
  * display detail, and the number that picks a reward tier must come from here.
  *
  * Ids the key does not know, and choices that are not integers in range, count
  * as wrong rather than throwing — a malformed submission earns bronze, never a
- * 500 on a shopper's screen.
+ * 500 on a shopper's screen. Callers gate on `submissionCoversQuestionSet`
+ * first so the "wrong" fallback cannot be farmed with duplicates.
  */
 export function scoreSubmission(answers: readonly { questionId: string; choice: number }[]): number {
   let correct = 0;

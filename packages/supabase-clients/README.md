@@ -23,4 +23,7 @@ near-identical `lib/supabase/server.ts` client sets, plus an unused
 `@yord/auth` experiment that duplicated the same factories); the cutover
 completed and the duplicate per-app client code was deleted. The apps now keep
 only thin wrappers here: `frontend/src/lib/supabase/{client,server}.ts` and
-`admin-dashboard/src/lib/supabase/{client,server}.ts`.
+`admin-dashboard/src/lib/supabase/{client,server}.ts` — the browser wrapper
+resolves env and falls back to a placeholder endpoint for backend-less builds,
+then hands both keys to `createBrowserSupabase` rather than calling
+`@supabase/ssr` itself.

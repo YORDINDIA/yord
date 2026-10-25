@@ -84,13 +84,16 @@ export async function listQuizCodes(filters: QuizCodeFilters): Promise<Paged<Qui
   if (status === 'redeemed') {
     request = request.not('redeemed_at', 'is', null);
   } else if (status === 'held') {
+    // Strict `>` and `<=` mirror `quizCodeStatus` exactly, so a row at the
+    // precise lease boundary renders "Unused" *and* appears under the
+    // "Available" filter — never held, and never missing from both lists.
     request = request
       .is('redeemed_at', null)
-      .gte('reserved_at', new Date(now - RESERVATION_LEASE_MS).toISOString());
+      .gt('reserved_at', new Date(now - RESERVATION_LEASE_MS).toISOString());
   } else if (status === 'available') {
     request = request
       .is('redeemed_at', null)
-      .or(`reserved_at.is.null,reserved_at.lt.${new Date(now - RESERVATION_LEASE_MS).toISOString()}`);
+      .or(`reserved_at.is.null,reserved_at.lte.${new Date(now - RESERVATION_LEASE_MS).toISOString()}`);
   } else if (status === 'expired') {
     request = request.is('redeemed_at', null);
   }
@@ -137,8 +140,15 @@ export interface QuizCodeStats {
   byTier: Record<string, number>;
 }
 
-/** Rows summed when totalling the discount; PostgREST caps one response at 1,000. */
+/** Rows per response when totalling the discount; PostgREST caps one at 1,000. */
 const DISCOUNT_WINDOW = 1000;
+/**
+ * Hard stop on the discount sum. The stat is presented as the campaign total,
+ * so it must read *every* redeemed code — but an unbounded loop over a growing
+ * table has to end somewhere, and a campaign with more than this many redeemed
+ * codes is well past the point where the page should say so rather than hang.
+ */
+const MAX_DISCOUNT_ROWS = 50_000;
 
 /**
  * The campaign's totals.
@@ -186,32 +196,50 @@ export async function getQuizCodeStats(): Promise<QuizCodeStats> {
   };
 }
 
-/** The order ids redeemed codes point at, bounded to one PostgREST response. */
+/**
+ * The order ids redeemed codes point at, paged until every redeemed code has
+ * been read. A single response caps at 1,000 rows, and `discountGiven` is
+ * presented as the campaign total — stopping at the first page would silently
+ * under-report it once the campaign crossed a thousand redemptions.
+ */
 async function redeemedOrderIds(supabase: ServerClient): Promise<number[]> {
-  const claimed = await rows<Pick<QuizCode, 'order_id'>>(
-    ENTITY,
-    supabase
-      .from('quiz_codes')
-      .select('order_id')
-      .not('order_id', 'is', null)
-      .not('redeemed_at', 'is', null)
-      .order('id', { ascending: false })
-      .limit(DISCOUNT_WINDOW),
-  );
-  return [...new Set(claimed.map((row) => row.order_id).filter((id): id is number => id !== null))];
+  const ids = new Set<number>();
+  for (let from = 0; from < MAX_DISCOUNT_ROWS; from += DISCOUNT_WINDOW) {
+    const page = await rows<Pick<QuizCode, 'order_id'>>(
+      ENTITY,
+      supabase
+        .from('quiz_codes')
+        .select('order_id')
+        .not('order_id', 'is', null)
+        .not('redeemed_at', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, from + DISCOUNT_WINDOW - 1),
+    );
+    for (const row of page) {
+      if (row.order_id !== null) ids.add(row.order_id);
+    }
+    if (page.length < DISCOUNT_WINDOW) break;
+  }
+  return [...ids];
 }
 
 /**
  * Σ `orders.total_discounts` over the orders a code was spent on.
  *
  * An empty id list returns 0 without a query: PostgREST rejects `in ()`, the
- * same trap the inventory search documents.
+ * same trap the inventory search documents. The id list is chunked to the same
+ * 1,000-value ceiling, because `in (...)` over more values than that is a URL
+ * the gateway will not carry.
  */
 async function sumOrderDiscounts(supabase: ServerClient, orderIds: number[]): Promise<number> {
-  if (orderIds.length === 0) return 0;
-  const found = await rows<{ total_discounts: number | null }>(
-    'orders',
-    supabase.from('orders').select('total_discounts').in('id', orderIds),
-  );
-  return found.reduce((sum, order) => sum + Number(order.total_discounts ?? 0), 0);
+  let sum = 0;
+  for (let from = 0; from < orderIds.length; from += DISCOUNT_WINDOW) {
+    const chunk = orderIds.slice(from, from + DISCOUNT_WINDOW);
+    const found = await rows<{ total_discounts: number | null }>(
+      'orders',
+      supabase.from('orders').select('total_discounts').in('id', chunk),
+    );
+    sum += found.reduce((total, order) => total + Number(order.total_discounts ?? 0), 0);
+  }
+  return sum;
 }

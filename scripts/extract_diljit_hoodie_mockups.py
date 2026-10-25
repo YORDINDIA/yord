@@ -11,25 +11,32 @@ The storefront gallery is `aspect-[3/4]`, so each frame is centre-cropped to
 3:4 (1080x1440) -- cropping in the extractor rather than at render time keeps
 the stored file exactly what the shopper sees.
 
+Prerequisites: `ffmpeg` on PATH (`brew install ffmpeg`), and the source video
+on the Google Drive mount -- point `DILJIT_DRIVE_ROOT` at your copy of the
+folder if the default mount is not yours, or pass `--video <path>` for a copy
+kept somewhere else.
+
 Usage:
-    python extract_diljit_hoodie_mockups.py
+    python extract_diljit_hoodie_mockups.py [--video <path-to-mp4>]
 
 Output: agnes-out/diljit-hoodie/mockups/hoodie-mockup-<n>.png
 """
 
 from __future__ import annotations
 
+import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+from diljit_listing_registry import DRIVE_ROOT  # noqa: E402
+
 ROOT = SCRIPTS_DIR.parent
-DRIVE_ROOT = Path(
-    "/Users/sakshammittal/Library/CloudStorage/GoogleDrive-saksham@techaintern.com"
-    "/My Drive/YORD INDIA/Diljit Dosanjh"
-)
-VIDEO = (
+DEFAULT_VIDEO = (
     DRIVE_ROOT
     / "Merch Designs/Apparels/DD003 - Diljit Dosanjh's Dillumniati tour/Hoodies"
     / "hoodie-video-featuring-a-woman-making-different-facial-expressions-4917v.mp4"
@@ -48,16 +55,33 @@ CROP_W, CROP_H = 1080, 1440
 
 
 def main() -> int:
-    if not VIDEO.exists():
-        print(f"video missing: {VIDEO}", file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--video",
+        type=Path,
+        default=DEFAULT_VIDEO,
+        help="source mp4 (default: the Drive-mounted Placeit delivery)",
+    )
+    args = parser.parse_args()
+    video = args.video
+
+    # Preflight both hard dependencies before creating any output: a machine
+    # without ffmpeg used to fail on the first frame with a FileNotFoundError
+    # *after* the output directory had been created, which reads as a half-run.
+    if shutil.which("ffmpeg") is None:
+        print("ffmpeg not found on PATH -- install it first (brew install ffmpeg)", file=sys.stderr)
+        return 2
+    if not video.exists():
+        print(f"video missing: {video}", file=sys.stderr)
+        return 2
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     for name, ts, top in FRAMES:
         out = OUT_DIR / f"{name}.png"
         cmd = [
             "ffmpeg", "-v", "error",
-            "-ss", str(ts), "-i", str(VIDEO),
+            "-ss", str(ts), "-i", str(video),
             "-frames:v", "1",
             "-vf", f"crop={CROP_W}:{CROP_H}:0:{top}",
             "-y", str(out),

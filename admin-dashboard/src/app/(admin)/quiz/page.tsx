@@ -13,7 +13,11 @@ import {
   listQuizCodes,
   type QuizCodeRow,
 } from '@/lib/data/quizCodes';
-import { QUIZ_CODE_STATUSES, type QuizCodeStatus } from '@/lib/quiz-codes';
+import {
+  QUIZ_CODE_STATUSES,
+  QUIZ_TIER_FILTERS,
+  type QuizCodeStatus,
+} from '@/lib/quiz-codes';
 import { formatCount } from '@/components/discounts/format';
 import { firstParam, pageCount } from '@/lib/pagination';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils/format';
@@ -42,6 +46,11 @@ const STATUS_OPTIONS = [
   ...QUIZ_CODE_STATUSES.map((status) => ({ value: status, label: STATUS_BADGE[status].label })),
 ];
 
+const TIER_OPTIONS = [
+  { value: 'all', label: 'All tiers' },
+  ...QUIZ_TIER_FILTERS.map((percent) => ({ value: percent, label: `${percent}% off` })),
+];
+
 /**
  * The Aura quiz codes: stat strip → filters → table → pager.
  *
@@ -59,10 +68,22 @@ export default async function QuizPage({
   searchParams?: Promise<Search>;
 }) {
   const resolved = searchParams ? await searchParams : {};
+  // Normalize through the same allowlists the data layer narrows with, so a
+  // malformed `?status=bogus` stops here instead of surviving as an "active
+  // filter" over an unfiltered list (the "clear filters" link would then
+  // promise a change it cannot deliver). The tier list comes from
+  // `QUIZ_TIER_FILTERS` so the option set, the URL vocabulary and the SQL
+  // filter cannot drift apart.
+  const rawStatus = firstParam(resolved.status);
+  const status =
+    rawStatus && (QUIZ_CODE_STATUSES as readonly string[]).includes(rawStatus) ? rawStatus : undefined;
+  const rawPercent = firstParam(resolved.percent);
+  const percent =
+    rawPercent && (QUIZ_TIER_FILTERS as readonly string[]).includes(rawPercent) ? rawPercent : undefined;
   const params: Record<string, string | undefined> = {
     q: firstParam(resolved.q)?.trim() || undefined,
-    status: firstParam(resolved.status),
-    percent: firstParam(resolved.percent),
+    status,
+    percent,
   };
   const requestedPage = Number(firstParam(resolved.page)) || 1;
 
@@ -89,10 +110,7 @@ export default async function QuizPage({
         })
       : listed;
 
-  const filtered =
-    Boolean(params.q) ||
-    Boolean(params.status && params.status !== 'all') ||
-    Boolean(params.percent && params.percent !== 'all');
+  const filtered = Boolean(params.q) || Boolean(status) || Boolean(percent);
 
   const columns: DataTableColumn<QuizCodeRow>[] = [
     {
@@ -243,12 +261,7 @@ export default async function QuizPage({
             name="percent"
             label="Tier"
             value={params.percent ?? 'all'}
-            options={[
-              { value: 'all', label: 'All tiers' },
-              { value: '10', label: '10% off' },
-              { value: '20', label: '20% off' },
-              { value: '40', label: '40% off' },
-            ]}
+            options={TIER_OPTIONS}
           />
         </FilterBar>
 

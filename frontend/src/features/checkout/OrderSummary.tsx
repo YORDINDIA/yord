@@ -12,6 +12,7 @@ import { shippingLabel } from '@/lib/shipping';
 import { EmptyState } from '@/features/ui/EmptyState';
 import { CtaLink } from '@/features/ui/CtaLink';
 import { PromoCode } from './PromoCode';
+import { promoLines, useEligibleProductIds } from '@/features/quiz/useEligibleProductIds';
 
 export interface OrderSummaryProps {
   className?: string;
@@ -36,8 +37,14 @@ export function OrderSummary({ className }: OrderSummaryProps) {
   const totalSavings = useCartStore((state) => state.totalSavings());
   const promoCode = usePromoStore((state) => state.code);
   const promoPercent = usePromoPercent();
+  // The code discounts only the campaign collection's lines; the scope comes
+  // from the same route the cart uses, so the two totals cannot disagree.
+  const eligibleIds = useEligibleProductIds();
 
-  const { discountAmount, gstAmount, total } = computeTotals(items, promoPercent);
+  const { discountAmount, gstAmount, total } = computeTotals(
+    promoLines(items, eligibleIds),
+    promoPercent
+  );
 
   const shipping = shippingLabel(subtotal);
 

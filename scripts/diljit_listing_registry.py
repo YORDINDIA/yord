@@ -46,14 +46,23 @@ frames, which live under `agnes-out/` rather than on Drive.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPTS_DIR.parent
 
+# The source assets live on one operator's Google Drive mount. The absolute
+# default below is that machine's path; any other checkout points the whole
+# pipeline at its own copy of the folder with `DILJIT_DRIVE_ROOT` — the
+# renderer, both mockup extractors and the publishers all resolve their roots
+# through this one constant, so a single env var moves the entire backfill.
 DRIVE_ROOT = Path(
-    "/Users/sakshammittal/Library/CloudStorage/GoogleDrive-saksham@techaintern.com"
-    "/My Drive/YORD INDIA/Diljit Dosanjh"
+    os.environ.get(
+        "DILJIT_DRIVE_ROOT",
+        "/Users/sakshammittal/Library/CloudStorage/GoogleDrive-saksham@techaintern.com"
+        "/My Drive/YORD INDIA/Diljit Dosanjh",
+    )
 )
 APPARELS = DRIVE_ROOT / "Merch Designs" / "Apparels"
 FRIDGE = DRIVE_ROOT / "Merch Designs" / "Fridge Magnets" / "Diljit Dosanjh"
@@ -672,15 +681,24 @@ def tags_for(design: dict) -> str:
     )
 
 
-def build() -> list[dict]:
+def build(only: str | None = None) -> list[dict]:
     """Expand the registry into fully-resolved, per-design publish records.
 
     `mockups` holds paths relative to APPARELS and every one is checked to
     exist. Files are pinned individually rather than by folder because the
     folders mix designs -- see the note above the mockup-only entries.
+
+    `only` selects one design *before* validation: `composite_diljit_art.py
+    --only <key>` must be able to rework a single design without every other
+    design's source file being present on the machine running it.
     """
+    selected = DESIGNS
+    if only is not None:
+        selected = [d for d in DESIGNS if d["key"] == only]
+        if not selected:
+            raise SystemExit(f"no design with key {only!r} in the registry")
     out = []
-    for design in DESIGNS:
+    for design in selected:
         handle = handle_for(design)
 
         # `art` is relative to APPARELS, except a path starting with "/" which is

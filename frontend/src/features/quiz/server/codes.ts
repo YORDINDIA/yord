@@ -109,6 +109,47 @@ export async function reserveCode(
 }
 
 /**
+ * Give a hold back early, after the payment that held the code was refunded.
+ *
+ * `release_quiz_code` is a CAS keyed on the reservation, so this is safe to
+ * call speculatively from any refund path: a code already redeemed, or taken
+ * over by a different payment once its lease went stale, is left untouched.
+ * Returns whether the hold actually cleared; a `false` is logged by the caller,
+ * never surfaced — the refund, not the hold, is the answer the shopper gets.
+ */
+export async function releaseCode(
+  supabase: ServiceClient,
+  code: string,
+  reservation: string
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('release_quiz_code', {
+    p_code: normalizeCode(code),
+    p_reservation: reservation,
+  });
+  if (error) return false;
+  return Boolean((data as { ok?: boolean } | null)?.ok);
+}
+
+/**
+ * The code a completed order's discount bookkeeping should be reconciled
+ * against, derived from the payment rather than the request body: a replay of
+ * a discounted payment finds the row its Razorpay order id holds (or held —
+ * the lookup works before and after redemption).
+ */
+export async function codeHeldByPayment(
+  supabase: ServiceClient,
+  reservation: string
+): Promise<{ code: string; percent: number } | null> {
+  const { data, error } = await supabase
+    .from('quiz_codes')
+    .select('code, percent')
+    .eq('reserved_for', reservation)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { code: data.code, percent: data.percent };
+}
+
+/**
  * Stamp the code as spent against the order that used it.
  *
  * Guarded on `reserved_for = reservation`, so only the payment holding the code

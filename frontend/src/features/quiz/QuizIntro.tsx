@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@yord/ui';
 import { Button } from '@/features/ui/Button';
-import { CAMPAIGN, QUIZ_TIERS } from './config';
+import { CAMPAIGN, QUIZ_TIERS, QUIZ_TIME_LIMIT_SECONDS } from './config';
 import { QUIZ_QUESTION_COUNT } from './questions';
+import { formatClock } from './timing';
 
 /**
  * The first screen: what this is, what is at stake, and a way out.
@@ -28,8 +29,9 @@ export function QuizIntro({ onStart }: { onStart: () => void }) {
           already states it, and the ladder below shows the percentages — so
           this line carries the mechanic and the guarantee instead. */}
       <p className="mt-3 text-text-muted">
-        {QUIZ_QUESTION_COUNT} questions, easy to hard. Everyone who finishes earns a code — the
-        ladder below is what you are playing for.
+        {QUIZ_QUESTION_COUNT} questions, easy to hard, {formatClock(QUIZ_TIME_LIMIT_SECONDS)} on the
+        clock. When time runs out, whatever you have answered is your score — and everyone who
+        finishes earns a code.
       </p>
 
       {/* The ladder, so nobody has to guess what a bad round costs them. Easiest

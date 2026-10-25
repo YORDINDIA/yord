@@ -31,10 +31,10 @@
 --   select to_regclass('public.quiz_codes');
 --
 -- Deploy order: apply this file before deploying the storefront change. A
--- storefront newer than the database finds the functions missing, answers
--- `CODE_UNAVAILABLE`, and sells at full price — degraded, never a bad discount.
--- The reverse order (new database, old storefront) changes nothing: nothing
--- reads the table.
+-- storefront newer than the database finds the functions missing: a checkout
+-- with a code in the field is refused with `CODE_UNAVAILABLE` (never a wrong
+-- discount), and a checkout without one sells at full price. The reverse order
+-- (new database, old storefront) changes nothing: nothing reads the table.
 
 -- ---------------------------------------------------------------------------
 -- One row per minted code. `id` is an identity column on purpose: 015 was the
@@ -59,8 +59,11 @@ create table if not exists public.quiz_codes (
   -- question set changes.
   total integer not null check (total > 0),
   -- Razorpay order id this code is held for. `reserve_quiz_code` sets it and
-  -- only the same payment can re-take it, which is what makes a verify retry
-  -- idempotent without letting a second payment take a spent code.
+  -- only the same payment can re-take it inside the 15-minute lease, which is
+  -- what makes a verify retry idempotent without letting a second payment take
+  -- a spent code. After the lease a hold is stale and any payment may take the
+  -- code over (`reserve_quiz_code`); `release_quiz_code` clears it early when
+  -- that payment was refunded.
   reserved_for text,
   reserved_at timestamptz,
   redeemed_at timestamptz,
@@ -78,6 +81,12 @@ create table if not exists public.quiz_codes (
 -- admin's "show me redeemed codes" read.
 create index if not exists quiz_codes_redeemed_at_idx
   on public.quiz_codes (redeemed_at);
+
+-- verify-payment looks a code up by the payment holding it on every replay of
+-- a discounted order, to reconcile discount bookkeeping the first attempt may
+-- have failed to write (see `reconcileQuizDiscount` in the route).
+create index if not exists quiz_codes_reserved_for_idx
+  on public.quiz_codes (reserved_for);
 
 alter table public.quiz_codes enable row level security;
 
@@ -142,10 +151,14 @@ $$;
 -- `peek` a millisecond apart and both charge the discount. The CAS closes that
 -- window with two arms, and the grouping between them is load-bearing —
 --
---   * **free and not under a live hold** — `reserved_for is null` *and* the
---     hold, if any, is older than the 15-minute lease. The lease arm is what
---     stops a crashed verify that never redeemed from locking a code out
---     forever.
+--   * **not under a live hold** — `reserved_at` is null (never reserved) or
+--     older than the 15-minute lease. The lease is what bounds a crashed verify
+--     that never redeemed: a hold whose payment is gone goes stale, and after
+--     15 minutes any payment may take the code over. An earlier version also
+--     required `reserved_for is null` in this arm, which made a hold permanent —
+--     nothing ever writes `reserved_for` back to null on its own, so a code
+--     abandoned mid-payment could never be reserved again even though `peek`
+--     (which only reads `reserved_at`) reported it usable.
 --   * **or already held by this same payment** — `reserved_for = p_reservation`.
 --     This arm is deliberately *not* lease-bounded: a retry seconds after the
 --     first attempt must re-take its own hold, or the replay would find the code
@@ -154,6 +167,14 @@ $$;
 --     quietly made this one unreachable — `reserved_at` was always seconds old
 --     on a retry, so the lease clause rejected every row the retry arm matched.
 --     `migration 018`'s own checks in `docs/deploy.md` §8 catch it.
+--
+-- The takeover arm is safe against the one bad ordering left — an order that
+-- completed with the discount but whose `redeemed_at` write failed — because
+-- verify-payment *reconciles* on replay: every completed-order success path
+-- re-runs the discount bookkeeping and the guarded redeem before answering, so
+-- the code is spent in the same breath the money is confirmed, and the lease
+-- cannot free a discount that was actually charged while anyone is still
+-- retrying.
 --
 -- Returns `{ok: true, percent, correct, total}` on success and
 -- `{ok: false, reason}` otherwise, with the same `reason` tokens as `peek`.
@@ -178,10 +199,8 @@ begin
      and redeemed_at is null
      and now() <= p_ends_at
      and (
-       (
-         reserved_for is null
-         and (reserved_at is null or reserved_at < now() - interval '15 minutes')
-       )
+       reserved_at is null
+       or reserved_at < now() - interval '15 minutes'
        or reserved_for = p_reservation
      )
   returning * into v_row;
@@ -201,8 +220,45 @@ begin
 end;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Give a hold back early. verify-payment calls this after a *definitive*
+-- refund of the payment holding the code, so a shopper whose checkout was
+-- refunded at the cart/stock/amount gates can start a new payment with the
+-- same code immediately instead of waiting out the lease.
+--
+-- The guards make it safe to call speculatively from any refund path: only the
+-- payment that owns the hold is cleared, a redeemed code is never un-spent,
+-- and a code already taken over by another payment (stale lease) is left
+-- alone. Returns `{ok: true}` when the hold was cleared, `{ok: false}`
+-- otherwise — callers log a `false`, nothing downstream depends on it.
+-- ---------------------------------------------------------------------------
+create or replace function public.release_quiz_code(
+  p_code text,
+  p_reservation text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_released boolean;
+begin
+  update public.quiz_codes
+     set reserved_for = null,
+         reserved_at = null
+   where code = upper(btrim(p_code))
+     and reserved_for = p_reservation
+     and redeemed_at is null
+  returning true into v_released;
+
+  return jsonb_build_object('ok', v_released is true);
+end;
+$$;
+
 revoke all on function public.peek_quiz_code(text, timestamptz) from public;
 revoke all on function public.reserve_quiz_code(text, text, timestamptz) from public;
+revoke all on function public.release_quiz_code(text, text) from public;
 
 -- Supabase grants EXECUTE to anon/authenticated at CREATE FUNCTION time, so
 -- revoking `public` alone leaves the per-role grants in place and the functions
@@ -210,6 +266,8 @@ revoke all on function public.reserve_quiz_code(text, text, timestamptz) from pu
 -- re-granted below. Same correction as 010.
 revoke all on function public.peek_quiz_code(text, timestamptz) from anon, authenticated;
 revoke all on function public.reserve_quiz_code(text, text, timestamptz) from anon, authenticated;
+revoke all on function public.release_quiz_code(text, text) from anon, authenticated;
 
 grant execute on function public.peek_quiz_code(text, timestamptz) to service_role;
 grant execute on function public.reserve_quiz_code(text, text, timestamptz) to service_role;
+grant execute on function public.release_quiz_code(text, text) to service_role;

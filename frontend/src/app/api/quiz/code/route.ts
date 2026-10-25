@@ -10,12 +10,20 @@ import { CODE_REJECTION_MESSAGE, peekCode } from '@/features/quiz/server/codes';
  *
  * `POST /api/quiz/code`
  *   body  { code: string }
- *   200   { ok: true, percent } or { ok: false, message }
+ *   200   { ok: true, percent } or { ok: false, reason, message }
+ *   413   body larger than 1 KB
  *   429   rate limited
  *
  * A rejected code answers 200 with `ok: false`, not 4xx: "this code is spent"
  * is a normal answer to a normal question, and the promo field renders the
- * message either way. Only a malformed request is a 400.
+ * message either way. Only a malformed request is a 400. `reason` carries the
+ * machine token (`not_found` | `redeemed` | `expired` | `held` |
+ * `unavailable`) so a caller can tell a definitive rejection from a transient
+ * one without parsing the copy.
+ *
+ * The body is size-capped before parsing: the only field this route reads is a
+ * ≤64-char code, so anything past a kilobyte is not a shopper, and parsing it
+ * would only spend worker time on it.
  *
  * The limit is per IP and exists to stop enumeration. Codes are six characters
  * from a 32-symbol alphabet (32^6 ≈ 1.07e9), so a blind guess is hopeless, but
@@ -25,19 +33,39 @@ import { CODE_REJECTION_MESSAGE, peekCode } from '@/features/quiz/server/codes';
  * concert.
  */
 
+/** Requests larger than this are refused before the body is parsed. */
+const MAX_BODY_BYTES = 1024;
+
 export async function POST(request: NextRequest) {
   if (isRateLimited(`quiz-code:${clientIp(request)}`, 20, 60 * 1000)) {
     return rateLimitResponse();
   }
 
-  const body = await request.json().catch(() => null);
+  const declaredLength = Number(request.headers.get('content-length') ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Invalid code' }, { status: 413 });
+  }
+
+  const text = await request.text().catch(() => '');
+  if (text.length > MAX_BODY_BYTES) {
+    // Chunked bodies carry no content-length; the read above is the backstop.
+    return NextResponse.json({ error: 'Invalid code' }, { status: 413 });
+  }
+  const body = (() => {
+    try {
+      return JSON.parse(text) as { code?: unknown } | null;
+    } catch {
+      return null;
+    }
+  })();
+
   const raw = typeof body?.code === 'string' ? body.code : '';
   if (raw.length === 0 || raw.length > 64) {
     return NextResponse.json({ error: 'Invalid code' }, { status: 400 });
   }
 
   if (!isValidCodeFormat(raw)) {
-    return NextResponse.json({ ok: false, message: CODE_REJECTION_MESSAGE.not_found });
+    return NextResponse.json({ ok: false, reason: 'not_found', message: CODE_REJECTION_MESSAGE.not_found });
   }
 
   const supabase = (() => {
@@ -49,12 +77,20 @@ export async function POST(request: NextRequest) {
 
   if (!supabase) {
     logWarn('quiz-code', 'MISCONFIGURED', 'Missing Supabase env vars');
-    return NextResponse.json({ ok: false, message: CODE_REJECTION_MESSAGE.unavailable });
+    return NextResponse.json({
+      ok: false,
+      reason: 'unavailable',
+      message: CODE_REJECTION_MESSAGE.unavailable,
+    });
   }
 
   const lookup = await peekCode(supabase, normalizeCode(raw));
   if (!lookup.ok) {
-    return NextResponse.json({ ok: false, message: CODE_REJECTION_MESSAGE[lookup.reason] });
+    return NextResponse.json({
+      ok: false,
+      reason: lookup.reason,
+      message: CODE_REJECTION_MESSAGE[lookup.reason],
+    });
   }
 
   return NextResponse.json({ ok: true, percent: lookup.percent });

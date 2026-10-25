@@ -24,11 +24,11 @@ from pathlib import Path
 from PIL import Image
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+from diljit_listing_registry import DRIVE_ROOT  # noqa: E402
+
 ROOT = SCRIPTS_DIR.parent
-DRIVE_ROOT = Path(
-    "/Users/sakshammittal/Library/CloudStorage/GoogleDrive-saksham@techaintern.com"
-    "/My Drive/YORD INDIA/Diljit Dosanjh"
-)
 HOODIES = DRIVE_ROOT / "Recorded Videos/Diljit Reflector Tshirts: Hoodies"
 OUT_DIR = ROOT / "agnes-out" / "diljit-hoodie" / "mockups-reflective"
 
@@ -60,9 +60,14 @@ def centre_crop(im: Image.Image, cx: float, cy: float) -> Image.Image:
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     made = 0
+    failed = 0
     for name, src, cx, cy in PICKS:
         if not src.exists():
-            print(f"  SKIP {name}: missing {src.name}", file=sys.stderr)
+            # A missing source is a failure, not a skip: the publish step
+            # reads exactly these files, and a partial run that "succeeded"
+            # would let it publish stale or missing gallery slots.
+            print(f"  FAIL {name}: missing {src}", file=sys.stderr)
+            failed += 1
             continue
         im = Image.open(src)
         im = im.convert("RGB")
@@ -71,8 +76,11 @@ def main() -> int:
         out.save(path)
         print(f"  {name} <- {src.name[:44]}  {im.size[0]}x{im.size[1]} -> {OUT_W}x{OUT_H}")
         made += 1
-    print(f"\n{made} mockups -> {OUT_DIR}")
-    return 0 if made else 1
+    print(f"\n{made}/{len(PICKS)} mockups -> {OUT_DIR}")
+    # Success only when *every* pick was processed: the extractor is a step in
+    # a pipeline, and a partial set of mockups is a bad listing, not a good
+    # enough one.
+    return 0 if made == len(PICKS) else 1
 
 
 if __name__ == "__main__":

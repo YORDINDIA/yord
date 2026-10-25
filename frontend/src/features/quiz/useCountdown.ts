@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { CAMPAIGN, campaignIsOpen } from './config';
 
 /**
@@ -65,4 +65,54 @@ export function useCountdownLabel(): string | null {
  */
 export function useCampaignOpen(): boolean {
   return useSyncExternalStore(subscribeToClock, campaignIsOpen, () => true);
+}
+
+/**
+ * Whether the campaign is still open, judged from the server's clock rather
+ * than the visitor's wall clock.
+ *
+ * `useCampaignOpen` above reads the browser clock, so a device set a day fast
+ * closes the campaign a day early — `/quiz` would refuse an offer the server
+ * still honours. This hook instead anchors on `serverNowMs`, handed down from
+ * a `force-dynamic` server render, and adds only *elapsed* time measured with
+ * the same browser clock before and after. Any local skew appears in both
+ * readings and cancels, so the answer stays as authoritative as the server's
+ * while still ticking down in a tab that stays open past the deadline.
+ *
+ * `serverOpen` (the render's verdict) is the hydration snapshot: before the
+ * browser has measured anything, the page agrees with what the server painted,
+ * so a stale frame can only ever be too pessimistic, never too generous.
+ */
+/** The anchor pair captured on first mount; both clocks read together. */
+interface ClockAnchor {
+  server: number;
+  local: number;
+}
+
+/**
+ * Reads both clocks. A named function (not an inline arrow) so the compiler
+ * lint sees a call, the same way `useCampaignOpen` calls `campaignIsOpen`,
+ * rather than a `Date.now()` in render scope.
+ */
+function readClockAnchor(serverNowMs: number): ClockAnchor {
+  return { server: serverNowMs, local: Date.now() };
+}
+
+/** Open-at-anchor: server time advanced by locally-measured elapsed time. */
+function campaignOpenAt(anchor: ClockAnchor, serverOpen: boolean): boolean {
+  return serverOpen && anchor.server + (Date.now() - anchor.local) <= Date.parse(CAMPAIGN.endsAt);
+}
+
+export function useCampaignOpenOnServerClock(serverOpen: boolean, serverNowMs: number): boolean {
+  // The anchor is state with a lazy initialiser: it must be captured once,
+  // on mount, and survive re-renders — including the minute tick below, which
+  // re-reads the answer against the *same* anchor.
+  const [anchor] = useState(() => readClockAnchor(serverNowMs));
+  // Same subscription as `useCampaignOpen`: the answer flips at most once, and
+  // the minute tick is what re-reads it in a long-lived tab.
+  return useSyncExternalStore(
+    subscribeToClock,
+    () => campaignOpenAt(anchor, serverOpen),
+    () => serverOpen
+  );
 }

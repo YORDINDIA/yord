@@ -329,12 +329,18 @@ def main() -> int:
     parser.add_argument("--only", help="one design key")
     args = parser.parse_args()
 
-    records = [r for r in build() if r["art_path"]]
-    if args.only:
-        records = [r for r in records if r["key"] == args.only]
-        if not records:
-            print(f"no design with art matches {args.only!r}", file=sys.stderr)
-            return 1
+    # `only` is passed INTO `build` so the registry validates just the chosen
+    # design: filtering afterwards would still require every other design's
+    # art and mockups to be present on this machine, which defeats the point of
+    # reworking one listing on a checkout that lacks the Drive mount.
+    try:
+        records = [r for r in build(args.only) if r["art_path"]]
+    except SystemExit as exit_request:
+        print(exit_request, file=sys.stderr)
+        return 1
+    if args.only and not records:
+        print(f"no design with art matches {args.only!r}", file=sys.stderr)
+        return 1
 
     made: list[tuple[str, Path]] = []
     for record in records:

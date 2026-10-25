@@ -109,22 +109,25 @@ PLATES = {
 
 
 def agnes_config() -> tuple[str, str, str]:
-    key = os.getenv("AGNES_AI_API_KEY")
-    if not key:
-        raise SystemExit("AGNES_AI_API_KEY missing from .env")
+    # Non-raising on purpose (the punjabi/covers shape): a dry run prints
+    # prompts and the model default without a key; only --execute needs one.
     base = os.getenv("AGNES_BASE_URL") or AGNES_DEFAULT_BASE_URL
     model = os.getenv("AGNES_IMAGE_MODEL") or AGNES_DEFAULT_IMAGE_MODEL
-    return base.rstrip("/"), model, key
+    return base.rstrip("/"), model, os.getenv("AGNES_AI_API_KEY") or ""
 
 
 def generate_image(prompt: str, base_url: str, model: str, api_key: str) -> bytes:
     url = f"{base_url}/images/generations"
+    # Same contract as generate_punjabi_tee_plates.py and the admin's
+    # `agnes.ts`: the aspect field is `ratio`, and `response_format` must sit
+    # under `extra_body` or Agnes rejects the request outright.
     payload = {
         "model": model,
         "prompt": prompt,
         "n": 1,
         "size": IMAGE_SIZE,
-        "aspect_ratio": IMAGE_RATIO,
+        "ratio": IMAGE_RATIO,
+        "extra_body": {"response_format": "url"},
     }
     last: Exception | None = None
     for attempt, delay in enumerate((0,) + BACKOFF_DELAYS):
@@ -140,6 +143,11 @@ def generate_image(prompt: str, base_url: str, model: str, api_key: str) -> byte
             if r.status_code == 429 or r.status_code >= 500:
                 last = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
                 continue
+            if r.status_code in (400, 401, 402, 403, 404):
+                # Not retryable: a malformed request, a bad key, an exhausted
+                # quota or a missing model will fail identically next time, and
+                # ~63 s of backoff per plate only delays the operator seeing it.
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             r.raise_for_status()
             body = r.json()
             item = (body.get("data") or [{}])[0]
@@ -150,7 +158,9 @@ def generate_image(prompt: str, base_url: str, model: str, api_key: str) -> byte
                 d.raise_for_status()
                 return d.content
             raise RuntimeError(f"no image in response: {json.dumps(body)[:300]}")
-        except Exception as exc:  # noqa: BLE001 - retried below
+        except requests.RequestException as exc:
+            # Transport failures are the retryable class; the RuntimeErrors
+            # above carry their own verdict and propagate immediately.
             last = exc
     raise RuntimeError(f"generation failed after {len(BACKOFF_DELAYS) + 1} attempts: {last}")
 
@@ -174,6 +184,8 @@ def main() -> int:
     execute = resolve_execute(args)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Resolved before the dry-run branch so a prompt-only run works without a
+    # key; the key itself is only required (and only checked) for --execute.
     config = agnes_config()
 
     if not execute:
@@ -183,22 +195,39 @@ def main() -> int:
         print("dry-run; pass --execute to generate")
         return 0
 
+    if not config[2]:
+        print("AGNES_AI_API_KEY is not set (.env)", file=sys.stderr)
+        return 2
+
     print(f"\n{len(PLATES)} plates, {IMAGE_SIZE} {IMAGE_RATIO}, model={config[1]}, base={config[0]}")
-    results = []
+    results: list[dict] = []
+    failures: list[dict] = []
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futures = {pool.submit(task, p, pr, config, args.again): p for p, pr in PLATES.items()}
         for fut in as_completed(futures):
-            results.append(fut.result())
+            plate = futures[fut]
+            try:
+                results.append(fut.result())
+            except Exception as error:  # one bad plate must not sink the batch
+                failures.append({"plate": plate, "error": str(error)})
+                print(f"FAIL {plate}: {error}", file=sys.stderr)
 
+    # Always written: the other worker's success must reach the manifest even
+    # when its sibling fails, or the next run cannot tell done from missing.
     merged = []
     if MANIFEST.exists():
         merged = json.loads(MANIFEST.read_text()).get("plates", [])
-    merged = [p for p in merged if p["plate"] not in {r["plate"] for r in results}] + results
+    recorded = {r["plate"] for r in results}
+    merged = [p for p in merged if p["plate"] not in recorded] + results
     MANIFEST.write_text(json.dumps(
         {"generated_at": datetime.now(timezone.utc).isoformat(), "plates": merged},
         indent=1,
     ))
     print(f"\n{len(results)} plates -> {OUT_DIR}")
+    if failures:
+        for failure in failures:
+            print(f"  FAILED {failure['plate']}: {failure['error']}", file=sys.stderr)
+        return 1
     return 0
 
 

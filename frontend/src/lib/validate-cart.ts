@@ -1,12 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeTotals, type PricedLine } from '@/lib/pricing';
+import { CAMPAIGN } from '@/features/quiz/config';
 
 export interface CartLine {
   variantId: number;
   quantity: number;
 }
 
-export type CartValidationCode = 'UNKNOWN_VARIANT' | 'BAD_AMOUNT' | 'OUT_OF_STOCK';
+export type CartValidationCode =
+  | 'UNKNOWN_VARIANT'
+  | 'BAD_AMOUNT'
+  | 'OUT_OF_STOCK'
+  | 'DISCOUNT_LOOKUP_FAILED';
 
 export interface ValidatedVariant {
   id: number;
@@ -36,6 +41,32 @@ export type CartValidationResult =
 type SupabaseLike = SupabaseClient;
 
 /**
+ * The product ids a promo code may discount: membership of the campaign's
+ * collection, from `collects`. Called only when a discount is actually in
+ * play, so ordinary orders pay no extra read. A collection that does not
+ * exist yields an empty set (the code then discounts nothing and
+ * `create-order` refuses it); a *failed read* is reported as `error` and the
+ * caller fails the validation, because it cannot honestly price either way.
+ */
+async function eligibleProductIds(
+  supabase: SupabaseLike
+): Promise<{ ids: Set<number>; error: boolean }> {
+  const { data, error } = await supabase
+    .from('collections')
+    .select('id, collects ( product_id )')
+    .eq('handle', CAMPAIGN.discountCollectionHandle)
+    .maybeSingle();
+
+  if (error || !data) return { ids: new Set<number>(), error: Boolean(error) };
+  const rows = (data.collects ?? []) as { product_id: number | null }[];
+  const ids = new Set<number>();
+  for (const row of rows) {
+    if (typeof row.product_id === 'number') ids.add(row.product_id);
+  }
+  return { ids, error: false };
+}
+
+/**
  * Single source for server-side cart validation.
  * Fetches authoritative variant prices, parses/validates amounts, checks
  * stock, and computes totals via `@/lib/pricing` (sole money-math source).
@@ -45,7 +76,9 @@ type SupabaseLike = SupabaseClient;
  * helper never looks a code up, because the same code has to be resolved once
  * per request and the three checkout routes each need the answer before they
  * need the totals. It is clamped inside `computeTotals`, so a bad value from a
- * caller under-charges rather than over-charges.
+ * caller under-charges rather than over-charges. When it is non-zero, the
+ * lines are marked eligible against the campaign collection before pricing,
+ * which is what scopes the discount to that collection.
  */
 export async function validateCartLines(
   supabase: SupabaseLike,
@@ -133,6 +166,25 @@ export async function validateCartLines(
     );
   }
 
+  // Only paid for when a code is actually discounting something. A failed
+  // eligibility read is a failed validation, not a silent zero discount: the
+  // shopper is holding a code, and pricing the order as if it did not exist
+  // would answer "your cart has no Diljit items" to someone whose cart is
+  // full of them.
+  let eligibleIds = new Set<number>();
+  if (discountPercent > 0) {
+    const eligible = await eligibleProductIds(supabase);
+    if (eligible.error) {
+      return {
+        ok: false,
+        code: 'DISCOUNT_LOOKUP_FAILED',
+        error: 'Could not apply the promo code. Please try again.',
+        status: 503,
+      };
+    }
+    eligibleIds = eligible.ids;
+  }
+
   const priced: PricedLine[] = [];
   for (const line of items) {
     const variant = byId.get(line.variantId);
@@ -161,7 +213,11 @@ export async function validateCartLines(
         status: 409,
       };
     }
-    priced.push({ price: variant.price, quantity: line.quantity });
+    priced.push({
+      price: variant.price,
+      quantity: line.quantity,
+      eligible: discountPercent > 0 ? eligibleIds.has(variant.product_id) : undefined,
+    });
   }
 
   const { subtotal, discountAmount, gstAmount, total, totalPaise } = computeTotals(

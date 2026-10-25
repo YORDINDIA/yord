@@ -194,8 +194,10 @@ describe('reconcilePendingVerify', () => {
       },
       orderName: 'YORD-1-ABCD',
       // This body carries no usable orderData, so there is no snapshot to
-      // reconcile the cart with.
+      // reconcile the cart with — and no `code`, so the checkout has nothing
+      // to clear on recovery.
       snapshot: null,
+      code: null,
     });
     expect(storage.map.has(PENDING_VERIFY_KEY)).toBe(false);
   });
@@ -228,6 +230,25 @@ describe('reconcilePendingVerify', () => {
         country: 'India',
       },
     });
+  });
+
+  it('carries the promo code the recovered order spent', async () => {
+    // The checkout clears exactly this code after a recovery (guarded on the
+    // store still holding it), because the recovered verify already redeemed
+    // it server-side. A body without a code recovers with `code: null`.
+    const storage = fakeStorage();
+    rememberPendingVerify(
+      storage,
+      JSON.stringify({
+        ...JSON.parse(verifyBodyWithSnapshot()),
+        code: 'AURA-7KQ2MZ',
+      })
+    );
+    const post = vi.fn(async () => attempt({ ok: true, status: 200, orderName: 'YORD-3-C0DE' }));
+
+    const outcome = await reconcilePendingVerify({ storage, post });
+
+    expect(outcome).toMatchObject({ kind: 'recovered', code: 'AURA-7KQ2MZ' });
   });
 
   it('carries a null snapshot when the body has no usable orderData', async () => {

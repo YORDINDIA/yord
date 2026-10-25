@@ -23,13 +23,39 @@ import { QUIZ_PERCENTAGES } from '@/features/quiz/config';
  * 018), and its JS side is exercised by the verify-payment suite.
  */
 
-function stubSupabase(rows: Record<string, unknown>[]) {
+/**
+ * A stub speaking the two query shapes `validateCartLines` uses: the variants
+ * read (`from('product_variants').select().in()`), and — only when a discount
+ * is pricing the cart — the campaign-collection read
+ * (`from('collections').select().eq().maybeSingle()`). `collection` is the row
+ * the eligibility lookup should answer with, or `null` for "no such
+ * collection".
+ */
+function stubSupabase(
+  rows: Record<string, unknown>[],
+  collection: { collects: { product_id: number }[] } | null = null,
+  collectionError = false,
+) {
   return {
-    from: () => ({
-      select: () => ({
-        in: async () => ({ data: rows, error: null }),
-      }),
-    }),
+    from: (table: string) => {
+      if (table === 'collections') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () =>
+                collectionError
+                  ? { data: null, error: new Error('collections read failed') }
+                  : { data: collection, error: null },
+            }),
+          }),
+        };
+      }
+      return {
+        select: () => ({
+          in: async () => ({ data: rows, error: null }),
+        }),
+      };
+    },
   } as never;
 }
 
@@ -123,6 +149,91 @@ describe('promo discount arithmetic', () => {
     expect(totals.gstAmount).toBe(57 + 275);
   });
 
+  it('treats a line with no eligibility flag as discountable', () => {
+    // Absent means `true`: callers with no scoping concept (and every line of
+    // history before the collection scope existed) priced the whole basket, and
+    // a default of false would have silently zeroed discounts elsewhere.
+    const absent = computeTotals([{ price: 1_000, quantity: 1 }], 10);
+    const explicitTrue = computeTotals([{ price: 1_000, quantity: 1, eligible: true }], 10);
+    expect(absent).toEqual(explicitTrue);
+    expect(absent.discountAmount).toBe(100);
+  });
+
+  it('discounts only the eligible lines of a mixed cart', () => {
+    // ₹1,000 eligible + ₹1,000 not, at 40%: the code takes 40% of the eligible
+    // line and nothing off the other. The rupee invariant has to survive the
+    // scope, or the order row stops adding up for the admin.
+    const totals = computeTotals(
+      [
+        { price: 1_000, quantity: 1, eligible: true },
+        { price: 1_000, quantity: 1, eligible: false },
+      ],
+      40,
+    );
+    expect(totals.subtotal).toBe(2_000);
+    expect(totals.discountAmount).toBe(400);
+    expect(totals.total).toBe(1_600);
+    expect(totals.discountAmount + totals.total).toBe(totals.subtotal);
+  });
+
+  it('charges — and taxes — an ineligible line at exactly its list price', () => {
+    // The eligible line is charged 600 (GST 29); the ineligible line 1,000
+    // (GST 48). Taxing the undiscounted eligible line (48) or discounting the
+    // ineligible one would each overstate or understate by real money.
+    const totals = computeTotals(
+      [
+        { price: 1_000, quantity: 1, eligible: true },
+        { price: 1_000, quantity: 1, eligible: false },
+      ],
+      40,
+    );
+    expect(totals.gstAmount).toBe(
+      Math.round(600 - 600 / 1.05) + Math.round(1_000 - 1_000 / 1.05),
+    );
+    expect(totals.gstAmount).toBe(29 + 48);
+  });
+
+  it('takes nothing off a cart with no eligible lines', () => {
+    const totals = computeTotals(
+      [
+        { price: 1_499, quantity: 1, eligible: false },
+        { price: 2_999, quantity: 2, eligible: false },
+      ],
+      40,
+    );
+    expect(totals.discountAmount).toBe(0);
+    expect(totals.total).toBe(totals.subtotal);
+    // `create-order` refuses a code whose cart discounts to zero, so this
+    // shape never reaches the gateway from the storefront.
+  });
+
+  it('keeps the rupee invariant on mixed baskets for every tier', () => {
+    const baskets = [
+      [
+        { price: 333, quantity: 3, eligible: true },
+        { price: 2_501, quantity: 2, eligible: false },
+      ],
+      [
+        { price: 2_499, quantity: 1, eligible: false },
+        { price: 3_000, quantity: 1, eligible: true },
+      ],
+      [{ price: 999, quantity: 1, eligible: false }],
+    ];
+    for (const basket of baskets) {
+      for (const percent of QUIZ_PERCENTAGES) {
+        const totals = computeTotals(basket, percent);
+        expect(totals.discountAmount + totals.total).toBe(totals.subtotal);
+        expect(Number.isInteger(totals.discountAmount)).toBe(true);
+        expect(totals.totalPaise).toBe(totals.total * 100);
+        // The discount can never exceed what the eligible lines alone cost.
+        const eligibleSubtotal = basket
+          .filter((line) => line.eligible)
+          .reduce((sum, line) => sum + line.price * line.quantity, 0);
+        expect(totals.discountAmount).toBeLessThanOrEqual(eligibleSubtotal);
+      }
+    }
+  });
+
   it('prices an empty cart at zero however large the code is', () => {
     for (const percent of QUIZ_PERCENTAGES) {
       const totals = computeTotals([], percent);
@@ -193,6 +304,19 @@ describe('validateCartLines carries the discount through', () => {
       products: { title: 'Tee', status: 'active' },
     },
   ];
+  // The campaign collection holds product 7 only; product 8 is not a member.
+  const diljitCollection = { collects: [{ product_id: 7 }] };
+  const mixedRows = [
+    ...rows,
+    {
+      id: 2,
+      price: 500,
+      inventory_quantity: 10,
+      title: 'M',
+      product_id: 8,
+      products: { title: 'Hoodie', status: 'active' },
+    },
+  ];
 
   it('defaults to no discount when the caller passes no percentage', async () => {
     const validated = await validateCartLines(stubSupabase(rows), [{ variantId: 1, quantity: 1 }]);
@@ -206,7 +330,7 @@ describe('validateCartLines carries the discount through', () => {
 
   it('returns the discounted total and the amount taken off', async () => {
     const validated = await validateCartLines(
-      stubSupabase(rows),
+      stubSupabase(rows, diljitCollection),
       [{ variantId: 1, quantity: 2 }],
       40,
     );
@@ -224,5 +348,54 @@ describe('validateCartLines carries the discount through', () => {
     const lineSum = validated.byId.get(1)!.price * 2;
     expect(lineSum).toBe(2_000);
     expect(lineSum - validated.discountAmount).toBe(validated.total);
+  });
+
+  it('discounts only the cart lines from the campaign collection', async () => {
+    // Two variants, one eligible by `collects` membership: the code touches
+    // ₹2,000 of the ₹2,500 cart and nothing else.
+    const validated = await validateCartLines(
+      stubSupabase(mixedRows, diljitCollection),
+      [
+        { variantId: 1, quantity: 2 },
+        { variantId: 2, quantity: 1 },
+      ],
+      40,
+    );
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) throw new Error(`expected ok, got ${validated.code}`);
+    expect(validated.subtotal).toBe(2_500);
+    expect(validated.discountAmount).toBe(800);
+    expect(validated.total).toBe(1_700);
+  });
+
+  it('fails closed when the eligibility read itself fails', async () => {
+    // Not "discount zero": the shopper is holding a code, and pricing their
+    // cart as if it did not exist would tell someone with a bag of Diljit
+    // styles that none of them qualify.
+    const validated = await validateCartLines(
+      stubSupabase(rows, null, true),
+      [{ variantId: 1, quantity: 1 }],
+      40,
+    );
+    expect(validated).toEqual({
+      ok: false,
+      code: 'DISCOUNT_LOOKUP_FAILED',
+      error: 'Could not apply the promo code. Please try again.',
+      status: 503,
+    });
+  });
+
+  it('discounts nothing when the campaign collection has no members', async () => {
+    // The shape `create-order` answers with CODE_NOT_APPLICABLE rather than
+    // charging: zero discount on a cart holding a code.
+    const validated = await validateCartLines(
+      stubSupabase(rows, { collects: [] }),
+      [{ variantId: 1, quantity: 1 }],
+      40,
+    );
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) throw new Error(`expected ok, got ${validated.code}`);
+    expect(validated.discountAmount).toBe(0);
+    expect(validated.total).toBe(validated.subtotal);
   });
 });

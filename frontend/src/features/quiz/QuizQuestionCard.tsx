@@ -39,6 +39,12 @@ export function QuizQuestionCard({ question, index, onAnswered }: QuizQuestionCa
   // A ref, not state: `answer` reads it to guarantee the verdict is reported
   // exactly once, and a re-render must not reset that guarantee.
   const reported = useRef(false);
+  // The in-flight answer request. Aborted on unmount so a popup dismissed while
+  // a verdict is in flight can never resolve into `onAnswered` — that callback
+  // is what advances (and eventually submits) the quiz, and firing it from a
+  // card that is no longer on screen would keep a closed popup playing.
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const answer = useCallback(
     async (choice: number) => {
@@ -46,12 +52,16 @@ export function QuizQuestionCard({ question, index, onAnswered }: QuizQuestionCa
       setSelected(choice);
       setPending(true);
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       let result: Verdict;
       try {
         const response = await fetch('/api/quiz/answer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questionId: question.id, choice }),
+          signal: controller.signal,
         });
         const data = (await response.json().catch(() => ({}))) as Partial<Verdict>;
         result =
@@ -62,6 +72,7 @@ export function QuizQuestionCard({ question, index, onAnswered }: QuizQuestionCa
               // hiccup here costs the player a fact line, never a tier.
               { correct: false, correctChoice: -1, fact: '' };
       } catch {
+        if (controller.signal.aborted) return; // the card is gone; nobody is listening
         result = { correct: false, correctChoice: -1, fact: '' };
       }
 
@@ -80,10 +91,22 @@ export function QuizQuestionCard({ question, index, onAnswered }: QuizQuestionCa
 
   // 1-4 select an option. Bound to the document so the player does not have to
   // focus the card first, and ignored while a modifier is held so browser
-  // shortcuts keep working.
+  // shortcuts keep working — and ignored while the visitor is typing in any
+  // field (search, newsletter), where a digit belongs to the text and the
+  // default must not be swallowed.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       const digit = Number(event.key);
       if (!Number.isInteger(digit) || digit < 1 || digit > question.options.length) return;
       event.preventDefault();

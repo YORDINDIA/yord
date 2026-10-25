@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, Timer, X } from 'lucide-react';
+import { cn } from '@yord/ui';
 import { Button } from '@/features/ui/Button';
 import { usePromoStore } from '@/lib/stores/promoStore';
 import { analyticsSessionId, track } from '@/lib/analytics/track';
-import { QUIZ_PERCENTAGES } from './config';
+import { QUIZ_PERCENTAGES, QUIZ_TIME_LIMIT_SECONDS } from './config';
 import { QUIZ_QUESTIONS } from './questions';
 import { QuizIntro } from './QuizIntro';
 import { QuizMasthead } from './QuizMasthead';
@@ -13,6 +14,7 @@ import { QuizQuestionCard } from './QuizQuestionCard';
 import { QuizResultView } from './QuizResultView';
 import { useQuizHydrated, useQuizStore, type QuizResult } from './quizStore';
 import { readMintResponse } from './mint';
+import { formatClock, secondsLeft, timerUrgency } from './timing';
 import { useCampaignOpen } from './useCountdown';
 import type { QuizTrigger } from './gateRules';
 
@@ -78,6 +80,17 @@ export function QuizRunner({ variant, trigger, onClose, onPhaseChange }: QuizRun
    * answer key cannot be asked twice.
    */
   const [closed, setClosed] = useState(false);
+  /**
+   * The clock hit zero before a single answer was recorded. Separate from the
+   * auto-submit path: `submit()` refuses an empty answer list server-side, so
+   * a round with nothing answered cannot mint — the honest screen is "time's
+   * up", with a way to start over.
+   */
+  const [timedOut, setTimedOut] = useState(false);
+  /** Seconds showing on the clock; null while no round is running. */
+  const [clock, setClock] = useState<number | null>(null);
+  /** One-shot spoken milestone ("Thirty seconds left") — never per tick. */
+  const [ping, setPing] = useState<string | null>(null);
 
   const hydrated = useQuizHydrated();
   const campaignOpen = useCampaignOpen();
@@ -95,6 +108,11 @@ export function QuizRunner({ variant, trigger, onClose, onPhaseChange }: QuizRun
   const advanceTimer = useRef<number | null>(null);
   const revealTimer = useRef<number | null>(null);
   const submitted = useRef(false);
+  // The round's starting stamp, read only inside the tick — a render must not
+  // read the clock (React 19 rejects that), so the countdown arrives as state.
+  const startedAtRef = useRef<number | null>(null);
+  // The last second milestone announced, so each is spoken once.
+  const lastPingRef = useRef<number | null>(null);
   // `quiz_viewed` fires once per mount, not once per render.
   const viewedRef = useRef(false);
 
@@ -189,8 +207,32 @@ export function QuizRunner({ variant, trigger, onClose, onPhaseChange }: QuizRun
     }
   }, [applyKnown, setStoredResult]);
 
+  /**
+   * The clock ran out. Whatever was answered is submitted through the normal
+   * (idempotent, server-scored) path — unanswered questions are simply absent
+   * from the submission and score as wrong. A round with *nothing* answered
+   * cannot be submitted at all, so it lands on the time's-up screen instead.
+   */
+  const expire = useCallback(() => {
+    if (advanceTimer.current !== null) {
+      window.clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
+    setClock(0);
+    if (submitted.current) return;
+    if (answersRef.current.length > 0) {
+      void submit();
+    } else {
+      setTimedOut(true);
+    }
+  }, [submit]);
+
   const onAnswered = useCallback(
     (isCorrect: boolean, choice: number) => {
+      // A verdict that lands after the round ended (clock expiry or an
+      // auto-submit already in flight) must not append to `answersRef` or arm
+      // another advance: the submission has left (or never existed).
+      if (submitted.current || timedOut) return;
       const question = QUIZ_QUESTIONS[index];
       if (!question) return;
 
@@ -202,13 +244,50 @@ export function QuizRunner({ variant, trigger, onClose, onPhaseChange }: QuizRun
         else setIndex(index + 1);
       }, ADVANCE_MS);
     },
-    [index, submit]
+    [index, submit, timedOut]
   );
 
   const start = useCallback(() => {
     track({ type: 'quiz_started' });
+    startedAtRef.current = Date.now();
+    setClock(QUIZ_TIME_LIMIT_SECONDS);
     setPhase('quiz');
   }, []);
+
+  /** From the time's-up screen: a fresh round, clock and all. */
+  const restart = useCallback(() => {
+    answersRef.current = [];
+    scoreRef.current = 0;
+    submitted.current = false;
+    lastPingRef.current = null;
+    setPing(null);
+    setError(null);
+    setIndex(0);
+    setTimedOut(false);
+    start();
+  }, [start]);
+
+  // The countdown. The interval lives only while a round is actually on
+  // screen, and it is the one place this component reads the clock — the tick
+  // callback, never the render. 250ms keeps the label honest about when zero
+  // lands without re-rendering on every animation frame.
+  useEffect(() => {
+    if (phase !== 'quiz' || timedOut) return;
+    const startedAt = startedAtRef.current;
+    if (startedAt === null) return;
+    const id = window.setInterval(() => {
+      const remaining = secondsLeft(startedAt, Date.now(), QUIZ_TIME_LIMIT_SECONDS);
+      setClock(remaining);
+      if (remaining === 30 || remaining === 10) {
+        if (lastPingRef.current !== remaining) {
+          lastPingRef.current = remaining;
+          setPing(remaining === 30 ? 'Thirty seconds left.' : 'Ten seconds left.');
+        }
+      }
+      if (remaining <= 0) expire();
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [phase, timedOut, expire]);
 
   /**
    * A visitor who already played sees their code, not the intro.
@@ -300,7 +379,49 @@ export function QuizRunner({ variant, trigger, onClose, onPhaseChange }: QuizRun
 
       {screen === 'intro' ? <QuizIntro onStart={start} /> : null}
 
-      {screen === 'quiz' || screen === 'submitting' ? (
+      {timedOut ? (
+        <div className="px-6 pb-10 pt-10 text-center sm:px-10">
+          <p className="font-accent text-sm tracking-[0.2em] text-text-muted">TIME&apos;S UP</p>
+          <h3 className="mt-3 font-display text-2xl text-text-primary">The clock beat you.</h3>
+          <p className="mt-3 text-sm text-text-muted">
+            Nothing answered before the buzzer, so there is no code this round.
+            The questions are quick — go again.
+          </p>
+          <Button onClick={restart} variant="gold" className="mt-6">
+            Start over
+          </Button>
+        </div>
+      ) : null}
+
+      {screen === 'quiz' && !timedOut && clock !== null ? (
+        <div className="flex items-center justify-center gap-2 px-6 pt-6 sm:px-10">
+          <Timer
+            className={cn(
+              'h-3.5 w-3.5',
+              timerUrgency(clock) === 'urgent' ? 'text-danger' : 'text-text-muted'
+            )}
+            aria-hidden="true"
+          />
+          <span
+            role="timer"
+            aria-label={`Time remaining: ${formatClock(clock)}`}
+            className={cn(
+              'font-accent text-sm tracking-[0.25em] tabular-nums',
+              timerUrgency(clock) === 'urgent' ? 'text-danger' : 'text-text-muted'
+            )}
+          >
+            {formatClock(clock)}
+          </span>
+          {/* The clock itself is silent to assistive tech — a live region
+              ticking every second is noise — and speaks only at the two
+              milestones, via the state set by the tick. */}
+          <span className="sr-only" aria-live="polite">
+            {ping ?? ''}
+          </span>
+        </div>
+      ) : null}
+
+      {(screen === 'quiz' || screen === 'submitting') && !timedOut ? (
         // The key is load-bearing: every per-question piece of state
         // (`selected`, `verdict`, the once-only `reported` ref) lives inside
         // the card, so the card must remount per question or question 1's

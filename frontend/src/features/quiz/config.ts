@@ -38,7 +38,23 @@ export const CAMPAIGN = {
    * campaign needs the same table.
    */
   endsAt: '2026-11-30T18:29:59.000Z',
+  /**
+   * The collection whose products a code discounts. Today that is the artist
+   * collection itself; it is a separate field so a future campaign can scope
+   * the reward to a tour capsule without touching the artist's whole line.
+   * Checkout resolves eligibility from `collects` against this handle — the
+   * discount is never order-wide.
+   */
+  discountCollectionHandle: 'diljit-dosanjh',
 } as const;
+
+/**
+ * The clock on the quiz: 2:30 for all ten questions. Client-side pressure
+ * only — `/api/quiz/complete` recomputes the score from the submitted choices
+ * and has no time budget to enforce, so an expired clock submits whatever was
+ * answered rather than voiding the round.
+ */
+export const QUIZ_TIME_LIMIT_SECONDS = 150;
 
 export type QuizTierId = 'bronze' | 'silver' | 'gold';
 
@@ -46,7 +62,7 @@ export interface QuizTier {
   id: QuizTierId;
   /** Shown on the result screen and in the admin table. */
   label: string;
-  /** Discount applied to the cart total at checkout. */
+  /** Discount applied to the campaign collection's lines at checkout. */
   percent: number;
   /** Lowest correct-answer count that earns this tier. */
   minCorrect: number;
@@ -76,7 +92,7 @@ export const QUIZ_TIERS: readonly QuizTier[] = [
     percent: 20,
     minCorrect: 5,
     headline: 'Solid fan. Real solid.',
-    blurb: 'A good score. Take 20% off anything in the store.',
+    blurb: 'A good score. Take 20% off Diljit Dosanjh styles.',
   },
   {
     id: 'bronze',
@@ -103,6 +119,16 @@ export function tierForScore(correct: number): QuizTier {
 /** True while codes can still be minted and redeemed. */
 export function campaignIsOpen(now: number = Date.now()): boolean {
   return now <= Date.parse(CAMPAIGN.endsAt);
+}
+
+/**
+ * The server's clock, for `force-dynamic` routes that hand the campaign
+ * window down to the client (`serverNowMs`). A named function rather than an
+ * inline `Date.now()` at the call site so the render stays lint-clean, the
+ * same way `campaignIsOpen` wraps its own clock read.
+ */
+export function serverNow(): number {
+  return Date.now();
 }
 
 /** Human date for the "use it by" line, in IST so it matches the copy. */

@@ -1,6 +1,7 @@
 import { MAX_DISCOUNT_PERCENT } from '@/lib/pricing';
 import { QUIZ_QUESTION_COUNT } from './questions';
 import { QUIZ_TIERS, tierForScore } from './config';
+import { isValidCodeFormat } from './codes';
 import type { QuizResult } from './quizStore';
 
 /**
@@ -82,6 +83,12 @@ export function readMintResponse(input: unknown, fallbackCorrect: number): MintO
   const percent = body.percent;
   if (
     !code ||
+    // Shape, not just non-empty: the runner persists and displays whatever
+    // this returns, and `applyKnown` would reject a malformed string without
+    // applying it — leaving a "code" on the result screen that can never be
+    // used. Anything the server did not format as `AURA-XXXXXX` is an error,
+    // and the player gets the retry, not a dead reward.
+    !isValidCodeFormat(code) ||
     typeof percent !== 'number' ||
     !Number.isInteger(percent) ||
     percent < 0 ||

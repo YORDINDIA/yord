@@ -169,7 +169,7 @@ python blog_media.py --execute        # map blogs to substitute OG or placeholde
 python ingest_clean.py --execute      # offline ingest rehearsal, writes ingest_rehearsal.json
 ```
 
-The live ingest itself is not implemented here. `docs/deploy.md` records the
+The live ingest itself is not implemented here. `../docs/deploy.md` records the
 database order, the R2 key conventions and the decisions for
 loading `data/clean/` (products live as `active`, article bodies cleaned and
 converted to HTML, generated images for articles whose originals were lost).
@@ -369,7 +369,7 @@ Error details are written to JSON files:
 For a fresh migration, run in this order:
 
 1. Apply schema: `schema.sql`, then the numbered `supabase/migrations/` files in
-   ascending order (see `docs/deploy.md` for the current list)
+   ascending order (see `../docs/deploy.md` for the current list)
 0b. For archive-recovered data: run the Archive Recovery Pipeline above first,
     then rehearse with `ingest_clean.py --execute` (validation only — it
     writes `ingest_rehearsal.json`, it does not upload). No command ingests

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { CAMPAIGN, QUIZ_TIERS, campaignEndsLabel } from '@/features/quiz/config';
 import { QuizMasthead } from '@/features/quiz/QuizMasthead';
 import { QUIZ_QUESTION_COUNT } from '@/features/quiz/questions';
-import { useCampaignOpen } from '@/features/quiz/useCountdown';
+import { useCampaignOpenOnServerClock } from '@/features/quiz/useCountdown';
 
 /**
  * The `/quiz` page's client half.
@@ -28,22 +28,29 @@ const QuizRunner = dynamic(
   }
 );
 
-export function QuizClient({ campaignOpen: openAtRender }: { campaignOpen: boolean }) {
-  const openOnThisDevice = useCampaignOpen();
+export function QuizClient({
+  campaignOpen: openAtRender,
+  serverNowMs,
+}: {
+  campaignOpen: boolean;
+  serverNowMs: number;
+}) {
   const top = QUIZ_TIERS.reduce((best, tier) => (tier.percent > best.percent ? tier : best));
 
   /**
-   * Both answers, and the answer is "closed" if either says so.
+   * The window is judged from the **server's** clock, not the visitor's.
    *
-   * The page is prerendered, so its copy is a snapshot of the clock at build
-   * time; the hook is the browser's live answer. On 1 December a stale page
+   * The page is `force-dynamic`, so `openAtRender`/`serverNowMs` are
+   * per-request truths; the hook counts only *elapsed* time from there, so a
+   * device with a fast clock can no longer close an offer the server still
+   * honours (and a slow one cannot extend it). On 1 December a stale render
    * would otherwise pitch "score 8 or more and take 40% off" directly above a
    * box saying the quiz has closed — the pitch is the part a visitor reads
-   * first, and it would be the part that lied. Taking the AND means the copy
-   * can only ever be too pessimistic for the few frames before hydration, never
-   * too generous.
+   * first, and it would be the part that lied. Anchoring on the server answer
+   * means the copy can only ever be too pessimistic for the few frames before
+   * hydration, never too generous.
    */
-  const campaignOpen = openAtRender && openOnThisDevice;
+  const campaignOpen = useCampaignOpenOnServerClock(openAtRender, serverNowMs);
 
   if (!campaignOpen) {
     return (
@@ -70,8 +77,8 @@ export function QuizClient({ campaignOpen: openAtRender }: { campaignOpen: boole
       <p className="mt-4 text-center text-text-muted">
         {QUIZ_QUESTION_COUNT} questions, easy to hard, on the {CAMPAIGN.tourName} stop at{' '}
         {CAMPAIGN.venue}. Score {top.minCorrect} or more and you take{' '}
-        <span className="font-semibold text-text-primary">{top.percent}% off</span> anything in the
-        store.
+        <span className="font-semibold text-text-primary">{top.percent}% off</span> Diljit Dosanjh
+        styles.
       </p>
 
       <div className="mt-8 rounded-[2px] border border-border-default bg-surface-card">

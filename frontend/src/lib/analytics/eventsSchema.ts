@@ -141,14 +141,25 @@ export const analyticsEventSchema = z.discriminatedUnion('type', [
     ...baseFields,
     correct: count,
     total: positiveInt,
-    /** 0 means the visitor finished without earning a code. */
+    /**
+     * The tier percentage the quiz awarded. 0 is *not* "no reward": bronze has
+     * `minCorrect: 0`, so every finisher earns at least 10%. 0 means the tier
+     * could not be labelled — a percent this build does not recognise arrived
+     * from the mint — and funnel reports should read it as "unknown tier",
+     * never as a reward failure.
+     */
     percent: z.union([z.literal(0), z.literal(10), z.literal(20), z.literal(40)]),
   }),
   z.object({
     type: z.literal('quiz_dismissed'),
     ...baseFields,
-    /** Which screen they closed it on. */
-    phase: z.enum(['intro', 'quiz']),
+    /**
+     * Which screen they closed it on. `submitting` counts too: the close
+     * button, Escape and the backdrop stay active while the mint is in flight,
+     * so a dismissal during that wait is still a real drop-off — dropping it
+     * from the funnel would make those closes invisible.
+     */
+    phase: z.enum(['intro', 'quiz', 'submitting']),
   }),
   z.object({
     type: z.literal('promo_applied'),

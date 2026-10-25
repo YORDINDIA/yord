@@ -5,7 +5,7 @@ import { logDbError, logWarn } from '@/lib/logger';
 import { QUIZ_QUESTION_COUNT } from '@/features/quiz/questions';
 import { CAMPAIGN, campaignIsOpen, tierForScore } from '@/features/quiz/config';
 import { generateCode } from '@/features/quiz/codes';
-import { scoreSubmission } from '@/features/quiz/answers';
+import { scoreSubmission, submissionCoversQuestionSet } from '@/features/quiz/answers';
 
 /**
  * Mint (or re-return) the code a player earned.
@@ -47,9 +47,12 @@ function getClient() {
 type SubmittedAnswer = { questionId: string; choice: number };
 
 /**
- * Shape-check the submission. An over-long array is rejected rather than
- * truncated: a submission longer than the question set is not a slow player,
- * it is a crafted body, and `scoreSubmission` would happily count duplicates.
+ * Shape-check the submission, then require it to be *exactly one answer per
+ * question of the set* (`submissionCoversQuestionSet`). The length cap alone is
+ * not enough: ten copies of one easy question fit inside it, and
+ * `scoreSubmission` counts each match, so duplicates could mint a tier the real
+ * answers never earned. The client always sends the full set — anything else
+ * is a crafted body and answers 400.
  */
 function readAnswers(input: unknown): SubmittedAnswer[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_ANSWERS) return null;
@@ -61,6 +64,7 @@ function readAnswers(input: unknown): SubmittedAnswer[] | null {
     if (typeof choice !== 'number' || !Number.isInteger(choice)) return null;
     answers.push({ questionId, choice });
   }
+  if (!submissionCoversQuestionSet(answers)) return null;
   return answers;
 }
 
@@ -121,39 +125,54 @@ export async function POST(request: NextRequest) {
     const correct = scoreSubmission(answers);
     const tier = tierForScore(correct);
 
-    // A unique violation here means a concurrent request with the same `sid`
-    // won the race. Re-read rather than retrying the insert: the other request
-    // has already produced the code this player should see.
-    const { data: inserted, error: insertError } = await supabase
-      .from('quiz_codes')
-      .insert({
-        code: generateCode(),
-        sid,
-        percent: tier.percent,
-        correct,
-        total: QUIZ_QUESTION_COUNT,
-      })
-      .select('code, percent, correct, total')
-      .maybeSingle();
+    // Two unique indexes can reject this insert, and they mean different things:
+    //
+    //   `sid`    — a concurrent request with the same `sid` won the race. Re-read
+    //              rather than retrying: the other request already produced the
+    //              code this player should see.
+    //   `code`   — the random `AURA-XXXXXX` drew a code that already exists
+    //              (~1e9 space, so rare but real). Regenerate and retry, so a
+    //              valid quiz completion is never stranded on a collision.
+    //
+    // The re-read distinguishes them: a `sid` row exists only in the first case.
+    const MINT_ATTEMPTS = 3;
+    let inserted: { code: string; percent: number; correct: number; total: number } | null = null;
+    let insertError: unknown = null;
+    for (let attempt = 0; attempt < MINT_ATTEMPTS && !inserted; attempt += 1) {
+      const result = await supabase
+        .from('quiz_codes')
+        .insert({
+          code: generateCode(),
+          sid,
+          percent: tier.percent,
+          correct,
+          total: QUIZ_QUESTION_COUNT,
+        })
+        .select('code, percent, correct, total')
+        .maybeSingle();
+      inserted = result.data;
+      insertError = result.error;
+      if (result.error?.code !== '23505') break;
 
-    if (insertError || !inserted) {
-      if (insertError?.code === '23505') {
-        const { data: raced } = await supabase
-          .from('quiz_codes')
-          .select('code, percent, correct, total')
-          .eq('sid', sid)
-          .maybeSingle();
-        if (raced) {
-          return NextResponse.json({
-            code: raced.code,
-            percent: raced.percent,
-            correct: raced.correct,
-            total: raced.total,
-            tier: tierForScore(raced.correct).id,
-            returning: true,
-          });
-        }
+      const { data: raced } = await supabase
+        .from('quiz_codes')
+        .select('code, percent, correct, total')
+        .eq('sid', sid)
+        .maybeSingle();
+      if (raced) {
+        return NextResponse.json({
+          code: raced.code,
+          percent: raced.percent,
+          correct: raced.correct,
+          total: raced.total,
+          tier: tierForScore(raced.correct).id,
+          returning: true,
+        });
       }
+      // Not the `sid` race — the code collided. Loop with a fresh code.
+    }
+
+    if (!inserted) {
       logDbError('quiz-complete:insert', insertError);
       return NextResponse.json({ error: 'Could not issue your code' }, { status: 500 });
     }

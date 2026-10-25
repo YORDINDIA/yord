@@ -43,7 +43,12 @@ export function QuizPopup({
 
   const handleClose = useCallback(() => {
     const phase = phaseRef.current;
-    if (phase === 'intro' || phase === 'quiz') {
+    // `submitting` counts as a dismissal: the close button, Escape and the
+    // backdrop all stay live while the mint is in flight, and a close during
+    // that wait is a real drop-off the funnel must not lose — especially on a
+    // slow mint, which is exactly when a visitor gives up. Only the result
+    // screen is exempt: closing there is leaving with the code, a win.
+    if (phase === 'intro' || phase === 'quiz' || phase === 'submitting') {
       track({ type: 'quiz_dismissed', phase });
     }
     onClose();

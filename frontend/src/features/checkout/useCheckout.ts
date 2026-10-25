@@ -9,6 +9,7 @@ import { useRazorpay } from '@/hooks/useRazorpay';
 import { computeTotals } from '@/lib/pricing';
 import { planRecoveredCartChanges } from './pendingVerify';
 import { saveLastOrder } from './order';
+import { promoLines, useEligibleProductIds } from '@/features/quiz/useEligibleProductIds';
 import type { CheckoutData } from './types';
 
 /**
@@ -36,8 +37,14 @@ export function useCheckout() {
   // prices and resolve the code themselves; nothing here is ever trusted as an
   // amount to charge. The percent shown is what the last code check returned,
   // so the rail and the gateway agree in every case except a code that expired
-  // mid-checkout — where the server refuses and says so.
-  const { subtotal, discountAmount, gstAmount, total } = computeTotals(items, promoPercent);
+  // mid-checkout — where the server refuses and says so. The code discounts
+  // only the campaign collection's lines; an unknown scope prices as full,
+  // which can only overstate the charge.
+  const eligibleIds = useEligibleProductIds();
+  const { subtotal, discountAmount, gstAmount, total } = computeTotals(
+    promoLines(items, eligibleIds),
+    promoPercent
+  );
 
   const placeOrder = useCallback(
     async (data: CheckoutData) => {
@@ -83,6 +90,15 @@ export function useCheckout() {
             if (change.kind === 'remove') cart.removeItem(change.variantId);
             else cart.updateQuantity(change.variantId, change.quantity);
           }
+          // The recovered order spent the code its body carried, server-side.
+          // Clear it here exactly as the fresh path below does — and with the
+          // same compare-first guard, so a code the shopper applied *while*
+          // this payment was stuck (a different, newer code) survives the
+          // recovery instead of being deleted by it.
+          const recoveredCode = paymentResponse.recovered.code ?? null;
+          if (recoveredCode && usePromoStore.getState().code === recoveredCode) {
+            clearPromo();
+          }
           // `isProcessing` stays true on purpose, as below: the page must not
           // flash the "Your cart is empty" takeover over a payment that
           // succeeded.
@@ -117,8 +133,14 @@ export function useCheckout() {
         // so a failed navigation cannot strand the button on PROCESSING.
         clearCart();
         // The code is spent server-side. Dropping it here keeps the cart from
-        // showing a discount that no longer exists on the next visit.
-        clearPromo();
+        // showing a discount that no longer exists on the next visit — but
+        // only when the store still holds the code this payment captured. The
+        // payment was asynchronous, and a shopper who applied a newer code
+        // while it was in flight must not have it deleted by the older
+        // attempt finishing first.
+        if (promoCode && usePromoStore.getState().code === promoCode) {
+          clearPromo();
+        }
         router.push(`/checkout/success?order_name=${encodeURIComponent(paymentResponse.order_name)}`);
       } catch (error) {
         console.error('Order failed:', error);
