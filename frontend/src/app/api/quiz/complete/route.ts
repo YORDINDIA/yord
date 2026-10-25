@@ -5,7 +5,7 @@ import { logDbError, logWarn } from '@/lib/logger';
 import { QUIZ_QUESTION_COUNT } from '@/features/quiz/questions';
 import { CAMPAIGN, campaignIsOpen, tierForScore } from '@/features/quiz/config';
 import { generateCode } from '@/features/quiz/codes';
-import { scoreSubmission, submissionCoversQuestionSet } from '@/features/quiz/answers';
+import { scoreSubmission, submissionIsWellFormed } from '@/features/quiz/answers';
 
 /**
  * Mint (or re-return) the code a player earned.
@@ -47,12 +47,13 @@ function getClient() {
 type SubmittedAnswer = { questionId: string; choice: number };
 
 /**
- * Shape-check the submission, then require it to be *exactly one answer per
- * question of the set* (`submissionCoversQuestionSet`). The length cap alone is
- * not enough: ten copies of one easy question fit inside it, and
- * `scoreSubmission` counts each match, so duplicates could mint a tier the real
- * answers never earned. The client always sends the full set — anything else
- * is a crafted body and answers 400.
+ * Shape-check the submission, then require *at most one answer per question*
+ * (`submissionIsWellFormed`). The length cap alone is not enough: ten copies of
+ * one easy question fit inside it, and `scoreSubmission` counts each match, so
+ * duplicates could mint a tier the real answers never earned. A partial set is
+ * fine — the round clock submits whatever was answered when it expires, and
+ * absent questions score as wrong — so only duplicates, unknown ids and
+ * over-long bodies answer 400.
  */
 function readAnswers(input: unknown): SubmittedAnswer[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_ANSWERS) return null;
@@ -64,7 +65,7 @@ function readAnswers(input: unknown): SubmittedAnswer[] | null {
     if (typeof choice !== 'number' || !Number.isInteger(choice)) return null;
     answers.push({ questionId, choice });
   }
-  if (!submissionCoversQuestionSet(answers)) return null;
+  if (!submissionIsWellFormed(answers)) return null;
   return answers;
 }
 

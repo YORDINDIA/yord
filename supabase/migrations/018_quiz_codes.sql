@@ -230,7 +230,8 @@ $$;
 -- payment that owns the hold is cleared, a redeemed code is never un-spent,
 -- and a code already taken over by another payment (stale lease) is left
 -- alone. Returns `{ok: true}` when the hold was cleared, `{ok: false}`
--- otherwise — callers log a `false`, nothing downstream depends on it.
+-- otherwise — a `false` is routine (nothing was held for this payment) and is
+-- not surfaced; nothing downstream depends on the release succeeding.
 -- ---------------------------------------------------------------------------
 create or replace function public.release_quiz_code(
   p_code text,

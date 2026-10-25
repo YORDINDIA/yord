@@ -20,7 +20,7 @@ import {
   answerFor,
   isCorrectChoice,
   scoreSubmission,
-  submissionCoversQuestionSet,
+  submissionIsWellFormed,
 } from '../answers';
 import { ALLOWED_PREFIXES, SUPPRESSED_PREFIXES, pathAllows } from '../gateRules';
 import { MINT_FAILURE_MESSAGE, readMintResponse } from '../mint';
@@ -151,12 +151,20 @@ describe('the answer key', () => {
     expect(scoreSubmission([])).toBe(0);
   });
 
-  it('accepts a submission that is exactly one answer per question of the set', () => {
+  it('accepts a full submission and an honest partial one', () => {
     const answers = QUIZ_QUESTIONS.map((question, index) => ({
       questionId: question.id,
       choice: index,
     }));
-    expect(submissionCoversQuestionSet(answers)).toBe(true);
+    expect(submissionIsWellFormed(answers)).toBe(true);
+    // The round clock submits whatever was answered when it expires; a
+    // partial set is a real product path and must reach the scorer.
+    const partial = QUIZ_QUESTIONS.slice(0, 7).map((question) => ({
+      questionId: question.id,
+      choice: answerFor(question.id)!.correct,
+    }));
+    expect(submissionIsWellFormed(partial)).toBe(true);
+    expect(scoreSubmission(partial)).toBe(7);
   });
 
   it('rejects a repeated question id, so one easy question cannot be farmed for a tier', () => {
@@ -167,25 +175,39 @@ describe('the answer key', () => {
       questionId: 'q1',
       choice: answerFor('q1')!.correct,
     }));
-    expect(submissionCoversQuestionSet(farmed)).toBe(false);
+    expect(submissionIsWellFormed(farmed)).toBe(false);
     // ...while the same farm still scores 10/10 when scored ungated, which is
     // exactly why the gate has to exist.
     expect(scoreSubmission(farmed)).toBe(QUIZ_QUESTION_COUNT);
+    // Two copies inside an otherwise honest submission are refused too.
+    expect(
+      submissionIsWellFormed([
+        { questionId: 'q1', choice: 0 },
+        { questionId: 'q1', choice: 0 },
+      ]),
+    ).toBe(false);
   });
 
-  it('rejects a partial set and an id the key does not know', () => {
+  it('rejects an id the key does not know, an empty body and an over-long one', () => {
     const nine = QUIZ_QUESTIONS.slice(0, 9).map((question) => ({
       questionId: question.id,
       choice: 0,
     }));
-    expect(submissionCoversQuestionSet(nine)).toBe(false);
     expect(
-      submissionCoversQuestionSet([
+      submissionIsWellFormed([
         ...nine,
         { questionId: 'q11', choice: 0 },
       ]),
     ).toBe(false);
-    expect(submissionCoversQuestionSet([])).toBe(false);
+    expect(submissionIsWellFormed([])).toBe(false);
+    expect(
+      submissionIsWellFormed(
+        Array.from({ length: QUIZ_QUESTION_COUNT + 1 }, (_, i) => ({
+          questionId: QUIZ_QUESTIONS[i % QUIZ_QUESTION_COUNT].id,
+          choice: 0,
+        }))
+      ),
+    ).toBe(false);
   });
 
   it('spreads the correct option across all four positions', () => {

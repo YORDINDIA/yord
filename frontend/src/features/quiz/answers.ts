@@ -104,26 +104,31 @@ export function isCorrectChoice(questionId: string, choice: number): boolean | u
 }
 
 /**
- * Whether a submission is *exactly one answer per question of the set* — every
- * id known, no id repeated, nothing missing.
+ * Whether a submission is *at most one answer per question* — every id known,
+ * no id repeated, at least one answer, no more than the question count.
  *
  * `scoreSubmission` counts each matching entry, so without this gate a crafted
  * body repeating one easy question's correct choice ten times would score
- * 10/10 and mint the top tier. The route rejects anything this returns false
- * for (a 400, not a bronze): the client always sends the full set, so anything
- * else is not a slow player but a hand-built payload.
+ * 10/10 and mint the top tier. Duplicates are the whole exploit: a *partial*
+ * set is legitimate — the round clock auto-submits whatever was answered when
+ * it expires, and unanswered questions are simply absent — and it cannot
+ * inflate anything, because submitting only the questions you are sure about
+ * scores exactly what knowing those answers is worth.
+ *
+ * Deliberately NOT "must cover the whole set": that stricter rule was written
+ * first and would have refused every timed-out round's honest submission.
  */
-export function submissionCoversQuestionSet(
-  answers: readonly { questionId: string }[]
+export function submissionIsWellFormed(
+  answers: readonly { questionId: string; choice?: unknown }[]
 ): boolean {
-  if (answers.length !== QUIZ_QUESTION_COUNT) return false;
+  if (answers.length === 0 || answers.length > QUIZ_QUESTION_COUNT) return false;
   const seen = new Set<string>();
   for (const { questionId } of answers) {
     if (seen.has(questionId)) return false;
     if (!answerFor(questionId)) return false;
     seen.add(questionId);
   }
-  return seen.size === QUIZ_QUESTION_COUNT;
+  return true;
 }
 
 /**
@@ -133,8 +138,8 @@ export function submissionCoversQuestionSet(
  *
  * Ids the key does not know, and choices that are not integers in range, count
  * as wrong rather than throwing — a malformed submission earns bronze, never a
- * 500 on a shopper's screen. Callers gate on `submissionCoversQuestionSet`
- * first so the "wrong" fallback cannot be farmed with duplicates.
+ * 500 on a shopper's screen. Callers gate on `submissionIsWellFormed` first so
+ * the "wrong" fallback cannot be farmed with duplicates.
  */
 export function scoreSubmission(answers: readonly { questionId: string; choice: number }[]): number {
   let correct = 0;
