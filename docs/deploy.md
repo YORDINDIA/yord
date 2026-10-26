@@ -581,6 +581,10 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    tomls above before touching code. The site was also still serving a
    pre-theming build, so production deploys have been failing or stale for
    just as long — same checklist.
+   **Status: left broken on purpose (2026-10-26 owner decision).** Cloudflare
+   Workers is the primary host and its builds are green; until someone works
+   through the dashboard checklist above, ignore every `yordindia` Netlify
+   check — it reflects site configuration, not the code.
 3. Deploy the admin first, then the storefront — the admin is where you will
    confirm uploads work.
 4. Canonical URLs are hardcoded to `https://yordindia.com` in
