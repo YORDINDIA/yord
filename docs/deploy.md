@@ -559,17 +559,23 @@ The Workers path is `npm run build:worker` then `npm run deploy:worker` per app
    resolves against the **base** directory — so the intended shape is
    "Package directory" `frontend/` (storefront) / `admin-dashboard/` (admin)
    with the base directory left at the repo root (npm workspaces need the
-   root install), reading each app's own toml. Both tomls pin
-   `@netlify/plugin-nextjs@5.16.4` and Node `20.19.4` with
-   `--legacy-peer-deps`; the documented pipeline was re-verified end to end
-   locally on 2026-10-26 (build + plugin, 858 static pages).
+   root install), reading each app's own toml. Node `20.19.4` +
+   `--legacy-peer-deps`; `@netlify/plugin-nextjs` is version-pinned the
+   documented way — the apps' devDependency, resolved through the root
+   lockfile — because the toml `package` field takes only the bare npm name
+   (a `name@version` spec is not documented and fails setup in seconds,
+   before any build log appears; 2026-10-26). The documented pipeline was
+   re-verified end to end locally the same day (build + plugin, 858 static
+   pages).
    **2026-10-26 incident, for the next time previews fail:** the `yordindia`
    site's deploy previews have been failing since before that date while the
    repo built clean under this exact pipeline locally — the failure lives in
    the site's dashboard configuration, which is not in the repository. Two
    settings are **UI-only** and prime suspects: **Package directory** (a
-   missing selection makes builds abort in seconds with "Projects detected:
-   frontend, admin-dashboard, …") and the **separate variable sets for
+   missing or wrong selection makes builds abort in seconds with "Projects
+   detected: frontend, admin-dashboard, …", or double-prefix the publish
+   directory to `frontend/frontend/.next` — "publish directory was not
+   found" *after* a full build) and the **separate variable sets for
    "Production" vs "Deploy previews"** (a preview failing while production
    builds is an empty preview set, not a code bug). Diff both against the
    tomls above before touching code. The site was also still serving a

@@ -13,10 +13,10 @@
   NPM_FLAGS = "--legacy-peer-deps"
 
 [[plugins]]
-  # Pinned: toml plugin specs install from npm at build time, so an unpinned
-  # spec silently tests the newest runtime against this app's pinned Next.
-  # 5.16.4 verified against Next 16.1.4 (2026-10-26).
-  package = "@netlify/plugin-nextjs@5.16.4"
+  # The toml `package` field takes the bare npm name (a `name@version` spec is
+  # not documented and fast-fails setup); the version is pinned the documented
+  # way — this app's devDependency, resolved through the root lockfile.
+  package = "@netlify/plugin-nextjs"
 
 # Cache static assets for 1 year (immutable hashed files)
 [[headers]]

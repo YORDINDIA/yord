@@ -12,5 +12,6 @@
   NPM_FLAGS = "--legacy-peer-deps"
 
 [[plugins]]
-  # Pinned — see frontend/netlify.toml for the reason.
-  package = "@netlify/plugin-nextjs@5.16.4"
+  # Bare npm name (see frontend/netlify.toml); version pinned via the
+  # devDependency + root lockfile.
+  package = "@netlify/plugin-nextjs"
