@@ -117,3 +117,6 @@ scripts/punjabi_tee_merge_snapshot*.json
 scripts/product_meta_description_snapshot*.json
 # Run artifacts of the Diljit listings pipeline (product rows only, one per publish/retire run)
 scripts/diljit_listings_snapshot*.json
+scripts/diljit_mystery_snapshot*.json
+# Run artifacts of scripts/set_diljit_stock.py — the only rollback path for a stock sweep
+scripts/diljit_stock_snapshot*.json
