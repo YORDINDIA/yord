@@ -2,9 +2,9 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { CatalogGrid } from '@/features/catalog/CatalogGrid';
-import { CtaLink } from '@/features/ui/CtaLink';
 import { CatalogLayout } from '@/features/catalog/CatalogLayout';
-import type { CatalogFilters } from '@/features/catalog/catalogUrl';
+import { CatalogFilterProvider } from '@/features/catalog/CatalogFilterContext';
+import type { ProductsQuery } from '@/hooks/useProductsInfinite';
 import {
   getCollectionsStatic,
   getCollectionByHandleStatic,
@@ -14,17 +14,25 @@ import {
 } from '@/lib/supabase/queries';
 import { getCatalogSizesCached } from '@/lib/supabase/cached-queries';
 import { isAutoCollection } from '@/lib/data/autoCollections';
-import { parseCatalogFilters } from '@/lib/catalogFilters';
 import { degrade } from '@/lib/result';
-import { parsePageParam, parseSortParam, resolveSort } from '@/lib/product';
+import { resolveSort } from '@/lib/product';
 import { stripHtml } from '@yord/ui';
 import { JsonLd, collectionPageSchema, breadcrumbSchema } from '@/lib/seo/jsonld';
 
 interface CollectionPageProps {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/**
+ * Prerendered once an hour, served from the R2 incremental cache after that.
+ *
+ * `searchParams` used to be awaited here and in `generateMetadata` to read
+ * `?sort=`, `?page=` and the facet set. That is a dynamic API in Next: it opted
+ * the route out of static rendering, so `revalidate = 3600` did nothing and
+ * every request ran the Supabase reads plus a full render. Facets and sort now
+ * live in `CatalogFilterProvider` and page through `GET /api/products`;
+ * `collection.sort_order` still decides the default order, resolved here.
+ */
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
@@ -36,10 +44,8 @@ export async function generateStaticParams() {
     }));
 }
 
-export async function generateMetadata({ params, searchParams }: CollectionPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
   const { handle } = await params;
-  const f = parseCatalogFilters(await searchParams);
-  const filtered = Boolean(f.artist || f.type || f.size || f.price || f.stock);
   const collection = await getCollectionByHandleStatic(handle);
 
   // No published row → the page below calls `notFound()`, so do not invent a
@@ -67,32 +73,27 @@ export async function generateMetadata({ params, searchParams }: CollectionPageP
       type: 'website',
     },
     alternates: { canonical: `/collection/${handle}` },
-    // A filtered view is a facet of this page, not a page of its own.
-    ...(filtered ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
-export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
+export default async function CollectionPage({ params }: CollectionPageProps) {
   const { handle } = await params;
-  const sp = await searchParams;
-  const rawSort = typeof sp.sort === 'string' ? sp.sort : undefined;
-  const page = parsePageParam(sp.page);
   const pageSize = 24;
   // Filters apply to the computed collections only: a curated list pages its
   // stored ids first, so filtering it needs that paging reworked.
   const filterable = isAutoCollection(handle);
-  const filters = filterable ? parseCatalogFilters(sp) : {};
 
   // Fetch collection metadata from database
   // Static (cookie-free) client so `revalidate = 3600` actually applies.
   const collection = await getCollectionByHandleStatic(handle);
 
   // The effective order is the collection's own `sort_order` unless the shopper
-  // passed `?sort=`. It has to be resolved HERE, on the server, because the
-  // same value is handed to `CatalogGrid` as its query — pages 2+ come from
-  // `GET /api/products`, so a grid seeded with `newest` while SSR rendered
-  // `price-asc` would append a differently-ordered second page.
-  const sort = resolveSort(rawSort, collection?.sort_order);
+  // passes `?sort=`. The shopper's choice is layered on client-side; this is
+  // the default the prerender carries. It has to be resolved HERE, on the
+  // server, because the same value is handed to `CatalogGrid` as its query —
+  // pages 2+ come from `GET /api/products`, so a grid seeded with `newest`
+  // while SSR rendered `price-asc` would append a differently-ordered page.
+  const sort = resolveSort(undefined, collection?.sort_order);
 
   // Use DB title/description, or fallback to formatted handle
   const collectionTitle = collection?.title || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -107,7 +108,7 @@ export default async function CollectionPage({ params, searchParams }: Collectio
   // { data: [], count: 0 } and still renders the grid below.
   const result = await getProductsByCollectionHandle(
     handle,
-    { sort, page, pageSize, filters },
+    { sort, page: 1, pageSize, filters: {} },
     { publishedOnly: true, useStatic: true },
   );
   if (!result) notFound();
@@ -117,20 +118,18 @@ export default async function CollectionPage({ params, searchParams }: Collectio
   // Facet lists are optional: on a failed read the panel drops that facet.
   const [types, artists, sizes] = filterable
     ? await Promise.all([
-        degrade(getProductTypes(), [] as string[], 'collection:types', 'products'),
+        degrade(getProductTypes(true), [] as string[], 'collection:types', 'products'),
         degrade(getArtistsWithMetadata(true), [], 'collection:artists', 'collections'),
         degrade(getCatalogSizesCached(), [] as string[], 'collection:sizes', 'products'),
       ])
     : [];
-  const rawFilters: CatalogFilters = {
-    artist: filters.artist,
-    type: filters.type,
-    size: filters.size,
-    price: filters.price,
-    stock: filters.stock ? '1' : undefined,
-    sort: rawSort ? parseSortParam(rawSort) : undefined,
+
+  const baseQuery: ProductsQuery = {
+    mode: 'collection',
+    handle,
+    sort,
+    pageSize,
   };
-  const hasFilters = Boolean(filters.artist || filters.type || filters.size || filters.price || filters.stock);
 
   return (
     <div>
@@ -148,54 +147,40 @@ export default async function CollectionPage({ params, searchParams }: Collectio
           { name: collectionTitle, url: `/collection/${handle}` },
         ])}
       />
-      <CatalogLayout
-        title={collectionTitle}
-        count={count}
-        description={collectionDescription}
-        before={
-          <nav aria-label="Breadcrumb" className="mb-4 font-body text-sm text-text-muted">
-            <Link href="/collections" className="hover:text-accent">Collections</Link>
-          </nav>
-        }
-        facets={
-          filterable
-            ? {
-                filters: rawFilters,
-                path: `/collection/${handle}`,
-                sortBy: sort,
-                types: types?.ok ? types.value : [],
-                artists: artists?.ok ? artists.value : [],
-                sizes: sizes?.ok ? sizes.value : [],
-              }
-            : undefined
-        }
-      >
-        {/* The grid owns the empty and page-overflow states, so a deep
-            `?page=` cannot contradict the header count. */}
-        <CatalogGrid
-          initialProducts={products}
-          totalCount={count}
-          initialPage={page}
-          query={{
-            mode: 'collection',
-            handle,
-            sort,
-            pageSize,
-            size: filters.size,
-            price: filters.price,
-            stock: filters.stock,
-            artist: filters.artist,
-            type: filters.type,
-          }}
-          showSort={!filterable}
-          emptyTitle={hasFilters ? 'Nothing matches these filters' : 'No products found'}
-          emptyMessage={
-            hasFilters ? 'Try removing a filter.' : 'Check back soon for new arrivals in this collection.'
+      <CatalogFilterProvider path={`/collection/${handle}`} baseQuery={baseQuery} initialCount={count}>
+        <CatalogLayout
+          title={collectionTitle}
+          count={count}
+          description={collectionDescription}
+          before={
+            <nav aria-label="Breadcrumb" className="mb-4 font-body text-sm text-text-muted">
+              <Link href="/collections" className="hover:text-accent">Collections</Link>
+            </nav>
           }
-          emptyAction={hasFilters ? <CtaLink href={`/collection/${handle}`}>Clear filters</CtaLink> : undefined}
-          pageOneHref={`/collection/${handle}`}
-        />
-      </CatalogLayout>
+          facets={
+            filterable
+              ? {
+                  types: types?.ok ? types.value : [],
+                  artists: artists?.ok ? artists.value : [],
+                  sizes: sizes?.ok ? sizes.value : [],
+                }
+              : undefined
+          }
+        >
+          {/* The grid owns the empty and page-overflow states, so a deep
+              `?page=` cannot contradict the header count. */}
+          <CatalogGrid
+            initialProducts={products}
+            totalCount={count}
+            initialPage={1}
+            query={baseQuery}
+            showSort={!filterable}
+            emptyTitle="No products found"
+            emptyMessage="Check back soon for new arrivals in this collection."
+            pageOneHref={`/collection/${handle}`}
+          />
+        </CatalogLayout>
+      </CatalogFilterProvider>
     </div>
   );
 }

@@ -59,6 +59,39 @@ Use `@/*` which maps to `./src/*` (e.g., `import { Button } from '@/components/u
 - Client Components (`'use client'`) are used for interactivity (cart, forms, modals)
 - Zustand stores are client-side only with localStorage persistence
 
+### Catalog rendering: why `searchParams` must stay out of the catalog pages
+`/products` and `/collection/[handle]` are ISR pages (`revalidate = 3600`) that
+prerender **only** page 1 of the unfiltered list. Facets, sort and the live
+count live in `CatalogFilterProvider` (`features/catalog/CatalogFilterContext.tsx`),
+which reads `window.location.search` after hydration — not `useSearchParams` —
+and asks `GET /api/products` for anything narrower. Page changes go through
+`history.pushState`, never `router.push`, so a filter click costs one API call
+instead of a full server render.
+
+Four separate things will silently opt these routes back into per-request
+rendering. The deployment is on Workers **Free**: 10 ms CPU per invocation
+against a ~52 ms render, so a regression here shows up as `exceededResources`
+errors, not as anything visible in the UI.
+
+1. `await searchParams` in a page or in `generateMetadata`. Await it and
+   `revalidate` becomes a no-op.
+2. `createServerClient()` — it reads `cookies()`, a dynamic API. Pass
+   `useStatic` / `true` on the catalog query helpers instead.
+3. `useSearchParams` in a client component (needs Suspense, and re-couples the
+   render to the request).
+4. `getCollectionsStatic()` / `getArtistsWithMetadata(true)` return `[]` on a
+   failed read so builds never break. That is right for `generateStaticParams`
+   and wrong for a page: it caches an empty list for an hour. Use
+   `getCollections(true)`, or `getArtistsWithMetadata(true, { degrade: false })`.
+
+Verify with `npm run build`: `/products` and `/collections` must print `○`,
+`/collection/[handle]` and `/artist/[handle]` must print `●`. A `ƒ` there is the
+bug.
+
+Facet URLs (`?artist=`, `?size=`, `?page=`, …) are marked
+`X-Robots-Tag: noindex, follow` by `src/middleware.ts`, since they now serve the
+canonical page's HTML and differ only in the client.
+
 ### The quiz pop-up, the `/quiz` URL, and promo codes
 `features/quiz/` is the Diljit Aura campaign: ten questions (easy to hard) that
 mint one single-use discount code per **persisted `sid`** — 8+ correct is 40%

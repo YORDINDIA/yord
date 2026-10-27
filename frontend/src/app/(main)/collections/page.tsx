@@ -9,6 +9,9 @@ import { SectionHeading } from '@/features/ui/SectionHeading';
 import { stripHtml } from '@yord/ui';
 import { Layers } from 'lucide-react';
 
+/** Prerendered hourly rather than rendered per request (Workers CPU budget). */
+export const revalidate = 3600;
+
 export const metadata = {
   title: 'Collections',
   description: 'Browse our curated collections of artist-inspired concert merchandise.',
@@ -16,7 +19,11 @@ export const metadata = {
 };
 
 export default async function CollectionsPage() {
-  const published = await getCollections();
+  // Static (cookie-free) client so the prerender above actually applies. Not
+  // `getCollectionsStatic()`: that one degrades to `[]` so a build never fails,
+  // which on a page would cache an empty list for an hour instead of letting
+  // `error.tsx` show a retry.
+  const published = await getCollections(true);
   // Owner decision: the computed handles in `AUTO_COLLECTION_HANDLES`
   // (`new-arrivals`, `all`) get no grid card — they stay reachable by URL,
   // sitemap and nav. The query helper stays unfiltered for its other callers.

@@ -1,10 +1,10 @@
 'use client';
 
 import { useId } from 'react';
-import { useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import type { SortOption } from '@/lib/product';
-import { buildFilterUrl, sortChoices, type CatalogFilters } from './catalogUrl';
+import { sortChoices } from './catalogUrl';
+import { useCatalogFilters } from './CatalogFilterContext';
 
 /**
  * The one sort control. A native `<select>` rather than a trigger + `role="listbox"`
@@ -46,16 +46,16 @@ export function SortSelect({ value, onChange }: { value: SortOption; onChange: (
   );
 }
 
-/** Sort that navigates, keeping every active filter in the URL. */
-export function SortMenu({
-  sortBy,
-  baseFilters,
-  path = '/products',
-}: {
-  sortBy: SortOption;
-  baseFilters: CatalogFilters;
-  path?: string;
-}) {
-  const router = useRouter();
-  return <SortSelect value={sortBy} onChange={(sort) => router.push(buildFilterUrl(baseFilters, { sort }, path))} />;
+/**
+ * Sort for the facetted catalog pages, driven by `CatalogFilterProvider`.
+ *
+ * It used to `router.push('?sort=…')`, which asked the server to re-render the
+ * whole page in the new order — one of the render-on-every-request paths that
+ * blew the Workers free-tier CPU budget. The order now lives in the same
+ * client state as the facets, so the grid refetches page 1 from
+ * `GET /api/products` and the URL is rewritten in place.
+ */
+export function SortMenu() {
+  const { sort, setFilter } = useCatalogFilters();
+  return <SortSelect value={sort} onChange={(next) => setFilter('sort', next)} />;
 }

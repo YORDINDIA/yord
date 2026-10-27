@@ -1,9 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { cn } from '@yord/ui';
 import type { ArtistData } from '@yord/db-types';
 import { PRICE_BANDS } from '@/lib/catalogFilters';
-import { buildFilterUrl, type CatalogFilters } from './catalogUrl';
+import { buildFilterUrl } from './catalogUrl';
+import { onFilterClick, useCatalogFilters } from './CatalogFilterContext';
 
 /** Artists listed before the "All artists" disclosure takes over. */
 const TOP_ARTISTS = 12;
@@ -13,11 +16,6 @@ export interface FacetData {
   artists: ArtistData[];
   types: string[];
   sizes: string[];
-}
-
-interface FilterPanelProps extends FacetData {
-  filters: CatalogFilters;
-  path: string;
 }
 
 function Facet({ title, children }: { title: string; children: ReactNode }) {
@@ -36,14 +34,22 @@ const optionClass = (active: boolean) =>
   );
 
 /**
- * Catalog facets as plain links: filter state lives in the URL, so the panel
- * renders on the server and needs no client JS. Each option toggles: the active
- * one links to the URL without it. Selecting anything drops `?page=`.
+ * Catalog facets. Filter state lives in `CatalogFilterProvider`, so a plain
+ * click re-queries `GET /api/products` in place instead of asking the server
+ * to render the page again. The anchors keep their real `href` so middle-click,
+ * copy-link and crawlers still see where each facet points.
+ *
+ * Each option toggles: the active one clears itself. Selecting anything drops
+ * `?page=`, which `buildFilterUrl` does by omitting it entirely.
  */
-export function FilterPanel({ filters, path, artists, types, sizes }: FilterPanelProps) {
+export function FilterPanel({ artists, types, sizes }: FacetData) {
+  const { filters, setFilter, path } = useCatalogFilters();
+
   const href = (o: Parameters<typeof buildFilterUrl>[1]) => buildFilterUrl(filters, o, path);
-  const toggle = (key: 'artist' | 'type' | 'size' | 'price', value: string) =>
-    href({ [key]: filters[key] === value ? null : value });
+  const toggle = (key: 'artist' | 'type' | 'size' | 'price', value: string) => {
+    const next = filters[key] === value ? null : value;
+    return { href: href({ [key]: next }), apply: () => setFilter(key, next) };
+  };
 
   const isActiveArtist = (a: ArtistData) => a.handle === filters.artist;
   // Most-stocked first; the active artist is always in the visible list, since a
@@ -54,26 +60,32 @@ export function FilterPanel({ filters, path, artists, types, sizes }: FilterPane
   if (active && !top.includes(active)) top.push(active);
   const rest = ranked.filter((a) => !top.includes(a)).sort((a, b) => a.name.localeCompare(b.name));
 
-  const artistLink = (a: ArtistData) => (
-    <li key={a.handle}>
-      <Link
-        href={toggle('artist', a.handle)}
-        aria-current={isActiveArtist(a) ? 'true' : undefined}
-        className={cn(optionClass(isActiveArtist(a)), 'flex items-baseline justify-between gap-3')}
-      >
-        <span className="truncate">{a.name}</span>
-        {a.productCount ? <span className="text-xs text-text-muted tabular-nums">{a.productCount}</span> : null}
-      </Link>
-    </li>
-  );
+  const artistLink = (a: ArtistData) => {
+    const { href: to, apply } = toggle('artist', a.handle);
+    return (
+      <li key={a.handle}>
+        <Link
+          href={to}
+          onClick={(e) => onFilterClick(e, apply)}
+          aria-current={isActiveArtist(a) ? 'true' : undefined}
+          className={cn(optionClass(isActiveArtist(a)), 'flex items-baseline justify-between gap-3')}
+        >
+          <span className="truncate">{a.name}</span>
+          {a.productCount ? <span className="text-xs text-text-muted tabular-nums">{a.productCount}</span> : null}
+        </Link>
+      </li>
+    );
+  };
 
   const inStock = filters.stock === '1';
+  const stock = { href: href({ stock: inStock ? null : '1' }), apply: () => setFilter('stock', inStock ? null : '1') };
 
   return (
     <div className="flex flex-col gap-9">
       <Facet title="Availability">
         <Link
-          href={href({ stock: inStock ? null : '1' })}
+          href={stock.href}
+          onClick={(e) => onFilterClick(e, stock.apply)}
           aria-current={inStock ? 'true' : undefined}
           className="group/stock flex items-center gap-3 py-1.5 font-body text-sm text-text-secondary hover:text-accent"
         >
@@ -102,10 +114,12 @@ export function FilterPanel({ filters, path, artists, types, sizes }: FilterPane
           <ul className="grid grid-cols-4 gap-1.5">
             {sizes.map((size) => {
               const on = filters.size === size;
+              const { href: to, apply } = toggle('size', size);
               return (
                 <li key={size}>
                   <Link
-                    href={toggle('size', size)}
+                    href={to}
+                    onClick={(e) => onFilterClick(e, apply)}
                     aria-current={on ? 'true' : undefined}
                     aria-label={`Size ${size}`}
                     className={cn(
@@ -126,34 +140,44 @@ export function FilterPanel({ filters, path, artists, types, sizes }: FilterPane
 
       <Facet title="Price">
         <ul>
-          {PRICE_BANDS.map((band) => (
-            <li key={band.key}>
-              <Link
-                href={toggle('price', band.key)}
-                aria-current={filters.price === band.key ? 'true' : undefined}
-                className={optionClass(filters.price === band.key)}
-              >
-                {band.label}
-              </Link>
-            </li>
-          ))}
+          {PRICE_BANDS.map((band) => {
+            const on = filters.price === band.key;
+            const { href: to, apply } = toggle('price', band.key);
+            return (
+              <li key={band.key}>
+                <Link
+                  href={to}
+                  onClick={(e) => onFilterClick(e, apply)}
+                  aria-current={on ? 'true' : undefined}
+                  className={optionClass(on)}
+                >
+                  {band.label}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </Facet>
 
       {types.length > 0 && (
         <Facet title="Category">
           <ul>
-            {types.map((type) => (
-              <li key={type}>
-                <Link
-                  href={toggle('type', type)}
-                  aria-current={filters.type === type ? 'true' : undefined}
-                  className={optionClass(filters.type === type)}
-                >
-                  {type}
-                </Link>
-              </li>
-            ))}
+            {types.map((type) => {
+              const on = filters.type === type;
+              const { href: to, apply } = toggle('type', type);
+              return (
+                <li key={type}>
+                  <Link
+                    href={to}
+                    onClick={(e) => onFilterClick(e, apply)}
+                    aria-current={on ? 'true' : undefined}
+                    className={optionClass(on)}
+                  >
+                    {type}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </Facet>
       )}

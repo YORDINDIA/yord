@@ -73,9 +73,17 @@ export async function getProductByHandleStatic(handle: string): Promise<ProductW
 // COLLECTION QUERIES
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** All published collections. */
-export async function getCollections(): Promise<Collection[]> {
-  const supabase = await createServerClient();
+/**
+ * All published collections.
+ *
+ * `useStatic` picks the cookie-free client for a page that must prerender —
+ * a cookie read is a dynamic API in Next. It still throws on failure, so the
+ * page's `error.tsx` renders instead of an empty collection list getting
+ * cached for an hour. `getCollectionsStatic` is the build-time variant that
+ * degrades instead.
+ */
+export async function getCollections(useStatic = false): Promise<Collection[]> {
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
 
   const data = await queryOrThrow<Collection[]>(
     'collections:list',
@@ -139,9 +147,15 @@ export async function getCollectionByHandleStatic(handle: string): Promise<Colle
 // CATALOG HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Unique product types/categories. */
-export async function getProductTypes(): Promise<string[]> {
-  const supabase = await createServerClient();
+/**
+ * Unique product types/categories.
+ *
+ * `useStatic` picks the cookie-free client. A cookie read is a dynamic API in
+ * Next, so calling this from a page that should prerender with
+ * `createServerClient()` silently opts the whole route out of ISR.
+ */
+export async function getProductTypes(useStatic = false): Promise<string[]> {
+  const supabase = useStatic ? createStaticClient() : await createServerClient();
 
   const data = await queryOrThrow<{ product_type: string | null }[]>(
     'products:types',
@@ -235,9 +249,16 @@ function toArtistData(
  * Artists with metadata and product counts.
  * Queries artist collections and their linked products via collects table.
  * @param useStatic - Use static client for build-time generation (no cookies).
- *   Build-time enumeration degrades to `[]`; request-time reads throw.
+ * @param opts.degrade - Return `[]` instead of throwing on a failed read.
+ *   Defaults to `useStatic`, because the original caller was
+ *   `generateStaticParams`, where a catalog hiccup must not fail the build. A
+ *   page that *renders* this must pass `{ degrade: false }` or it will serve —
+ *   and cache — an empty artist list whenever the read fails.
  */
-export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistData[]> {
+export async function getArtistsWithMetadata(
+  useStatic = false,
+  opts: { degrade?: boolean } = {},
+): Promise<ArtistData[]> {
   try {
     const supabase = useStatic ? createStaticClient() : await createServerClient();
 
@@ -274,7 +295,7 @@ export async function getArtistsWithMetadata(useStatic = false): Promise<ArtistD
       .sort((a, b) => (b.productCount || 0) - (a.productCount || 0));
   } catch (error) {
     // Build-time enumeration must not fail the build; request-time reads throw.
-    if (useStatic) return [];
+    if (opts.degrade ?? useStatic) return [];
     throw error;
   }
 }
@@ -540,13 +561,17 @@ export interface ProductFilterOptions extends Omit<CatalogFilterValues, 'type'> 
 }
 
 export async function getProductsFiltered(
-  options: ProductFilterOptions = {}
+  options: ProductFilterOptions = {},
+  opts: { useStatic?: boolean } = {}
 ): Promise<{ data: ProductWithDetails[]; count: number }> {
   const { productType, page = 1, pageSize = 20, sortBy = 'newest', ...rest } = options;
   const filters: CatalogFilterValues = { ...rest, type: productType };
   // Backend-less builds degrade the filter UI to empty instead of failing.
   if (isSupabaseUnconfigured()) return { data: [], count: 0 };
-  const supabase = await createServerClient();
+  // `useStatic` is for prerendered pages: the cookie-aware client reads
+  // `cookies()`, which is a dynamic API and would opt the route out of ISR.
+  // `GET /api/products` leaves it off — it is per-request by nature.
+  const supabase = opts.useStatic ? createStaticClient() : await createServerClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 

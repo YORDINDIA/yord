@@ -12,6 +12,7 @@ import { useProductsInfinite, type ProductsQuery } from '@/hooks/useProductsInfi
 import type { SortOption } from '@/lib/product';
 import type { ProductWithDetails } from '@yord/db-types';
 import { SortSelect } from './SortMenu';
+import { useCatalogFiltersOptional } from './CatalogFilterContext';
 
 interface CatalogGridProps {
   initialProducts: ProductWithDetails[];
@@ -31,8 +32,6 @@ interface CatalogGridProps {
   clientSort?: boolean;
   emptyTitle?: string;
   emptyMessage?: string;
-  /** Rendered under the empty copy (e.g. a "Clear filters" link). */
-  emptyAction?: React.ReactNode;
   /**
    * Target of the "Back to page 1" link on the page-overflow state. Defaults
    * to the current path; /products passes the filter-preserving URL.
@@ -68,41 +67,64 @@ export function CatalogGrid({
   clientSort = false,
   emptyTitle = 'No products found',
   emptyMessage = 'Check back soon for new arrivals.',
-  emptyAction,
   pageOneHref,
 }: CatalogGridProps) {
   const router = useRouter();
   const pathname = usePathname();
+  // Facetted routes (/products, /collection/[handle]) own their filters in
+  // `CatalogFilterProvider`; the artist page renders without one and uses
+  // `clientSort` alone.
+  const filters = useCatalogFiltersOptional();
   // Client-side sort (statically prerendered routes): the query key changes,
   // so React Query fetches page 1 in the new order. The seed below carries
   // no rows for the new order — the fetch fills them in.
   const [activeSort, setActiveSort] = useState<SortOption>(query.sort);
-  const sortChanged = clientSort && activeSort !== query.sort;
-  const activeQuery: ProductsQuery = sortChanged ? { ...query, sort: activeSort } : query;
-  // Navigating routes re-render with a new `query.sort` on the same
-  // instance; only client-sort routes diverge from it.
-  const displaySort = clientSort ? activeSort : query.sort;
-  const seedPage = sortChanged ? 1 : initialPage;
+  const sortChanged = !filters && clientSort && activeSort !== query.sort;
+  const activeQuery: ProductsQuery = filters
+    ? filters.query
+    : sortChanged
+      ? { ...query, sort: activeSort }
+      : query;
+  const displaySort = activeQuery.sort;
+  // The SSR seed is page 1 of the *unfiltered, default-sorted* list. As soon as
+  // the shopper narrows or re-orders, it no longer describes what the grid
+  // shows, so the fetch starts from page 1 with no seed behind it.
+  const seedMatches = filters
+    ? !filters.isFiltered && filters.query.sort === query.sort
+    : !sortChanged;
+  const seedPage = seedMatches ? initialPage : 1;
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const {
     data,
+    isLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isError,
     refetch,
-  } = useProductsInfinite(activeQuery, sortChanged
-    ? undefined
-    : {
+  } = useProductsInfinite(activeQuery, seedMatches
+    ? {
       data: initialProducts,
       count: totalCount,
       page: initialPage,
       pageSize: query.pageSize,
-    }, seedPage);
+    }
+    : undefined, seedPage);
 
   const products = data?.pages.flatMap((p) => p.data) ?? [];
   const count = data?.pages[data.pages.length - 1]?.count ?? totalCount;
+
+  // The header count lives in the provider so it can track the filtered list
+  // instead of showing the unfiltered total. Only write when it actually moved:
+  // an unconditional set would re-render the page on every fetch.
+  const setContextCount = filters?.setCount;
+  const contextCount = filters?.count;
+  useEffect(() => {
+    if (setContextCount && contextCount !== undefined && count !== contextCount) {
+      setContextCount(count);
+    }
+  }, [setContextCount, contextCount, count]);
 
   // Sentinel auto-loads the next page; the Load More button below is the
   // explicit (touch/keyboard-friendly) equivalent.
@@ -120,7 +142,11 @@ export function CatalogGrid({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleSortChange = (sort: SortOption) => {
-    if (clientSort) {
+    if (filters) {
+      // Order lives in the same client state as the facets, so the grid
+      // refetches page 1 in place and the URL is rewritten without a render.
+      filters.setFilter('sort', sort);
+    } else if (clientSort) {
       // Fresh client fetch for the new order (no reload, no SSR round-trip).
       setActiveSort(sort);
     } else {
@@ -150,10 +176,11 @@ export function CatalogGrid({
   }
 
   if (products.length === 0) {
-    // A client-side sort change deliberately seeds an empty page while the new
-    // order loads; showing the empty-collection copy for that moment is a lie
-    // about a collection that has products.
-    if (sortChanged && !isError) {
+    // A fresh query — a sort or filter change, or a filtered deep link that
+    // hydrates after the cached unfiltered page — starts with no rows. Showing
+    // the empty-collection copy for that moment is a lie about a list that has
+    // products.
+    if (isLoading && !isError) {
       return <Skeleton variant="product-grid" count={Math.min(query.pageSize, 8)} />;
     }
 
@@ -161,13 +188,25 @@ export function CatalogGrid({
     // `?page=` past the end would otherwise show the empty-collection copy
     // under a header that says the collection has hundreds of products.
     const pagePastEnd = initialPage > 1 && totalCount > 0;
+    // "This page has nothing" is not "this filter has nothing": with facets
+    // applied, the empty copy has to point at the filters rather than at new
+    // arrivals the shopper never asked to see.
+    const filteredToNothing = (filters?.isFiltered ?? false) && !pagePastEnd;
     return (
       <EmptyState
-        title={pagePastEnd ? 'Nothing on this page' : emptyTitle}
+        title={
+          pagePastEnd
+            ? 'Nothing on this page'
+            : filteredToNothing
+              ? 'Nothing matches these filters'
+              : emptyTitle
+        }
         message={
           pagePastEnd
             ? `Page ${initialPage} is past the end of this list of ${totalCount} products.`
-            : emptyMessage
+            : filteredToNothing
+              ? 'Try removing a filter.'
+              : emptyMessage
         }
       >
         {pagePastEnd ? (
@@ -176,8 +215,20 @@ export function CatalogGrid({
           // would opt the statically prerendered artist route into dynamic
           // rendering. A caller that owns extra filters passes `pageOneHref`.
           <CtaLink href={pageOneHref ?? pathname}>Back to page 1</CtaLink>
+        ) : filteredToNothing && filters ? (
+          // Clearing in place: a link to the bare path would ask the server to
+          // render the page again for a list the browser already has.
+          <button
+            type="button"
+            onClick={filters.clearAll}
+            className="inline-flex items-center justify-between gap-6 bg-accent-tint px-5 py-3 font-body text-sm font-semibold text-text-primary transition-colors hover:bg-accent hover:text-text-on-accent"
+          >
+            Clear filters
+            <ArrowDiag className="pc-cta__arrow" />
+          </button>
         ) : (
-          emptyAction
+          // Unfiltered and genuinely empty: nothing to clear, nothing to undo.
+          null
         )}
       </EmptyState>
     );
