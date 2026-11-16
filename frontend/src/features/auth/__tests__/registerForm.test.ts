@@ -27,9 +27,13 @@ describe('RegisterForm', () => {
   });
 
   it('success screen links to sign in and to password reset', () => {
+    // Bounded to the success block: the form below it has its own "Sign in"
+    // link, which must not satisfy this check.
     const start = source.indexOf('if (success)');
+    const end = source.indexOf('title="Create Account"', start);
     expect(start).toBeGreaterThan(-1);
-    const successScreen = source.slice(start);
+    expect(end).toBeGreaterThan(start);
+    const successScreen = source.slice(start, end);
     expect(successScreen).toMatch(/href=\{loginHref\}/);
     expect(successScreen).toMatch(/href="\/auth\/forgot-password"/);
   });
