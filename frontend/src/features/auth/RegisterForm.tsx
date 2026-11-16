@@ -114,10 +114,23 @@ export function RegisterForm() {
           </AuthStateIcon>
         }
       >
+        <p className="font-body text-sm text-text-muted text-center mb-4">
+          If <span className="text-text-secondary">{email}</span> is new to YORD, we&apos;ve sent
+          it a confirmation link. Click the link to verify your account.
+        </p>
+        {/* Supabase sends nothing for an email that already has an account, and
+            says so to nobody (anti-enumeration). Imported Shopify customers have
+            an account with no password, so point every reader at both ways in. */}
         <p className="font-body text-sm text-text-muted text-center mb-6">
-          We&apos;ve sent a confirmation link to{' '}
-          <span className="text-text-secondary">{email}</span>. Click the link in your email to
-          verify your account.
+          No email after a few minutes? This address may already have an account.{' '}
+          <Link href={loginHref} className="text-accent hover:underline">
+            Sign in
+          </Link>
+          , or{' '}
+          <Link href="/auth/forgot-password" className="text-accent hover:underline">
+            reset your password
+          </Link>{' '}
+          if you have forgotten it or never set one.
         </p>
         <CtaLink href="/auth/login" fullWidth>
           Back to login
