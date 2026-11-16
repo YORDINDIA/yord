@@ -38,6 +38,7 @@ export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [accountExists, setAccountExists] = useState(false);
   // Rules the browser cannot check for us (strength, match). Per-field rather
   // than one banner, so the message sits on the input that has to change.
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export function RegisterForm() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAccountExists(false);
 
     const strengthError = validatePassword(password);
     const matchError = password !== confirmPassword ? 'Passwords do not match' : null;
@@ -61,7 +63,7 @@ export function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -76,6 +78,16 @@ export function RegisterForm() {
 
       if (error) {
         throw error;
+      }
+
+      // With email confirmation on, Supabase answers an already-registered
+      // email with no error and a user that has no identities, and sends no
+      // email. Imported Shopify customers hit this: they have an account but
+      // no password, so the reset flow is their way in.
+      if (data.user?.identities?.length === 0) {
+        setAccountExists(true);
+        setIsLoading(false);
+        return;
       }
 
       setSuccess(true);
@@ -150,6 +162,19 @@ export function RegisterForm() {
       }
     >
       {error ? <AuthNotice>{error}</AuthNotice> : null}
+      {accountExists ? (
+        <AuthNotice>
+          An account with this email already exists.{' '}
+          <Link href={loginHref} className="underline">
+            Sign in
+          </Link>
+          , or{' '}
+          <Link href="/auth/forgot-password" className="underline">
+            reset your password
+          </Link>{' '}
+          to set one.
+        </AuthNotice>
+      ) : null}
 
       <form onSubmit={handleRegister} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
