@@ -122,7 +122,7 @@ export function RegisterForm() {
             says so to nobody (anti-enumeration). Imported Shopify customers have
             an account with no password, so point every reader at both ways in. */}
         <p className="font-body text-sm text-text-muted text-center mb-6">
-          Already have an account? No email is sent.{' '}
+          No email after a few minutes? This address may already have an account.{' '}
           <Link href={loginHref} className="text-accent hover:underline">
             Sign in
           </Link>
