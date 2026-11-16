@@ -21,7 +21,9 @@ const source = readFileSync(
 
 describe('RegisterForm', () => {
   it('does not branch on identities, so an existing email looks like a new one', () => {
-    expect(source).not.toMatch(/identities/);
+    // Property access only (`user.identities`, `user?.identities`), so a
+    // comment that mentions the word does not fail the guard.
+    expect(source).not.toMatch(/\??\.identities\b/);
   });
 
   it('success screen links to sign in and to password reset', () => {
