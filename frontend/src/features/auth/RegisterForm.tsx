@@ -38,7 +38,6 @@ export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [accountExists, setAccountExists] = useState(false);
   // Rules the browser cannot check for us (strength, match). Per-field rather
   // than one banner, so the message sits on the input that has to change.
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -52,7 +51,6 @@ export function RegisterForm() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setAccountExists(false);
 
     const strengthError = validatePassword(password);
     const matchError = password !== confirmPassword ? 'Passwords do not match' : null;
@@ -63,7 +61,7 @@ export function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -78,16 +76,6 @@ export function RegisterForm() {
 
       if (error) {
         throw error;
-      }
-
-      // With email confirmation on, Supabase answers an already-registered
-      // email with no error and a user that has no identities, and sends no
-      // email. Imported Shopify customers hit this: they have an account but
-      // no password, so the reset flow is their way in.
-      if (data.user?.identities?.length === 0) {
-        setAccountExists(true);
-        setIsLoading(false);
-        return;
       }
 
       setSuccess(true);
@@ -126,10 +114,23 @@ export function RegisterForm() {
           </AuthStateIcon>
         }
       >
+        <p className="font-body text-sm text-text-muted text-center mb-4">
+          If <span className="text-text-secondary">{email}</span> is new to YORD, we&apos;ve sent
+          it a confirmation link. Click the link to verify your account.
+        </p>
+        {/* Supabase sends nothing for an email that already has an account, and
+            says so to nobody (anti-enumeration). Imported Shopify customers have
+            an account with no password, so point every reader at both ways in. */}
         <p className="font-body text-sm text-text-muted text-center mb-6">
-          We&apos;ve sent a confirmation link to{' '}
-          <span className="text-text-secondary">{email}</span>. Click the link in your email to
-          verify your account.
+          Already have an account? No email is sent.{' '}
+          <Link href={loginHref} className="text-accent hover:underline">
+            Sign in
+          </Link>
+          , or{' '}
+          <Link href="/auth/forgot-password" className="text-accent hover:underline">
+            reset your password
+          </Link>{' '}
+          if you have forgotten it or never set one.
         </p>
         <CtaLink href="/auth/login" fullWidth>
           Back to login
@@ -162,19 +163,6 @@ export function RegisterForm() {
       }
     >
       {error ? <AuthNotice>{error}</AuthNotice> : null}
-      {accountExists ? (
-        <AuthNotice>
-          An account with this email already exists.{' '}
-          <Link href={loginHref} className="underline">
-            Sign in
-          </Link>
-          , or{' '}
-          <Link href="/auth/forgot-password" className="underline">
-            reset your password
-          </Link>{' '}
-          to set one.
-        </AuthNotice>
-      ) : null}
 
       <form onSubmit={handleRegister} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
