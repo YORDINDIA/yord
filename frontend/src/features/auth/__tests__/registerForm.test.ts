@@ -27,7 +27,9 @@ describe('RegisterForm', () => {
   });
 
   it('success screen links to sign in and to password reset', () => {
-    const successScreen = source.slice(source.indexOf('if (success)'));
+    const start = source.indexOf('if (success)');
+    expect(start).toBeGreaterThan(-1);
+    const successScreen = source.slice(start);
     expect(successScreen).toMatch(/href=\{loginHref\}/);
     expect(successScreen).toMatch(/href="\/auth\/forgot-password"/);
   });
